@@ -28,9 +28,8 @@
  *  as that of the covered work.
  */
 
-extern int optind;
-extern char *optarg;
 
-char getopt(int argc, char *argv[], const char options[]);
+#include "getopt.h"
+
 int gettimeofday(struct timeval *tv, struct timezone *tz);
 int get_win_priority(int priority);

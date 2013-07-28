@@ -1,0 +1,6 @@
+msvc/uftp.sdf
+msvc/build-x86
+msvc/build-x64
+msvc/uftp/obj
+msvc/uftpd/obj
+msvc/uftp.opensdf

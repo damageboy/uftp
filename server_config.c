@@ -43,6 +43,7 @@
 
 #else  // if WINDOWS
 
+#include <getopt.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -64,7 +65,8 @@ int client_auth, quit_on_error, dscp, follow_links;
 int save_fail, restart_groupid, restart_groupinst; 
 int sync_mode, sync_preview, dest_is_dir, cc_type;
 unsigned int ttl;
-char port[PORTNAME_LEN];
+char dest_port[PORTNAME_LEN];
+char src_port[PORTNAME_LEN];
 char pub_multi[INET6_ADDRSTRLEN], priv_multi[INET6_ADDRSTRLEN]; 
 char logfile[MAXPATHNAME], keyfile[MAXPATHNAME], cc_config[MAXPATHNAME];
 char filelist[MAXFILES][MAXPATHNAME], exclude[MAXEXCLUDE][MAXPATHNAME];
@@ -92,8 +94,6 @@ uint64_t ivctr;
 int ivlen, keylen, hmaclen, privkeylen;
 uint8_t ecdh_curve, ecdsa_curve;
 
-extern char *optarg;
-extern int optind;
 
 /**
  * Add a destination or proxy to the list as specified by -H or -j
@@ -133,8 +133,9 @@ void set_defaults()
     memset(destfname, 0, sizeof(destfname));
     memset(cc_config, 0, sizeof(cc_config));
     destcount = 0;
-    strncpy(port, DEF_PORT, sizeof(port)-1);
-    port[sizeof(port)-1] = '\x0';
+    strncpy(dest_port, DEF_DEST_PORT, sizeof(dest_port)-1);
+    strncpy(src_port, DEF_SRC_PORT, sizeof(src_port)-1);
+    dest_port[sizeof(dest_port)-1] = '\x0';
     rate = DEF_RATE;
     max_rate = 0;
     memset(&out_if, 0, sizeof(out_if));
@@ -416,21 +417,65 @@ static int get_hashtype(const char *name)
  */
 void process_args(int argc, char *argv[])
 {
-    int c, i, listidx, read_restart, rval;
+    int c, i, listidx, read_restart, rval, longidx;
     long tmpval;
     char line[1000], *dest, *destname, filename[MAXPATHNAME], *fingerprint, *p;
     char keylenstr[50];
     struct addrinfo ai_hints, *ai_rval;
     FILE *destfile, *excludefile, *listfile;
     const char opts[] = 
-        "x:R:L:B:Y:h:w:e:ck:K:lTb:t:Q:zZI:p:j:qfyH:F:X:M:P:C:D:oE:r:s:i:";
+        "x:R:L:B:Y:h:w:e:ck:K:lTb:t:Q:zZI:p:g:j:qfyH:F:X:M:P:C:D:oE:r:s:i:";
+
+    const struct option long_opts[] = {
+        { "rate", required_argument, NULL, 'R' },
+        { "log-level", required_argument, NULL, 'x' },
+        { "log-file", required_argument, NULL, 'L' },
+        { "buffer-size", required_argument, NULL, 'B' },
+        { "key-type", required_argument, NULL, 'Y' },
+        { "hash-type", required_argument, NULL, 'h' },
+        { "sig-type", required_argument, NULL, 'w' },
+        { "key-exch-type", required_argument, NULL, 'e' },
+        { "force-public-key", no_argument, NULL, 'c' },
+        { "key-file", required_argument, NULL, 'k' },
+        { "key-length", required_argument, NULL, 'K' },        
+        { "follow-symlinks", no_argument, NULL, 'l' },
+        { "timestamp", no_argument, NULL, 'T' },
+        { "block-size", required_argument, NULL, 'b' },
+        { "ttl", required_argument, NULL, 't' },
+        { "dscp", required_argument, NULL, 'Q' },
+        { "interface", required_argument, NULL, 'I' },
+        { "sync", no_argument, NULL, 'z' },
+        { "sync-preview", no_argument, NULL, 'Z' },
+        { "dest-port", required_argument, NULL, 'p' },
+        { "src-port", required_argument, NULL, 'g' },
+        { "proxy-list", required_argument, NULL, 'j' },
+        { "quit-on-error", no_argument, NULL, 'q' },
+        { "restartable", no_argument, NULL, 'f' },
+        { "use-system-crypto", no_argument, NULL, 'y' },
+        { "host", required_argument, NULL, 'H' },
+        { "restart-file", required_argument, NULL, 'F' },
+        { "exclude-file", required_argument, NULL, 'X' },
+        { "public-mcast", required_argument, NULL, 'M' },
+        { "private-mcast", required_argument, NULL, 'P' },
+        { "congestion-control", required_argument, NULL, 'C' },
+        { "dest-name", required_argument, NULL, 'D' },
+        { "dest-is-directory", no_argument, NULL, 'o' },
+        { "base-dir", required_argument, NULL, 'E' },
+        { "grtt", required_argument, NULL, 'r' },
+        { "robust", required_argument, NULL, 's' },
+        { "file-list", required_argument, NULL, 'i' },
+        { "help", required_argument, NULL, '?' }
+    };
+
 
     set_defaults();
     memset(keylenstr, 0, sizeof(keylenstr));
     read_restart = 0;
 
+    ;
+
     // read lettered arguments
-    while ((c = getopt(argc, argv, opts)) != EOF) {
+    while ((c = getopt_long(argc, argv, opts, long_opts, &longidx)) != EOF) {
         switch (c) {
         case 'x':
             log_level = atoi(optarg);
@@ -597,9 +642,13 @@ void process_args(int argc, char *argv[])
             sync_mode = 1;
             break;
         case 'p':
-            strncpy(port, optarg, sizeof(port)-1);
-            port[sizeof(port)-1] = '\x0';
+            strncpy(dest_port, optarg, sizeof(dest_port)-1);
+            dest_port[sizeof(dest_port)-1] = '\x0';
             break;
+        case 'g':
+          strncpy(src_port, optarg, sizeof(src_port)-1);
+          src_port[sizeof(src_port)-1] = '\x0';
+          break;
         case 'j':
             if (read_restart) {
                 fprintf(stderr,"Can't specify both -j and -F\n");

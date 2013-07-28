@@ -132,7 +132,7 @@ void create_sockets()
     struct addrinfo ai_hints, *ai_rval;
     union sockaddr_u su;
     char *p, tmp_multi[INET6_ADDRSTRLEN];
-    int found_if, fdflag, bcast, rval, i;
+    int found_if, fdflag, bcast, rval, i, s_port;
 
     // Set up global sockaddr_u structs for public and private addresses
     // Perform octet substitution on private multicast address
@@ -142,7 +142,7 @@ void create_sockets()
     ai_hints.ai_socktype = SOCK_DGRAM;
     ai_hints.ai_protocol = 0;
     ai_hints.ai_flags = 0;
-    if ((rval = getaddrinfo(pub_multi, port, &ai_hints, &ai_rval)) != 0) {
+    if ((rval = getaddrinfo(pub_multi, dest_port, &ai_hints, &ai_rval)) != 0) {
         log0(0, 0, "Invalid public address or port: %s", gai_strerror(rval));
         exit(1);
     }
@@ -169,7 +169,7 @@ void create_sockets()
                 priv_multi[sizeof(priv_multi)-1] = '\x0';
             }
         }
-        if ((rval = getaddrinfo(priv_multi, port, &ai_hints, &ai_rval)) != 0) {
+        if ((rval = getaddrinfo(priv_multi, dest_port, &ai_hints, &ai_rval)) != 0) {
             log0(0, 0, "Invalid private address: %s", gai_strerror(rval));
             exit(1);
         }
@@ -224,6 +224,12 @@ void create_sockets()
     }
     memset(&su, 0, sizeof(su));
     su.ss.ss_family = listen_dest.ss.ss_family;
+    s_port = atoi(src_port);
+    if (su.ss.ss_family == AF_INET)
+      su.sin.sin_port = htons(s_port);
+    else if  (su.ss.ss_family == AF_INET6)
+      su.sin6.sin6_port = htons(s_port);
+
     if (bind(sock, (struct sockaddr *)&su, family_len(su)) == SOCKET_ERROR) {
         sockerror(0, 0, "Error binding socket");
         exit(1);

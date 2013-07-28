@@ -69,7 +69,7 @@ struct timeval *getrecenttimeout()
     int i, found_timeout, done;
     struct group_list_t *group;
     unsigned int section, nak_count;
-    unsigned char *naks;
+    unsigned char *naks = NULL;
 
     gettimeofday(&current_timestamp, NULL);
     done = 0;

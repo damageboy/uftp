@@ -34,34 +34,6 @@
 
 #include "win_func.h"
 
-int optind=1;
-char *optarg;
-
-char getopt(int argc, char *argv[], const char options[])
-{
-    char *loc;
-
-    if (optind >= argc) {
-        return -1;
-    } else if (strlen(argv[optind]) <= 1) {
-        return -1;
-    } else if (argv[optind][0] != '-') {
-        return -1;
-    } else if (argv[optind][1] == '-') {
-        optind++;
-        return -1;
-    } else if (!isalnum(argv[optind][1])) {
-        return '?';
-    } else if ((loc = strchr(options, argv[optind][1])) == NULL) {
-        return '?';
-    } else {
-        optind++;
-        if (loc[1] == ':') {
-            optarg = argv[optind++];
-        }
-        return loc[0];
-    }
-}
 
 int gettimeofday(struct timeval *tv, struct timezone *tz)
 {

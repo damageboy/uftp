@@ -77,9 +77,6 @@ struct fp_list_t proxy_info;
 union key_t proxy_pubkey, proxy_dhkey;
 int proxy_pubkeytype;
 
-extern char *optarg;
-extern int optind;
-
 /**
  * Adds a server and its fingerprint to the list of approved servers
  */
