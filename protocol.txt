@@ -1,0 +1,1993 @@
+
+UFTP - Encrypted UDP based FTP with multicast
+
+
+1. Introduction
+
+A UFTP session consists of 3 main phases: The Announce/Register phase, the
+File Transfer phase, and the Completion/Confirmation phase.  The File Transfer
+phase additionally consists of the File Info phase and the Data Transfer phase
+for each file sent.
+
+The Announce/Register phase sets up the multicast file transfer session and
+negotiates all encryption parameters.  The server sends out an announcement
+over a public multicast address which the clients are expected to be listening
+on.  All subsequent messages from the server go over a private multicast
+address specified in the announcement.  Allowed clients send a registration to
+respond to the announcement.  The server will then send either a confirmation
+message if encryption is disabled, or the encryption keys for the
+session if encryption is enabled.  If the client receives the encryption keys,
+it sends an acknowledgment back to the server.
+
+The File Transfer phase starts with the File Info phase for the first file to
+send.  The server sends a message describing the file in question.  Besides
+the name and size of the file, this message describes how the file will be
+broken down.   A file is divided into a number of blocks, and these blocks are
+grouped into sections.  A block is a piece of the file that is sent in a
+single packet, and a section is a grouping of blocks.  The total number of
+blocks and sections is included in this message.
+
+Continuing the File Transfer phase is the Data Transfer phase for the first
+file.  Data packets, each of which is a block, are sent by the server at a
+rate specified by the user.  Because UDP does not guarantee that packets will
+arrive in order, each block is numbered so the client can properly reassemble
+the file.  When the server has finished sending all data packets, it sends a
+message to the clients indicating this.
+
+When a client detects the end of a section or receives an end of file message
+from the server, and the client has detected one or more missing blocks, the
+client will send back a message containing a list of NAKs (negative
+acknowledgments).  When the server receives NAKs from one or more clients, it
+goes back and retransmits any blocks that were NAKed, then continues on
+sending any untransmitted blocks.  When a client has received the entire file,
+it sends a completion message in response to the server's end of file message.
+This continues until all clients have either send a completion message or
+have timed out after the server sent its end of file message.
+
+The File Info phase and the Data Transfer phase are then repeated for each
+file to be sent during the session.
+
+The Completion/Confirmation phase shuts down the session between the server
+and clients.  It starts with a message from the server indication the end of
+the session.  The clients then respond with a completion message, and the
+server responds to each completion with a confirmation message.
+
+
+2. Definitions
+
+Server: A process run on demand that sends one or more files.
+
+Client: Daemon process that receives files.
+
+Public multicast address: A multicast address that a client or proxy expects
+    to receive announcements from a server on.
+
+Private multicast address: Specified by the server when a session is
+    initiated.  All traffic from the server other than announcements are
+    sent to this address.
+
+Proxy: Daemon process that relays UFTP traffic between servers and clients.
+
+Server proxy: A proxy, typically local to a server, that forms the upstream
+    end of a multicast tunnel.  It listens on the public multicast address
+    (and private multicast address when specified) and forwards downstream
+    packets to a specific address downstream.  Upstream packets are forwarded
+    back where the announcement originated from.
+
+Client proxy: A proxy, typically local to one or more clients, that forms the
+    downstream end of a multicast tunnel.  It receives unicast data from one
+    or more server proxies and forwards downstream traffic to the multicast
+    address specified in the packet header.  Upstream traffic from clients
+    is gathered and forwarded back where the announcement came from as an
+    aggregated response.
+
+Response proxy: A proxy that functions as a response aggregator in situations
+    where the server has direct multicast accessibility to clients but the
+    number of clients are to high for the server to handle itself.  It
+    listens on the public multicast address (and private multicast address
+    when specified), but does not forward packets from the server since those
+    packets reach clients directly.  It does however send some messages
+    directly to clients in the process of establishing encryption keys.
+    Upstream traffic  from clients is gathered and forwarded back where the
+    announcement came from as an aggregated response.  Clients in this
+    environment are configured  to send all responses to a specific response
+    proxy.  Messages sent directly from response proxies to clients use
+    multicast (either the primary public address, or the private address,
+    depending on the message).
+
+Block: A piece of a file to be sent in a single packet.
+
+Section: A grouping of blocks.  A section of blocks is the most the server can
+    send before requesting status from a client.  A client can send back a
+    single status message to represent the NAKs for an entire section.
+
+
+3. Timing
+
+3.1 Round Trip Timing
+
+The server measures the round trip time (RTT) to each of the clients in order
+to determine the proper retransmission timing.
+
+In an ANNOUNCE, the server includes a timestamp.  This timestamp is echoed
+back in the REGISTER sent by each client, adjusted by the time between when
+the client received the ANNOUNCE and when it sent the REGISTER.  The server
+then takes the difference between the time in the REGISTER and the current
+time as the RTT to that client.
+
+The server keeps track of the group round trip time (GRTT) which is advertised
+to the clients in each message sent by the server.  On the initial announce,
+this is set to a resonable default.  Once RTTs for the clients have been
+measured, the largest of the individual RTTs becomes the GRTT.
+
+After the GRTT has been set once based on the RTTs of one or more clients,
+any subsequent adjustments have a floor of 0.9 times the prior value (RFC 5401).
+
+3.2 Message Timing
+
+The GRTT is used to determine the timing of message retransmissions in both
+directions.
+
+A message robustness factor (ROBUST) is used as part of the timing
+calculations.  This value is also sent to the clients in an ANNOUCE so that
+both server and clients will use a common value.
+
+The server will wait 3 * GRTT between each group of ANNOUNCE, REGCONF,
+KEYINFO, and FILEINFO messages sent before sending the next set.  Clients
+should normally respond in the (1 * GRTT -- 2 * GRTT) time window.  An extra
+GRTT is added to this to allow for a proxy to aggregate client messages and
+pass them on.  Once all clients have responded during a given phase, the
+server will wait 1 * GRTT for any late responses before ending the phase.
+
+During the Announce/Register and File Info phases, the server will send the
+relevant messages a maximum of ROBUST times, after which clients that have
+not responsed will be marked as dropped.
+
+When a client detects that a new section has started, or upon receiving a
+DONE, it start a timer lasting 1 * GRTT.  When this timer triggers, the client
+will send a STATUS for each section containing a NAK up to the last section
+completed, or up to the section specified in a DONE.
+
+When the server receives a STATUS message from a client, it first checks if
+the section listed in the STATUS is prior to the current transmission section.
+If not, it is ignored, otherwise the NAKs are recorded for retransmission.
+The server will then (if it hasen't done so already) start a timer lasting
+3 * GRTT.  When this timer expires, the server will rewind its transmission
+position to the earliest recorded NAK.
+
+When the server reaches the end of data transmission, it will send DONE
+messages every 3 * GRTT up to a maximum of ROBUST times to prompt clients to
+send a COMPLETE or STATUS.  This continues until all clients respond with a
+COMPLETE, at least one client responds with a STATUS in which case it will
+rewind as above, or ROBUST DONEs are sent in which case any client that didn't
+respond with a DONE is marked as lost.
+
+TODO: Enter a holdoff period like NORM and add later NAKs?
+
+After a client sends a REGISTER, it will be retransmitted every 4 * GRTT with
+a maximum time of ROBUST * GRTT, after which the client drops the session.
+During the Completion/Confirmation stage, the client will retransmit a
+COMPLETE every 4 * GRTT with a maximum of ROBUST * GRTT, after which the
+client considers the session complete and does the normal cleanup.  During the
+Data Transfer phase, if there are no packets received in ROBUST * GRTT, the
+client drops the session.  In all cases, the maximum time is no less than one
+second.
+
+When a proxy receives a REGISTER, FILEINFO_ACK, STATUS, or COMPLETE from a
+client, it will wait for 1 * GRTT for any related messages before sending an
+aggregated response to the server.  The proxy can also send a KEYINFO to one
+or more clients.  It will wait 2 * GRTT for responses before resending.  When
+a proxy has no pending aggregated messages to send, it will time out the
+session if no packets have been received in ROBUST * GRTT.
+
+When sending an aggregated REGISTER or FILEINFO_ACK message, a proxy will note
+which client reported the longest RTT based on the echoed timestamp and will
+include that client's timestamp in the reponse.  That client will also be
+listed first in the body of the message so the server may determine which
+individual client has the longest RTT.
+
+TODO:  Figure out if we want the server to send one message per cycle or one
+group of messages per cycle.  The former will help manage message implosion
+but will take longer, while the later is quicker but more prone to message
+implosion, and is the way version 3.x does it.
+
+3.3 Congestion Control
+
+A congestion control scheme based on TFMCC (RFC 4654) will be employed.  To
+comply with this, each data packet includes a sequence number (cc_seq) and the
+current congestion control rate (cc_rate).  A separate CONG_CTRL message will 
+also be sent once per GRTT.  This message also contains cc_seq and cc_rate
+along with a timestamp for RTT measurements and a list of receivers along with
+the RTT and a set of flags for each.  Receivers send back CC_ACK messages
+periodically in accordance with RFC 4654.  The TFMCC specific info in this
+message is included as a header extension.  This extension is also included in
+STATUS messages.
+
+When a proxy prepares to send an aggregated STATUS message, it determines the
+current limiting receiver (CLR) among the clients that contributed to the
+aggregated message and forwards that client's congestion control info along
+with the STATUS message.  Proxies will not aggregate CC_ACK messages and will
+forward them on immediately, adjusting the echoed timestamp as necessary.
+
+4. Encryption Setup
+
+The encryption protocol borrows from TLS (RFC5246) and DTLS (RFC4347).  Due to
+the large amount of traffic that may be generated while communicating with a
+large number of clients, the required key exchange messages are made as small
+as possible and integrated into the UFTP messaging structure to minimize the
+amount of traffic in the setup phase.
+
+Valid block encryption algorithms are DES and 3 key Triple DES in CBC mode,
+and AES-128 and AES-256 in either CBC, GCM or CCM mode.  While AES is more
+secure and therefore preferred, DES and Triple DES are supported for
+environments where AES is not available.  GCM and CCM modes are for
+authenticated encryption, so a separate signature is not required.
+
+For the block encryption algorithm chosen, there are:
+
+encryption_key_length
+IV_length
+
+For each message to be encrypted, an IV must be generated as follows:
+
+For a 128-bit IV (for AES in CBC mode):
+
+IV = S + UID + CTR
+
+For a 96-bit IV (for AES in GCM or CCM mode):
+
+IV = (S XOR UID) + CTR
+
+For a 64-bit IV (for DES or 3 key Triple DES):
+
+IV = (S + UID) XOR CTR
+
+where CTR is a monotinically increasing 64-bit counter, UID is the unique ID
+of the message sender, and S is a 32-bit salt, derived below.
+
+Valid hash algorithms are SHA-1, SHA-256, SHA-384, and SHA-512.  While SHA-256
+or more is preferred, SHA-1 is supported for environments where SHA-256 is
+not available.
+
+For the hash algorithm chosen, there is:
+
+hash_length
+
+The server has the option to use a symmetric key HMAC, an asymmetric key
+signature (RSA or ECDSA), or a cipher in GCM or CCM mode for authentication of
+encrypted messages.  Using a GCM or CCM cipher allows encryption and signature
+generation to be done in a single step and is fastest (particularly GCM).  
+HMAC is slower that GCM/CCM but faster than asymmetric keys.  While asymmetric
+key signatures are larger and slower, they do protect against attacks
+from within the group.  When using asymmetric key signatures, all clients
+MUST use a key of the same type and size (for RSA) or curve (for ECDSA) as
+the server.  Clients may maintain multiple private keys of differing types
+and sizes to accommodate different servers.
+
+During the initial setup, there is an exchange of symmetric keys between the
+server and each client.  This can be done with either RSA encryption or with
+an Elliptic Curve Diffie-Hellman (ECDH) key exchange.  With ECDH, the key
+exchange parameters are validated with either RSA signatures or Elliptic Curve
+DSA (ECDSA) signatures.
+
+In the ANNOUNCE message, the server sends a random number along with certain
+key exchange keys.  The random number is 32 bytes, with the first 4 being the
+current time in the standard UNIX time format, and the remaining 28 generated
+by a secure random number generator.  If RSA is chosen for key exchange, the
+ANNOUNCE includes the server's public RSA key.  If ECDH is chosen for key
+exchange, it contains an ephemeral EC public key to use for the ECDH exchange
+along with either its RSA public key or its ECDSA public key, plus a signature
+over the whole UDP packet using the RSA/ECDSA key.
+
+Each client then sends in the REGISTER its own random number, constructed
+identically to the server's, along with it's part of the key exchange.  In the
+case of RSA key exchange, it includes a 48 byte premaster secret key encrypted
+with the server's public key.  The premaster secret consists of 1 byte for the
+client's version and the remaining 47 chosen by a secure random number
+generator.  In the case of an ECDH key exchange, it includes an ephemeral EC
+public key, using the same EC curve as the server's ECDH key, for the ECDH key
+exchange.  The server and client will then perform an ECDH key derivation,
+with the result hashed with SHA-1, and the resulting value becomes the
+premaster secret.
+
+The client may also send a CLIENT_KEY message along with a REGISTER.  This
+message is required if the server requests either RSA/ECDSA signatures or
+simply to authenticate the client.  This messages also contains a signature
+(using the client's RSA or ECDSA key) of the hash of:
+
+group ID + private address + server random + client random + premaster secret
+
+The server and each client calculates a 48 byte master secret as follows:
+
+master_secret = PRF(pre_master_secret, "master secret",
+                          server_random + client_random)[0-47]
+
+When SHA-1 is the selected hash, the pseudo-random function (PRF) is as defined
+in TLS 1.1 (RFC4346) which uses a SHA1/MD5 combination.  Otherwise, the
+pseudo-random function (PRF) is as defined in TLS 1.2 (RFC5246) using the
+server selected hash function.
+
+Using the master secret, a key block is generated:
+
+key_block = PRF(master_secret, "key expansion",
+                      server_random +
+                      client_random);
+
+From the key block, the first hash_length bytes comprise the HMAC key,
+the next encryption_key_length bytes comprise the session key, and the
+next 4 bytes comprise the salt from which session IVs are derived.
+Currently, the HMAC key based on the master secret between the server and a
+particular client is not used, but the key material is generated anyway to be
+consistent with key expansion of the group key and as a hedge in case it could
+be used in a future release.
+
+After receiving the REGISTER the server sends a KEYINFO message containing
+the group master key encrypted with the session key for the client, along with
+a 64-bit counter used to generate the IV.  If an authenticated cipher mode was
+chosen (GCM/CCM), the encryption is instead performed in CBC mode as a
+signature is not requried at this stage.  A KEYINFO can contain the group key
+encrypted multiple times, with each one encrypted with a different client's
+session key and grouped with the unique ID of the client.  The group master key
+is chosen by the server.  It is 48 bytes, with the first byte being the server
+version and the remaining 47 bytes chosen by a secure random number generator.
+To save bandwidth, only the 47 random bytes are encrypted.  Given the block
+size of the supported cyphers of 8 or 16, this results in the encrypted key
+being 48 bytes (instead of 64, if 48 bytes were encrypted).  The other byte
+can be derived from the version of the KEYINFO message.
+
+From the group master key, a key block is generated as follows:
+
+key_block = PRF(group_master, "key expansion", server_random);
+
+From the key block, the first hash_length bytes comprise the group HMAC key,
+the next encryption_key_length bytes comprise the group session key, and the
+next 4 bytes comprise the salt from which group session IVs are
+derived.
+
+Upon receiving the KEYINFO message, the client responds with an INFO_ACK
+message.  This message contains a 12 byte verify_data field constructed as
+follows:
+
+PRF(group_master, "client finished", Hash(handshake_values))[0-11]
+
+Where Hash is the server selected hash function and handshake_values is:
+
+group ID + private address + server random + client random +
+    premaster secret + [ client_key_blob ] + group_master
+
+where client_key_blob is an exported keyblob of the client's public key, if
+a CLIENT_KEY message was sent.  See section 5 for details of this keyblob.
+
+All subsequent messages after a KEYINFO from either client or server are
+encrypted using the group session key, and the whole UDP packet is signed with
+either the group HMAC key, the sender's RSA/ECDSA key, or the GCM/CCM mode
+cipher, depending on what the server selects.  Each of these messages also
+contains a 64-bit counter used to generate the IV for that message.  The
+unique ID used to generate the IV should be the same one placed in the Source
+ID field.  Clients receiving a KEYINFO message also uses the unique ID from
+Source ID.
+
+A server proxy may choose to dynamically determine its destination client
+proxy.  It does this by means of authenticated heartbeat messages.  The server
+proxy specifies the public key fingerprint of the client proxy it wishes to
+send to.  This is useful when the client proxy is NATed and its IP address
+cannot be determined ahead of time, and may in fact change on the fly.
+
+When a server proxy in this mode receives an HB_REQ message, it responds with
+an HB_RESP message containing a flag indicating that authentication is
+required along with a randomly chosen nonce value.  The client proxy is then
+expected to sign the nonce with its public key and sends back the nonce, the
+signed nonce, and its public key in another HB_REQ message.  When the server
+proxy receives this message, it first checks the plaintext nonce to see if it
+matches the last nonce it sent out.  If so, it verifies the client proxy's
+public key fingerprint then verifies the signature.  If these checks all pass,
+the server uses the incoming address of the HB_REQ as its downstream address,
+and sends back an HB_RESP indicating successful authentication.  At this time
+the server will randomly select a new nonce so the old one is not reused.  If 
+any of the checks fail, the server proxy sends back an HB_RESP message
+indicating failed authentication, and the current destination remains
+unchanged.  Any future HB_REQ messages the server proxy gets from the
+established downstream client proxy is automatically accepted.  Only when the
+IP/port does not match will the server proxy issue a challenge.
+
+
+5. Messages
+
+5.1 Message Flow
+
+While it would save one round trip to send a KEYINFO and FILEINFO together
+with encryption enabled and only one file to send, keeping them separate
+prevents eavesdroppers from determining information about the encrypted
+stream, such as the number of files being sent.  See section 3.2 for more
+details.
+
+5.1.1 Announce/Register phase with encryption:
+
+5.1.1.1 Without proxies
+
+Server           Client
+------           ------
+ANNOUNCE  --->
+          <---   REGISTER
+          <---   CLIENT_KEY (optional)
+KEYINFO   --->
+          <---   INFO_ACK
+
+5.1.1.2 With server/client proxies
+
+Server           Server Proxy    Client Proxy         Client
+------           ------------    ------------         ------
+ANNOUNCE   --->           --->                 --->
+                                               <---   REGISTER
+                                               <---   CLIENT_KEY (optional)
+           <---           <---   REGISTER
+           <---           <---   CLIENT_KEY (optional)
+KEYINFO    --->           --->
+           <---           <---   INFO_ACK
+REG_CONF   --->           --->
+                                 KEYINFO       --->
+                                               <---   INFO_ACK
+
+5.1.1.3 With response proxy
+
+Server           Response Proxy        Client
+------           --------------        ------
+ANNOUNCE   --->
+           ------------------------>
+                                <---   REGISTER
+                                <---   CLIENT_KEY (optional)
+           <---  REGISTER
+           <---  CLIENT_KEY (optional)
+KEYINFO    --->
+           <---  INFO_ACK
+REG_CONF   --->
+                 KEYINFO         --->
+                                 <---   INFO_ACK
+
+5.1.2 Announce/Register phase without encryption
+
+5.1.2.1 Without proxies
+
+Server           Client
+------           ------
+ANNOUNCE  --->
+          <---   REGISTER
+REG_CONF  --->
+
+5.1.2.2 With server/client proxies
+
+Server           Server Proxy    Client Proxy         Client
+------           ------------    ------------         ------
+ANNOUNCE   --->           --->                 --->
+                                               <---   REGISTER
+           <---           <---   REGISTER
+REG_CONF   --->           --->                 --->
+
+5.1.2.3 With response proxy
+
+Server           Response Proxy        Client
+------           --------------        ------
+ANNOUNCE   --->
+           ------------------------>
+                                <---   REGISTER
+           <---  REGISTER
+REG_CONF   --->
+           ------------------------>
+
+5.1.3 File Transfer phase:
+
+Server           Client
+------           ------
+FILEINFO  --->
+                 (either)
+          <---   INFO_ACK
+                 (or)
+          <---   COMPLETE
+FILESEG   --->
+...
+CONG_CTRL --->
+          <---   CC_ACK
+...
+DONE      --->
+                 (either)
+          <---   STATUS
+                 (or)
+          <---   COMPLETE
+...
+
+5.1.4 Completion/Confirmation phase:
+
+Server            Client
+------            ------
+DONE       --->
+           <---   COMPLETE
+DONE_CONF  --->
+
+5.2 Message Details
+
+All messages start with the UFTP header, followed by a message
+specific header.  With the exception of an ENCRYPTED message, each message
+header starts with an 8 bit function number.  This allows for determining
+the message type of a decrypted message, so the message type is not
+revealed in the UFTP header.
+
+Messages may contain optional header extensions.  Some are defined here,
+although others may be added without breaking backward compatibility.  Any
+unexpected header extension should be ignored.
+
+5.2.1 UFTP header
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    UFTP ID    |   Function    |        Sequence Number        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                           Source ID                           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                            Group ID                           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |  Group Inst.  |     GRTT      |  Group Size   |   Reserved    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+UFTP ID: 8 bits
+    Defines the version number of the protocol.  Currently 0x30.
+
+Function: 8 bits
+    The message number of the contained message.  If the message is
+    encrypted, this always specifies the message number for ENCRYPTED.
+
+Sequence Number: 16 bits
+    A monotonically increasing sequence number used for congestion control
+    and replay attack purposes.
+
+Source ID: 32 bits
+    The unique ID of the sender.
+
+Group ID: 32 bits
+    A unique identifier for the current session.
+
+Group Instance: 8 bits
+    A sequence number that increases each time the session identified by the
+    Group ID is retried.  This allows for differentiating retried instances
+    of the same session.
+
+GRTT: 8 bits
+    For messages originating from a server, a quantized version of the current
+    Group Round Trip Time.  See RFC 5401 section 3.7.4 for details of how
+    this field is encoded.
+
+Group Size: 8 bits
+    For messages originating from a server, a quantized version of the total
+    number of clients in the current session.  This field consists of a 5 bit
+    mantissa and a 3 bit exponent.  The mantissa is scaled so that a value of
+    0.0 is represented as 0 and a value of 10.0 is represented as 32.
+
+Reserved: 8 bits
+    Reserved for future use and should be set to 0.
+
+
+5.2.2 ENCRYPTED
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                     IV Counter (high bits)                    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                     IV Counter (low bits)                     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |       Signature length        |         Payload Length        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                           Signature                           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Encrypted Payload                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+
+Specifies an encrypted message.  Contains a signature followed by the
+encrypted message payload (which is one of the messages below).  The signature
+is either an HMAC using the group key or an RSA/ECDSA signature using the
+sender's RSA/ECDSA key over the whole UFTP message, depending on the signature
+type chosen by the server.  Alternately, if an authenticated cipher was
+chosen, the signature field will be empty since the signature is embedded in
+the encrypted data.
+
+IV Counter: 64 bits
+    A monotonically increasing counter used as part of the symmetric key IV
+    for the encrypted payload.  This field should be implemented as two
+    32-bits fields for purposes of alignment.
+
+Signature length: 16 bits
+    The length of the signature in bytes (must be a multiple of 4).
+
+Payload length: 16 bits
+    The length of the encrypted payload in bytes (must be a multiple of 4).
+
+Signature: varies
+    The signature for this message.  It applies to the entire UFTP packet,
+    including the UFTP header.  May be either an HMAC using the group hmac
+    key or an RSA/ECDSA signature using the sender's RSA/ECDSA private key.
+
+Encrypted Payload: varies
+    The encrypted message, encrypted with the group symmetric key.
+
+
+5.2.3 ANNOUNCE
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |     Flags     | Robust Factor |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    CC Type    |   Reserved    |           Block Size          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Timestamp_seconds                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                     Timestamp_microseconds                    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                   Public Multicast Address                    |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                   Private Multicast Address                   |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                           Client ID                           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   :                             ....                              :
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by the server to initiate a file transfer.  Contains basic info needed by
+clients to initiate a session.  For closed group membership, the list of
+allowed clients is specified in the body.  Multiple messages may be sent to
+accommodate the full list of clients.  This message goes over the public
+multicast address.  All subsequent server messages go over the private
+multicast address.  If the server needs to resend this message under closed
+group membership, only clients that did not respond are listed.
+
+Function: 8 bits
+    The message number for this message.  Always 1.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Flags: 8 bits
+    0x01 - SYNC_MODE
+        If set, this indicates that the session is operating in sync mode.
+        Files received by clients are checked against existing files to see
+        whether or not the file should be accepted.
+    0x02 - SYNC_PREVIEW
+        Indicates sync preview mode for the session.  This is like sync mode,
+        except client don't actually receive any files.
+    0x04 - IPV6
+        Indicates that the public multicast address and private multicast
+        address are IPv6 addresses when set.
+    All other bits should be set to 0.
+
+Robust: 8 bits
+    Sets the robustness factor for the session.  This value dictates how many
+    times certain messages may be retransmitted.
+
+CC Type: 8 bits
+    Specifies the congestion control algorithm in use.  See section 5.3 for
+    a list of valid values.
+
+Reserved: 8 bits
+    Reserved for future use and should be set to 0.
+
+Block Size: 16 bits
+    The size of the body for UFTP messages.  This value should be somewhat
+    less that the path MTU to allow room for any UFTP header or extension
+    as well as the UDP and IP headers and extensions.
+
+Timestamp_seconds: 32 bits
+    The current time expressed as seconds since the UNIX epoch of
+    1/1/1970 00:00:00 UTC.
+
+Timestamp_microseconds: 32 bits
+    The microsecond portion of the current time.  This field and the above
+    field are used in round trip time measurements.
+
+Public Mulicast Address: varies
+    The public multicast address used by this session.  May be an IPv4 address
+    of 4 bytes or an IPv6 address of 16 bytes.
+
+Private Mulicast Address: varies
+    The private multicast address used by this session.  May be an IPv4 address
+    of 4 bytes or an IPv6 address of 16 bytes.  The public and private
+    addresses must be the same IP version.
+
+Header Extensions: varies
+    Contains any header extensions that may be present
+
+Client ID: 32 bits each
+    The body of the message.  Contains the unique ID of one or more clients
+    that are allowed to join under closed group membership.
+
+
+5.2.3.1 EXT_ENC_INFO
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   Extension   |   Extension   |     Flags     | Keyex |  Sig  |
+   |     Type      |    Length     |               | Type  |  Type |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   Key Type    |   Hash Type   |          Key Length           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   Diffie-Hellman Key Length   |        Signature Length       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                                                               +
+   |                                                               |
+   +                                                               +
+   |                                                               |
+   +                                                               +
+   |                     Server Random Number                      |
+   +                                                               +
+   |                                                               |
+   +                                                               +
+   |                                                               |
+   +                                                               +
+   |                                                               |
+   +                                                               +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Public Key Blob                        |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                     Diffie-Hellman Key Blob                   |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                      Public Key Signature                     |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+A header extension appended to an ANNOUNCE message indicating encryption
+parameters for the session.
+
+Extention Type: 8 bits
+    The extension number for this extension.  Always 1.
+
+Extension Length: 8 bits
+    The total length of the extension in 4 byte words.
+
+Flags: 8 bits
+    0x01 - CLIENT_AUTH
+        Specifies that the client should send a CLIENT_KEY message in
+        additionto a REGISTER when responding when set.
+    All other bits should be set to 0.
+
+Key Exchange Type: 4 bits
+    Specifies the key exchange algorithm to use.  See section 5.3 for the
+    list of valid values.
+
+Signature Type: 4 bits
+    Specifies the signature type number of the signature to use on encrypted
+    messages.  See section 5.3 for the list of valid values.
+
+Key Type: 8 bits
+    Specifies the key type number of the symmetric encryption algorithm to
+    use.  See section 5.3 for the list of valid values.
+
+Hash Type: 8 bits
+    Specifies the hash type number of the hashing algorithm to use for HMAC
+    signatures and key derivation.  See section 5.3 for the list of valid
+    values.
+
+Public Key Length: 16 bits
+    The length in bytes of the server's public key blob.
+
+Diffie-Hellman Key Length: 16 bits
+    The length in bytes of the server's Diffie-Hellman key blob.  Must be 0
+    if the key exchange algorithm is RSA.
+
+Signature Length: 16 bits
+    The length in bytes of the server's public key signature.  Must be 0
+    if the key exchange algorithm is RSA.
+
+Server Random Number: 256 bits
+    A 32-byte random number chosen by the server used to derive the master
+    secret key between the server and each client.
+
+Public Key Blob: varies
+    A key blob containing the server's RSA or ECDSA public key.
+
+Diffie-Hellman Key Blob: varies
+    A key blob containing the server's ephemeral ECDH public key.
+
+Public Key Signature: varies
+    The signature for this message.  It applies to the entire UFTP packet,
+    including the UFTP header.  Signed using the sender's RSA/ECDSA private key.
+
+
+5.2.3.2 RSA key blob
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   Blob Type   |   Reserved    |        Modulus Length         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Public Key Exponent                     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Public Key Modulus                      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+A keyblob containing an RSA public key
+
+Blob Type: 8 bits
+    Specifies the keyblob type.  Always 1.
+
+Reserved: 8 bits
+    MUST be set to 0.
+
+Modulus Length: 16 bits
+    The length in bytes of the RSA public key modulus
+
+Public Key Exponent: 32 bits
+    The public key exponent of the RSA public key.
+
+Public Key Modulus: varies
+    The public key modulus of the RSA public key.
+
+
+5.2.3.3 EC key blob
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   Blob Type   |     Curve     |          Key Length           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                         EC Public Key                         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+A keyblob containing an Elliptic Curve public key, which may be used for
+either ECDH or ECDSA.
+
+Blob Type: 8 bits
+    Specifies the keyblob type.  Always 2.
+
+Curve: 8 bits
+    Specifies the named curve used by this public key.  See section 5.3 for
+    the list of valid values.
+
+Key Length: 16 bits
+    The Length in bytes of the the EC public key.
+
+EC Public Key: varies
+    The EC public key value, specified as the X coordinate followed by the Y
+    coordinate.
+
+
+5.2.4 REGISTER
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |        Key Info Length        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Timestamp_seconds                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                     Timestamp_microseconds                    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                                                               +
+   |                                                               |
+   +                                                               +
+   |                                                               |
+   +                                                               +
+   |                     Client Random Number                      |
+   +                                                               +
+   |                                                               |
+   +                                                               +
+   |                                                               |
+   +                                                               +
+   |                                                               |
+   +                                                               +
+   |                                                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                            Key Info                           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                           Client ID                           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   :                             ....                              :
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by the client to acknowledge receipt of an ANNOUNCE.  If encryption is
+requested, also contains a random number and a premaster secret key encrypted
+with the server's public RSA key.
+
+Function: 8 bits
+    The message number for this message.  Always 2.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Key Info Length: 16 bits
+    The length in bytes of the key info field.
+
+Timestamp_seconds: 32 bits
+    The seconds part of the last server timestamp sent, adjusted for the
+    time between receiving the last server message and sending this message.
+
+Timestamp_microseconds: 32 bits
+    The microseconds part of the last server timestamp sent, adjusted as above.
+
+Client Random Number: 256 bits
+    A 32-byte random number chosen by the client used to derive the master
+    secret key between the server and each client.
+
+Key Info: varies
+    Either the premaster secret key selected by the client, encrypted with the
+    server's RSA public key, or the client's ephemeral ECDH public key.
+
+Client ID: 32 bits each
+    The body of the message.  Contains the unique ID of one or more clients
+    that a proxy received a REGSITER from and is now relaying to the server.
+
+
+5.2.5 CLIENT_KEY
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |          Reserved             |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |       Public Key Length       |   Signed Verify Data Length   |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Public Key Blob                        |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                      Signed Verify Data                       |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+Sent by the client if the server requests client authentication, or if the
+server requests RSA/ECDSA signatures instead of HMAC.
+
+Function: 8 bits
+    The message number for this message.  Always 3.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+Public Key Length: 16 bits
+    The length in bytes of the client's public key blob.
+
+Signed Verify Data Length: 16 bits
+    The length in bytes of the signed verify data field.
+
+Public Key Blob: varies
+    A keyblob containing client's RSA or ECDSA public key.
+
+Signed Verify Data: varies
+    The signature from the client's RSA/ECDSA private key of verification data
+    based on the hash of the cryptographic parameters exchanged to this point.
+
+
+5.2.6 REG_CONF
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            Reserved           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                           Client ID                           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   :                             ....                              :
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by the server in response to a REGISTER if there is no encryption.
+Contains a list of clients that the server received a REGISTER for, and
+multiple messages may be sent to accommodate the full list of clients.  Also
+sent if the REGISTER came from a proxy.  This allows proxies to confirm
+registrations when encryption is enabled.  The server will not resend this
+message for a given client unless it receives an extra REGSITER from that
+client.
+
+Function: 8 bits
+    The message number for this message.  Always 4.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+Client ID: 32 bits each
+    The body of the message.  Contains the unique ID of one or more clients
+    that the server received a REGISTER for.
+
+
+5.2.7 KEYINFO
+
+            0                   1                   2                   3
+            0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           |    Function   | Header Length |            Reserved           |
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           |                     IV Counter (high bits)                    |
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           |                     IV Counter (low bits)                     |
+           +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+           |                Header Extensions (if applicable)              |
+           +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+ encrypted |                           Client ID                           |
+   key 1   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           |                                                               |
+           +                                                               +
+           |                                                               |
+           +                                                               +
+           |                                                               |
+           +                                                               +
+           |                                                               |
+           +                                                               +
+           |                                                               |
+           +                                                               +
+           |                    Encrypted Group Master                     |
+           +                                                               +
+           |                                                               |
+           +                                                               +
+           |                                                               |
+           +                                                               +
+           |                                                               |
+           +                                                               +
+           |                                                               |
+           +                                                               +
+           |                                                               |
+           +                                                               +
+           |                                                               |
+           +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+ encrypted |                           Client ID                           |
+   key 2   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+           :                             ....                              :
+           +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by the server in response to a REGISTER if encryption is enabled.
+Contains the list of clients that the server received a REGISTER for, and
+multiple message may be sent to accommodate the full list of clients.  If the
+server needs to resend this message, only clients that did not respond are
+listed.  Also, for each listed client, it contains the group master key
+encrypted with the master secret key negotiated with that client.  If a
+REGISTER is received from a proxy, KEYINFO gets sent directly to the proxy,
+not the clients it serves.
+
+Function: 8 bits
+    The message number for this message.  Always 5.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+IV Counter: 64 bits
+    A monotonically increasing counter used as part of the symmetric key IV
+    for the encrypted group master key for each listed client.  This field
+    should be implemented as two 32-bits fields for purposes of alignment.
+
+The message body contains a list of the following pair of fields:
+
+Client ID: 32 bits each
+    The unique ID of a client that the server received a REGISTER for.
+
+Encrypted Group Master: 384 bits each
+    The last 47 bytes of the 48 byte group master secret, encrypted using the
+    master symmetric key for the assiciated client.
+
+
+5.2.8 KEYINFO_ACK
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            Reserved           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                                                               |
+   +                                                               +
+   |                          Verify Data                          |
+   +                                                               +
+   |                                                               |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by the client in response to a KEYINFO.  Contains verification data based
+on the hash of the cryptographic parameters exchanged to this point.  This
+message is always encrypted and embedded within an ENCRYPTED message.
+
+Function: 8 bits
+    The message number for this message.  Always 6.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+Verify Data: 96 bits
+    Contains a hash of all cryptographic parameters exchanged for the session
+
+
+5.2.9 FILEINFO
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            File ID            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   File Type   |                  Reserved                     |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |  Name Length  |  Link Length  |      File Size (high bits)    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       File Size (low bits)                    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                         File Timestamp                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Timestamp_seconds                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                     Timestamp_microseconds                    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                           File Name                           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                           Link Name                           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                          Client ID                            |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   :                             ....                              :
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by the server to give information on a particular file being sent.
+Contains the list of currently active clients, and multiple message may be
+sent to accommodate the full list of clients.  If the server needs to resend
+this message, only clients that did not respond are listed.  If encryption
+is enabled, this message is encrypted and embedded within an ENCRYPTED message.
+
+Function: 8 bits
+    The message number for this message.  Always 7.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+File ID: 16 bits
+    The identifier of the current file.  Chosen by the server sequentially
+    starting at 1.
+
+File Type: 8 bits
+    Specifies the type of file being sent (regular file, directory, or
+    sybolic link).  See section 4.3 for the list of valid values.
+
+Reserved: 24 bits
+    Reserved for future use and should be set to 0.
+
+Name Length: 8 bits
+    The length of the file name in 4 byte words.  If the file name is not a
+    multiple of 4, this field is null padded at the end.
+
+Link Length: 8 bits
+    The length of the link name in 4 byte words.  If the link name is not a
+    multiple of 4, this field is null padded at the end.  May be 0.
+
+File Size: 48 bits
+    The size of the file to send in bytes.
+
+File Timestamp: 32 bits
+    Specifies the file's timestamp as seconds since the UNIX epoch of
+    1/1/1970 00:00:00 UTC.
+
+Timestamp_seconds: 32 bits
+    The current time expressed as seconds since the UNIX epoch of
+    1/1/1970 00:00:00 UTC.
+
+Timestamp_microseconds: 32 bits
+    The microsecond portion of the current time.  This field and the above
+    field are used in round trip time measurements.
+
+File Name: varies
+    The path name of the file to send.  A slash (/) is used as a directory
+    separator.  The file gets created with this path in the client's
+    destination directory.
+
+Link Name: varies
+    If the File Type field specifies that the file is a symbolic link, this
+    field specifies the link destination.
+
+Client ID: 32 bits each
+    The body of the message.  Contains the ID of one or more active clients.
+
+
+5.2.10 FILEINFO_ACK
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            File ID            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |     Flags     |                   Reserved                    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Timestamp_seconds                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                     Timestamp_microseconds                    |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                          Client ID                            |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   :                             ....                              :
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by the client in response to a FILEINFO.  Contains the file ID .  If encryption is enabled, this message is encrypted
+and embedded within an ENCRYPTED message.
+
+Function: 8 bits
+    The message number for this message.  Always 8.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+File ID: 16 bits
+    The identifier of the current file.
+
+Flags: 8 bits
+    0x01 - PARTIAL
+        If set, this indicates that the client partially received the
+        indicated file on a prior run.  Valid only in response to a FILEINFO.
+    All other bits should be set to 0.
+
+Reserved: 24 bits
+    Reserved for future use and should be set to 0.
+
+Timestamp_seconds: 32 bits
+    The seconds part of the last server timestamp sent, adjusted for the
+    time between receiving the last server message and sending this message.
+
+Timestamp_microseconds: 32 bits
+    The microseconds part of the last server timestamp sent, adjusted as above.
+
+Client ID: 32 bits each
+    The body of the message.  Contains the ID of one or more active clients.
+
+
+5.2.11 FILESEG
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            File ID            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |            Section            |    Block Number in Section    |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                             Data                              |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by the server, and contains a block of data following this header.  If
+encryption is enabled, this message is encrypted and embedded within an
+ENCRYPTED message.
+
+Function: 8 bits
+    The message number for this message.  Always 9.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+File ID: 16 bits
+    The identifier of the current file.
+
+Section: 16 bits
+    The section number for this block.
+
+Block Number in Section: 16 bits
+    The number of this block within the current section.
+
+Data: varies
+    The body of the message.  Contains a block of the current file.
+
+
+5.2.11.1 EXT_TFMCC_DATA_INFO
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   Extension   |   Extension   |           Send Rate           |
+   |     Type      |    Length     |                               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |        CC Sequence            |            CC Rate            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+This extension, added to a FILESEG message, contains information necessary to
+support TFMCC.
+
+Extention Type: 8 bits
+    The extension number for this extension.  Always 2.
+
+Extension Length: 8 bits
+    The total length of the extension in 4 byte words.
+
+Send Rate: 16 bits
+    The current transmission rate of the server.
+
+CC Sequence: 16 bits
+    A sequence number which increases by 1 at the start of a new feedback round.
+
+CC Rate: 16 bits
+    The current congestion control suppression rate.  Only clients with a rate
+    less than this may send congestion control feedback in a CC_ACK message.
+
+
+5.2.12 DONE
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            File ID            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |            Section            |            Reserved           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                           Client ID                           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   :                             ....                              :
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by the server at the end of a section to request NAKs.  Contains the list
+of clients that the server needs status for, and multiple message may be
+sent to accommodate the full list of clients.  If the server needs to resend
+this message, only clients that did not respond are listed.  If encryption
+is enabled, this message is encrypted and embedded within an ENCRYPTED message.
+
+Function: 8 bits
+    The message number for this message.  Always 10.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+File ID: 16 bits
+    The identifier of the current file.  If zero, indicates the beginning of
+    the Completion/Confirmation phase to end the session.
+
+Section: 16 bits
+    The section number the server is requesting status for.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+Client ID: 32 bits each
+    The body of the message.  Contains the ID of one or more clients the
+    server needs status for.
+
+
+5.2.13 STATUS
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            File ID            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |            Section            |            Reserved           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                           NAK Content                         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by the client either in response to a DONE message or at the end of a
+section if loss is detected.  If encryption is enabled, this message is
+encrypted and embedded within an ENCRYPTED message.
+
+Function: 8 bits
+    The message number for this message.  Always 11.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+File ID: 16 bits
+    The identifier of the current file.
+
+Section: 16 bits
+    The section number this STATUS is requesting retransmissions for.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+NAK Contest: varies
+    The body of the message.  Contains a bitmap of the blocks in the section,
+    where a set bit designates a NAK for the given block.
+
+
+5.2.13.1 EXT_TFMCC_ACK_INFO
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   Extension   |   Extension   |     Flags     |   Reserved    |
+   |     Type      |    Length     |               |               |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |        CC Sequence            |            CC Rate            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                           Client ID                           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Timestamp_seconds                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                     Timestamp_microseconds                    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+This extension, added to a STATUS or CC_ACK message, contains information
+necessary to support TFMCC.
+
+Extention Type: 8 bits
+    The extension number for this extension.  Always 3.
+
+Extension Length: 8 bits
+    The total length of the extension in 4 byte words.
+
+Flags: 8 bits
+    0x01 - CC_CLR
+        If set, specifies this client is the CLR.  Not currently used.
+    0x02 - CC_RTT
+        If set, specifies that the client has received an RTT measurement from
+        the server.
+    0x04 - CC_START
+        If set, specifies that the client is in slow start mode.     
+    0x08 - CC_LEAVE
+        If set, specifies that the client is preparing to leave the session.
+    All other bits should be set to 0.
+
+Reserved: 8 bits
+    Reserved for future use and should be set to 0.
+
+CC Sequence: 16 bits
+    The most recent CC sequence number received from the server.
+
+CC Rate: 16 bits
+    The client's congestion control rate.  If CC_START is set,
+
+Client ID:
+    The ID of the client that created this extension.  When a proxy forwards
+    or aggregates client responses, this allow the server to know who this
+    extension belongs to.
+
+Timestamp_seconds: 32 bits
+    The seconds part of the last server timestamp sent, adjusted for the
+    time between receiving the last server message and sending this message.
+
+Timestamp_microseconds: 32 bits
+    The microseconds part of the last server timestamp sent, adjusted as above.
+
+
+5.2.14 COMPLETE
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            File ID            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |     Status    |                   Reserved                    |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                           Client ID                           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   :                             ....                              :
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by the client in response to a DONE message when the client has received
+the whole file.  May also be sent in a response to a FILEINFO if the session
+is a restart session and the client received the whole file on a prior
+attempt.  If encryption is enabled, this message is encrypted and
+embedded within an ENCRYPTED message.  If the file ID is 0, indicating the end
+of the session, all files and directories sent during the session are moved
+from the the client's temp directory to the destination directory, if a temp
+directory was specified.  Files within directories are moved as part of the
+containing directory.
+
+Function: 8 bits
+    The message number for this message.  Always 12.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+File ID: 16 bits
+    The identifier of the current file.
+
+Status: 8 bits
+    Specifies the status of the COMPLETE message.  When in sync mode, a status
+    of COMP_STAT_NORMAL specifies that the file was a new file copied over,
+    a status of COMP_STAT_SKIPPED specifies that the file was skipped because
+    the incoming file was older, and a status of COMP_STAT_OVERWRITE specifies
+    that the file overwrote an existing file.  when not in sync mode, the
+    status is set to COMP_STAT_NORMAL if the file was sent successfully.  If
+    the client rejects the file due to a pathname or filename issue,
+    regardless of sync mode, the status is set to COMP_STAT_REJECTED.
+
+Reserved: 24 bits
+    Reserved for future use and should be set to 0.
+
+Client ID: 32 bits each
+    The body of the message.  Contains the ID of one or more clients that a
+    proxy received a COMPLETE from and is now relaying to the server.
+
+
+5.2.15 DONE_CONF
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            Reserved           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                      Client IP Address                        |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   :                             ....                              :
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Send by the server in response to a COMPLETE message at the end of a session.
+Contains the list of clients that have completed.  Multiple messages may be
+sent to accommodate the full list of clients.  The server will not resend this
+message for a given client unless it receives an extra COMPLETE from that
+client.  If encryption is enabled, this message is encrypted and embedded 
+within an ENCRYPTED message.
+
+Function: 8 bits
+    The message number for this message.  Always 13.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+Client ID: 32 bits each
+    The body of the message.  Contains the ID of one or more clients that a
+    server received a COMPLETE from.
+
+
+5.2.16 ABORT
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |     Flags     |   Reserved    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                             Host                              |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                            Message                            |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+Sent by either a client or server when an error condition occurs.  This
+message may or may not be encrypted, depending on whether or not the group
+master key has been negotiated.
+
+Function: 8 bits
+    The message number for this message.  Always 19.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Flags: 8 bits
+    0x01 - CURRENT_FILE
+        Applies only if sent to a client, and only if the Host field is zero.
+        If set, specifies that all clients not actively working on the 
+        current file must abort.  Clients that finished the current file do
+        NOT abort and may receive the next file in the session.
+    All other bits should be set to 0.
+
+Reserved: 8 bits
+    Reserved for future use and should be set to 0.
+
+Host: 32 bits
+    If sent by the server, specifies the client the server wishes to abort, or
+    zero to specify that all clients must abort.  If sent by a client, this
+    is set to zero.  If sent by a proxy on behalf of a client, it is set to
+    the IP of the client that is aborting.  If sent by a proxy on its own
+    behalf, it is set to zero.
+
+Message: 300 bytes
+    Descriptive text stating the reason for the abort.
+
+
+5.2.17 HB_REQ
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            Reserved           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |       Public Key Length       |      Signed Nonce Length      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                             Nonce                             |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                        Public Key Blob                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                         Signed Nonce                          |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+Sent by a proxy (usually a client proxy) to an upstream proxy for the purpose
+of opening up a hole in a firewall that the upstream proxy can send through,
+and revealing the proxy's NATed IP to the upstream proxy so the upstream
+proxy knows where to send other requests.
+
+Function: 8 bits
+    The message number for this message.  Always 14.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+Public Key Length: 16 bits
+    The length in bytes of the proxy's public key blob.
+
+Signed Nonce Length: 16 bits
+    The length in bytes of the signed nonce field.
+
+Nonce: 32 bits
+    The value received from a previous HB_RESP that is to be signed.
+
+Public Key Blob: varies
+    A keyblob containing the proxy's RSA or ECDSA public key.
+
+Signed Nonce: varies
+    The signature from the proxy's RSA/ECDSA private key of the specified nonce.
+
+
+5.2.18 HB_RESP
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length | Authenticated |   Reserved    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                             Nonce                             |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+Sent by a proxy in response to an HB_REQ message.
+
+Function: 8 bits
+    The message number for this message.  Always 15.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Authenticated: 8 bits
+    Specifies the status of the HB_REQ this message is responding to.  A value
+    of HB_AUTH_OK means authentication succeeded or was not required.  A value
+    of HB_AUTH_CHALLENGE means expected authentication info was not specified.
+    A value of HB_AUTH_FAILED means the given authentication info was invalid.
+
+Reserved: 8 bits
+    Reserved for future use and should be set to 0.
+
+Nonce: 32 bits
+    When Authenticated = HB_AUTH_CHALLENGE, the nonce value that is expected
+    to be signed in an authenticated HB_REQ.
+
+
+5.2.19 KEY_REQ
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            Reserved           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+Sent by a client to a response proxy to solicit a PROXY_KEY message.  The
+client will send this message once every 5 seconds until it gets a valid
+response.
+
+Function: 8 bits
+    The message number for this message.  Always 16.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+
+5.2.20 PROXY_KEY
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |       Public Key Length       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |   Diffie-Hellman Key Length   |      Signed Nonce Length      |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                             Nonce                             |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      Public Key Blob                          |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                    Diffie-Hellman Key Blob                    |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                         Signed Nonce                          |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+Sent by a response proxy to clients for the purpose suppying its public
+RSA/ECDSA key and public ECDH key.  When a client gets an ANNOUNCE directly
+from a server, it contains the server's RSA/ECDSA public key and perhaps an
+ECDH key.  The client can then use the proxy's keys to perform the key exchange
+instead of the server's key.  This message gets sent out on the first specified
+public multicast address so all downstream clients be read it.  To avoid a
+denial of service attack, the proxy will not send this message more than once
+every 5 seconds.
+
+Function: 8 bits
+    The message number for this message.  Always 17.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Public Key Length: 16 bits
+    The length in bytes of the proxy's public key blob.
+
+Diffie-Hellman Key Length: 16 bits
+    The length in bytes of the proxy's public ECDH key blob.
+
+Signed Nonce Length: 16 bits
+    The length in bytes of the signed nonce field.
+
+Nonce: 32 bits
+    A randomly chosen value that will be signed by the proxy's RSA public key.
+
+Public Key Blob: varies
+    A keyblob containing the proxy's RSA or ECDSA public key.
+
+Diffie-Hellman Key Blob: varies
+    A keyblob containing the proxy's long-lived ECDH public key.
+
+Signed Nonce: varies
+    The signature from the proxy's RSA/ECDSA private key of the specified nonce.
+
+
+5.2.21 CONG_CTRL
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            Reserved           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |        CC Sequence            |            CC Rate            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Timestamp_seconds                       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                     Timestamp_microseconds                    |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                           CC Item                             |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   :                             ....                              :
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Sent by a server as part of congestion control and round trip time calculations.
+This message supplies clients with an up to date timestamp to adjust and
+respond to for round trip time as well as a list of round trip times for one or
+more clients.
+
+Function: 8 bits
+    The message number for this message.  Always 20.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+CC Sequence: 16 bits
+    A sequence number which increases by 1 at the start of a new feedback round.
+
+CC Rate: 16 bits
+    The current congestion control suppression rate.  Only clients with a rate
+    less than this may send congestion control feedback in a CC_ACK message.
+
+Timestamp_seconds: 32 bits
+    The current time expressed as seconds since the UNIX epoch of
+    1/1/1970 00:00:00 UTC.
+
+Timestamp_microseconds: 32 bits
+    The microsecond portion of the current time.  This field and the above
+    field are used in round trip time measurements.
+
+CC Item: 64 bits each
+    The body of the message.  Contains a list of congestion control data items.
+    Defined as follows.
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                           Client ID                           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |     Flags     |      RTT      |            Reserved           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+Client ID: 32 bits
+    The unique ID of the client this item represents.
+
+Flags: 8 bits
+    0x01 - CC_CLR
+        If set, specifies this client is the CLR.
+    0x02 - CC_RTT
+        If set, specifies that the server calculated the RTT to this client.
+    0x04 - CC_START
+        If set, specifies that the server is in slow start mode.     
+    0x08 - CC_LEAVE
+        If set, specifies that the client is preparing to leave the session.
+        Not currently used in this message.
+    All other bits should be set to 0.
+
+RTT: 8 bits
+    The round trip time to this client as calculated by the server.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+
+5.2.22 CC_ACK
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |    Function   | Header Length |            Reserved           |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+   |                Header Extensions (if applicable)              |
+   +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+
+This message contains a congestion control feedback response from a client.
+There should normaly be at least one header extension present such as
+EXT_TFMCC_ACK_INFO to supply the specific congestion control data for a
+particular scheme.
+
+Function: 8 bits
+    The message number for this message.  Always 21.
+
+Header Length: 8 bits
+    The total length of the header, including extensions, in 4 byte words.
+
+Reserved: 16 bits
+    Reserved for future use and should be set to 0.
+
+
+5.3 Message Constants
+
+5.3.1 Message type numbers
+
+ANNOUNCE        1
+REGISTER        2
+CLIENT_KEY      3
+REG_CONF        4
+FILEINFO        5
+KEYINFO         6
+INFO_ACK        7
+FILESEG         8
+DONE            9
+STATUS          10
+PRSTATUS        11
+COMPLETE        12
+DONE_CONF       13
+HB_REQ          14
+HB_RESP         15
+KEY_REQ         16
+PROXY_KEY       17
+ENCRYPTED       18
+ABORT           19
+CONG_CTRL       20
+CC_ACK          21
+
+5.3.2 Key type numbers
+
+None            0
+DES             1
+Triple DES      2
+AES 128 CBC     3
+AES 256 CBC     4
+AES 128 GCM     5
+AES 256 GCM     6
+
+5.3.3 Hash type numbers
+
+None            0
+MD5             1
+SHA-1           2
+SHA-256         3
+
+5.3.4 Signature type numbers
+
+None            0
+HMAC            1
+KEYEX           2
+
+5.3.5 Key Exchange type numbers
+
+None            0
+RSA             1
+ECDH_RSA        2
+ECDH_ECDSA      3
+
+5.3.6 Key Blob type numbers
+
+None            0
+RSA             1
+EC              2
+
+5.3.7 Heartbeat authentication codes
+
+HB_AUTH_FAILED     0
+HB_AUTH_OK         1
+HB_AUTH_CHALLENGE  2
+
+5.3.8 File types
+
+Regular file    0
+Directory       1
+Symbolic Link   2
+
+5.3.9 Completion status
+
+COMP_STAT_NORMAL     0
+COMP_STAT_SKIPPED    1
+COMP_STAT_OVERWRITE  2
+COMP_STAT_REJECTED   3
+
+5.3.10 Extension types
+
+EXT_ENC_INFO         1
+EXT_TFMCC_DATA_INFO  2
+EXT_TFMCC_ACK_INFO   3
+EXT_PGMCC_DATA_INFO  4
+EXT_PGMCC_NAK_INFO   5
+EXT_PGMCC_ACK_INFO   6
+
+5.3.11 Congestion control types
+
+CC_NONE     0
+CC_UFTP3    1
+CC_TFMCC    2
+CC_PGMCC    3
+
+5.3.12 Elliptic Curve named curves
+
+sect163k1     1
+sect163r1     2
+sect163r2     3
+sect193r1     4
+sect193r2     5
+sect233k1     6
+sect233r1     7
+sect239k1     8
+sect283k1     9
+sect283r1     10
+sect409k1     11
+sect409r1     12
+sect571k1     13
+sect571r1     14
+secp160k1     15
+secp160r1     16
+secp160r2     17
+secp192k1     18
+secp192r1     19    // also prime192v1
+secp224k1     20
+secp224r1     21
+secp256k1     22
+secp256r1     23    // also prime256v1
+secp384r1     24
+secp521r1     25
+

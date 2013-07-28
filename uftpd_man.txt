@@ -1,0 +1,360 @@
+uftpd(1)							      uftpd(1)
+
+
+
+NAME
+       uftpd - Encrypted UDP based ftp with multicast - client daemon
+
+SYNOPSIS
+       uftpd [ -d ] [ -p port ] [ -B buf_size ]
+	   [ -E ] [ -Q dscp ] [ -U UID ] [ -x log_level ] [ -t ]
+	   [ -T temp_dir ] [ -D dest_dir[,dest_dir... ]]
+	   [ -A backup_dir[,backup_dir... ]] [ -L logfile ]
+	   [ -P pidfile ] [ -S serverlist_file ] [ -R proxy[/fp] ]
+	   [ -k keyfile[,keyfile...] ]
+	   [ -K rsa:key_len | ec:curve[,rsa:key_len | ec:curve...]]
+	   [ -m ] [ -N priority ] [ -s postreceive_script ]
+	   [ -H hb_server[:port][,hb_server[:port]...] ]
+	   [ -h hb_interval ] [ -I interface[,interface...] ]
+	   [ -M pub_mcast_addr[,pub_mcast_addr...] ]
+
+DESCRIPTION
+       uftpd  is  the  client  daemon of the UFTP suite.  It listens on one or
+       more multicast addresses to receive files from servers.
+
+       This version of the client supports servers running UFTP 4.x.
+
+
+OPTIONS
+       The following options are supported:
+
+       -d     Enable debug mode.  The process will run in the  foreground  and
+	      all  output  will	 go to stderr.	If specified, the -L option is
+	      ignored.
+
+       -p port
+	      The UDP port number to listen on.	 Default is 1044.
+
+       -U UID The unique ID for this client.  Specified either as an  8	 digit
+	      hexadecimal  number (0xnnnnnnnn).	 The default value is based on
+	      the IP address of the first listed multicast  capable  interface
+	      on the system.  If this address is IPv4, the UID is the address.
+	      If it is IPv6, the UID is the last 4 bytes of the address.
+
+       -B buf_size
+	      The size in bytes of the UDP receive buffer to use.  Valid  val-
+	      ues are 65536-104857600 (64KB-100MB).  Defaults to 262144.
+
+       -E     Only  allow incoming sessions if encryption is enabled.  Default
+	      is to allow both encrypted and unencrypted sessions.
+
+       -Q dscp
+	      Specifies the Differentiated Services Code  Point	 (DSCP),  for-
+	      merly  Type  of Service (TOS), in the IP header for all outgoing
+	      packets.	Valid values are 0-63 and may be specified  in	either
+	      decimal or hexadecimal.  Default is 0.
+
+	      On Windows XP systems, the OS doesn't allow this parameter to be
+	      changed by default.  To change this,  add/modify	the  following
+	      DWORD registry value, set to 0, and reboot:
+
+	      HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Ser-
+	      vices\Tcpip\Parameters\DisableUserTOSSetting
+
+	      Not currently supported on Windows Vista or later.
+
+       -x log_level
+	      Specifies current logging level.	Valid values are 0-5,  with  0
+	      being  the  least verbose and 5 being the most verbose.  Default
+	      is 2, which is consistent with logging prior to version 3.5.
+
+       -t     Receive each file into a temp file in the same directory as  the
+	      destination  file.   The	temp  file  will  have an extension of
+	      .~uftp-{group-id}-{file-id}, where {group-id} and {file-id}  are
+	      the  group  ID of the current session and file ID of the current
+	      file.  If -A is also specified, the existing destination file is
+	      not  moved  to  backup  directory	 until after the file is fully
+	      received.
+
+       -T temp_dir
+	      Temp directory in	 which	files  are  received,  then  moved  to
+	      dest_dir	when  the  session is complete.	 If omitted, files are
+	      received directly	 into  dest_dir.   Must	 reside	 on  the  same
+	      filesystem as the destination directory.
+
+	      The  -T option MUST be specified to allow the client to save the
+	      state of failed file transfers that can be resumed later.
+
+	      Not compatible -A or -t.	Not compatible with -D	when  multiple
+	      destination  directories are specified.  Also, no incoming files
+	      with an absolute path will be accepted if this option is	speci-
+	      fied.
+
+	      IMPORTANT: When full directories are received, the entire direc-
+	      tory is moved at once to the destination directory, removing any
+	      existing	file/directory.	 This means that if an existing direc-
+	      tory in dest_dir is the same name as a directory	received  into
+	      temp_dir, all files under the existing directory are deleted.
+
+       -D dest_dir[,dest_dir...]
+	      Destination  directories for all received files.	When an incom-
+	      ing file specifies an absolute path, it must match  one  of  the
+	      destination  directories,	 otherwise  the file will be rejected.
+	      Incoming files that don't	 specify  an  absolute	path  will  be
+	      received	into  the  first  destination  directory  in the list.
+	      Default is /tmp for UNIX-like systems, C:\temp for Windows.
+
+       -A backup_dir[,backup_dir...]
+	      Specifies backup directories.  Each backup directory corresponds
+	      to  a  destination  directory, so the number of each MUST be the
+	      same.  Existing files that  would	 be  overwritten  by  incoming
+	      files  are  moved	 to the corresponding backup directory for the
+	      selected destination directory, first under timestamped directo-
+	      ries, then under the full path of the existing file.
+
+	      For  example,  if /full/path/to/file would be overwritten, it is
+	      moved to {backup_dir}/YYYYMMDD/HHMMSS/full/path/to/file.	 Under
+	      Windows, drive letters for local files are not part of the name,
+	      but host/share names for network files are.  So  C:\path\to\file
+	      would be backed up to {backup_dir}\YYYYMMDD\HHMMSS\path\to\file,
+	      and   \\host\share\path\to\file	would	be   backed   up    to
+	      {backup_dir}\YYYYMMDD\HHMMSS\host\share\path\to\file.
+
+	      Not compatible with -T.
+
+       -L logfile
+	      Specifies the log file.  Default is /tmp/uftpd.log for UNIX-like
+	      systems systems, C:\uftpd_log.txt for Windows.
+
+       -P pidfile
+	      The pidfile to write the daemon's pid to on startup.  Default is
+	      no pidfile.
+
+       -S serverlist_file
+	      A	 file  containing  a  list of servers the client will allow to
+	      send files to it.	 The file should contain the ID of the server,
+	      the  IP  address the client expects the server's request to come
+	      from, and optionally the server's public key  fingerprint,  with
+	      one  entry  for  a server on each line.  If a key fingerprint is
+	      given, the key specified by the server must  match  the  finger-
+	      print.  If your system supports source specific multicast (SSM),
+	      the client will subscribe to all public  and  private  multicast
+	      addresses using SSM for all servers listed.
+
+	      When  this option is specified, the public and private addresses
+	      specified by the	server	must  be  valid	 SSM  addresses.   Any
+	      ANNOUNCE	that  specifies	 a  private IP that is not a valid SSM
+	      address will be rejected.	 Valid SSM addresses are in the	 232/8
+	      range for IPv4 and the ff30::/96 range for IPv6.
+
+	      Example contents:
+	      0x11112222|192.168.1.101|66:1E:C9:1D:FC:99:DB:60:B0:1A:F0:8F:CA:F4:28:27:A6:BE:94:BC
+	      0x11113333|fe80::213:72ff:fed6:69ca
+
+	      When  expecting to receive from a server that is behind a proxy,
+	      the file should list the ID of the server along with the IP  and
+	      fingerprint of the client proxy.	The proxy can authenticate the
+	      server.
+
+       -R proxy[/fingerprint]
+	      Specifies the name/IP of the response proxy that	all  responses
+	      are  forwarded  to.   If	fingerprint is given, it specifies the
+	      proxy's public key fingerprint.  Upon startup, the  client  will
+	      query  the  proxy	 for  its public key, retrying every 5 seconds
+	      until it gets a successful response.  The client	cannot	accept
+	      an  encrypted  file  transfer  from  a  server until it gets the
+	      proxy's key.
+
+       -k keyfile[,keyfile...]
+
+       -K rsa:key_length | ec:curve[,rsa:key_length | ec:curve...]
+	      These two options are used to read  and/or  write	 the  client's
+	      RSA/ECDSA private keys.
+
+	      The  -K  option  creates	one or more RSA or ECDSA private keys.
+	      New keys are specified as either rsa:key_length,	which  creates
+	      an  RSA  private key key_length bits wide, or as ec:curve, which
+	      creates an EC key using the curve "curve".
+
+	      The list of supported EC curves is as follows (availability  may
+	      vary depending on system settings and crypto library used):
+
+	      sect163k1	 sect163r1  sect163r2  sect193r1  sect193r2  sect233k1
+	      sect233r1	 sect239k1  sect283k1  sect283r1  sect409k1  sect409r1
+	      sect571k1	 sect571r1  secp160k1  secp160r1  secp160r2  secp192k1
+	      prime192v1 secp224k1 secp224r1  secp256k1	 prime256v1  secp384r1
+	      secp521r1
+
+	      If only -K is specified, the keys created are not persisted.
+
+	      If  only -k is specified, this option reads RSA or ECDSA private
+	      keys from each keyfile.
+
+	      If -k and -K are specified, the keys created by -K  are  written
+	      to the keyfiles listed by -k.  In this case, -k and -K must give
+	      the same number of items.
+
+	      If neither -k nor -K are specified, an RSA private key 512 bytes
+	      in length is generated and not persisted.
+
+	      If -k is specified but not -K, the RSA or ECDSA private keys are
+	      read from each keyfile.
+
+	      The definition of keyfile is dependent  on  the  crypto  library
+	      UFTP is compiled to use.
+
+	      On  Windows  systems, UFTP can built to use either CNG, which is
+	      the new API supported by Windows Vista and Windows 7,  or	 Cryp-
+	      toAPI,  which  is	 the  legacy API and the only one available to
+	      Windows XP.
+
+	      Under CryptoAPI, all RSA private keys must be stored  in	a  key
+	      container	 (technically  only  keys  used	 to sign data, but for
+	      UFTP's purposes this is the case).  Key containers are  internal
+	      to  Windows,  and	 each user (and the system) has its own set of
+	      key containers.  In this case, key_file is actually the name  of
+	      the  key container.  When -k is not specified, the generated key
+	      is not persisted. Elliptic Curve algorithms  are	not  supported
+	      under CryptoAPI.
+
+	      Under  CNG,  RSA	and  ECDSA private keys are also stored in key
+	      containers, and RSA keys created by CrypoAPI may be read by CNG.
+	      Like  CryptoAPI, key_file also specifies the key container name,
+	      and the generated key is not persisted if -k is  not  specified.
+	      CNG  only supports 3 named EC curves: prime256v1, secp384r1, and
+	      secp521r1.
+
+	      All other systems use OpenSSL for the crypto  library  (although
+	      under  Windows  UFTP  can	 be also be built to use it).  In this
+	      case, key_file specifies a file name where the RSA  private  key
+	      is  stored unencrypted in PEM format (the OS is expected to pro-
+	      tect this file).	When both -k and -K are specified, the file is
+	      only  written  to	 if  it does not currently exist.  If the file
+	      does exist, an error message will be  returned  and  the	server
+	      will  exit.   When -k is not specified, the generated key is not
+	      persisted.  These PEM files may  also  be	 manipulated  via  the
+	      openssl(1) command line tool.
+
+	      Keys  can	 also  be  generated and viewed via the uftp_keymgt(1)
+	      utility.
+
+       -m     For Windows systems using CryptoAPI or  CNG,  private  keys  are
+	      normally stored in the key container of the running user.	 Spec-
+	      ifying this option stores keys  in  the  system  key  container.
+	      Useful  when running as a service.  On non-Windows systems, this
+	      option has no effect.
+
+       -N priority
+	      Sets the process priority.  On Windows systems, valid values are
+	      from -2 to 2, with a default of 0.  These correspond to the fol-
+	      lowing priorities:
+
+	      -2 High
+	      -1 Above Normal
+	       0 Normal
+	       1 Below Normal
+	       2 Low
+
+	      On all other systems, this is the "nice"	value.	 Valid	values
+	      are  from -20 to 19, where -20 is the highest priority and 19 is
+	      the lowest priority.  Default is 0.
+
+       -s postreceive_script
+	      The full path to an external command or script to be called when
+	      files are received.  The command will be called as follows:
+
+	      postreceive_script -I session_id file [ file... ]
+
+	      Where "session_id" is an 8 hexadecimal digit number identifiying
+	      the current session, and "file" is the full pathname to  one  or
+	      more  received  files/directories	 in  the destination directory
+	      specified by -D.
+
+	      The way this script is called depends on whether or not  a  temp
+	      directory is specified by -T.  If a temp directory is not speci-
+	      fied, the script gets called once for each file as soon  as  the
+	      file  is received.  If a temp directory is specified, the script
+	      gets called once at the end of the session, and  is  passed  all
+	      top   level   files/directories	received.   Here,  "top	 level
+	      files/directories" refers to all entries in the  temp  directory
+	      for the session, but not subdirectories.	So the script would be
+	      responsible for traversing any listed directories to find	 files
+	      contained within them.
+
+       -H hb_server[:port][,hb_server[:port]...]
+	      Lists  one  or more proxies to send heartbeat messages to.  When
+	      sending a signed heartbeat message, the first key	 listed	 under
+	      -k  is used to sign the message.	If port is not specified for a
+	      given proxy, the default port of 1044 is assumed.
+
+       -h hb_interval
+	      The time in seconds between sending heartbeat messages.  Ignored
+	      if -H is not specified.
+
+       -I interface[,interface...]
+	      Lists  one or more interfaces to listen to multicast traffic on.
+	      Interfaces can be specified either by interface name,  by	 host-
+	      name,  or	 by  IP.   When	 receiving  a  closed group membership
+	      request, the client will participate if any of these  interfaces
+	      matches an IP in the announcement.  When receiving an open group
+	      membership request, the first interface listed is	 the  one  the
+	      client will report back to the server.  This may not necessarily
+	      be the interface that the ANNOUNCE was received on.  The default
+	      is to listen on all active non-loopback interfaces.  NOTE: Since
+	      Windows doesn't have named interfaces (not  in  the  sense  that
+	      UNIX-like	 systems  do),	only  hostnames	 or  IP	 addresses are
+	      accepted on Windows.  If specifying by hostname or IP, may be  a
+	      mixture of IPv4 and IPv6 addresses, except on systems that don't
+	      support dual mode sockets such as Windows XP.
+
+       -M pub_multicast_addr[,pub_multicast_addr...]
+	      The list of public multicast addresses to listen on.  May	 be  a
+	      mixture of IPv4 and IPv6 addresses, except on systems that don't
+	      support dual mode	 sockets  such	as  Windows  XP.   Default  is
+	      230.4.4.1
+
+EXAMPLES
+       Starting with the default options:
+
+	    uftpd
+
+       The  client  runs as a daemon and listens for announcements on UDP port
+       1044 on multicast address 230.4.4.1 on all non-loopback network	inter-
+       faces.  Incoming files are received directly into /tmp (C:\temp on Win-
+       dows).  A 512-bit RSA key is generated to handle encrypted sessions.
+
+       Suppose you want an  external  process  to  handle  incoming  files  in
+       /tmp/dest.  Since you don't want to pick up incomplete files, you might
+       want them to be received into /tmp/receiving then  moved	 to  /tmp/dest
+       when done.  Then call the client like this:
+
+	    uftpd -D /tmp/dest -T /tmp/receiving
+
+       If the client expects to receive from different servers, one sending on
+       230.4.4.1 and one sending on ff02:4:4:2:
+
+	    uftpd -M 230.4.4.1,ff02:4:4:2
+
+       To handle incoming encrypted sessions with differing private keys:
+
+	    uftpd							    -k
+	    file_for_rsa_1024_key,file_for_rsa_2048_key,file_for_ec_prime256v1_key
+
+       If incoming packets aren't being read quickly enough, and you  want  to
+       increase the UDP receive buffer size to 2 MB:
+
+	    uftpd -B 2097152
+
+
+SEE ALSO
+       uftp(1), uftpproxyd(1), uftp_keymgt(1)
+
+NOTES
+       The     latest	  version     of     UFTP     can    be	   found    at
+       http://www.tcnj.edu/~bush/uftp.html.  UFTP is covered by the  GNU  Gen-
+       eral  Public  License.	Commercial  licenses and support are available
+       from Dennis Bush (bush@tcnj.edu).
+
+
+
+UFTP 4.0			 27 April 2013			      uftpd(1)

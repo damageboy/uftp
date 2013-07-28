@@ -1,0 +1,571 @@
+uftp(1)								       uftp(1)
+
+
+
+NAME
+       uftp - Encrypted UDP based ftp with multicast - server
+
+SYNOPSIS
+       uftp [ -R txrate ] [ -L logfile ] [ -B udp_buf_size ]
+	   [ -Y keytype ] [ -h hashtype ] [ -w sigtype ]
+	   [ -e keyextype[:curve] ] [ -c ]
+	   [ -k key_file ] [ -K key_length | curve ] [ -l ] [ -T ]
+	   [ -b block_size ] [ -t ttl ] [ -Q dscp ] [ -z | -Z ]
+	   [ -I interface ] [ -p port ] [ -j proxylist_file ]
+	   [ -q ] [ -f ] [ -y ] [ -x log_level ]
+	   [ -H host[,host...] | -H @hostlist_file
+	   | -F restart_file ] [ -X exclude_file ]
+	   [ -M pub_multicast_addr ] [ -P priv_multicast_addr ]
+	   [ -C cc_type ] [ -o ] [ -D dest_name ]
+	   [ -E base_dir[,base_dir... ] ]
+	   [ -r init_grtt[:min_grtt:max_grtt] ] [ -s robust ]
+	   { -i list_file | file [ file... ] }
+
+DESCRIPTION
+       uftp  is	 the  server  process of the UFTP suite.  It sends one or more
+       files to one or more receivers via multicast with optional  encryption.
+
+
+OPTIONS
+       The following options are supported:
+
+       -R txrate
+	      The  transmission	 speed	in Kbps.  Specifying -1 for this value
+	      results in data being sent as fast as the network interface will
+	      allow.   Using  a value of -1 is recommended only if the network
+	      path between the server and  all	clients	 is  as	 fast  as  the
+	      server's	local  interface, and works best in a gigabit environ-
+	      ment.   Default is 1000 Kbps.  Ignored if -C is given any	 value
+	      other than "none".
+
+       -L logfile
+	      Specifies the log file.  Default is to write to stderr.
+
+       -B buf_size
+	      The  size	 in bytes of the UDP send buffer and receive buffer to
+	      use.  Valid values are 65536-104857600  (64KB-100MB).   Defaults
+	      to 262144.
+
+       -Y keytype
+	      The  symmetric  encryption  algorithm  to use.  Valid values are
+	      "des" for DES in CBC mode, "3des" for three key  Triple  DES  in
+	      CBC     mode,    "aes128-cbc",	"aes256-cbc",	 "aes128-gcm",
+	      "aes256-gcm", "aes128-ccm", "aes256-ccm", or "none" to  not  set
+	      up  encryption  at all.  The GCM and CCM modes are authenticated
+	      encryption modes which applies a signatures at the same time  as
+	      encryption.   If	one of these modes are specifies, the value of
+	      -w is ignored.  Default is "none".  Not  all  installations  may
+	      support all of these algorithms.
+
+       -h hashtype
+	      The  hashing algorithm to use for key derivation and HMAC signa-
+	      tures.  Valid values are "sha1" for SHA-1, "sha256" for SHA-256,
+	      "sha384"	for  SHA-384,  and  "sha512" for SHA-512.  Defaults to
+	      "sha1".  Ignored if -Y is "none".	  Not  all  installations  may
+	      support all of these algorithms.
+
+       -w sigtype
+	      Specifies	 the type of signature to be applied to encrypted mes-
+	      sages.  Valid  values  are  "hmac"  to  apply  an	 HMAC  to  the
+	      encrypted	 message,  and "keyex" to apply either an RSA or ECDSA
+	      signature depending on the key exchange algorithm chosen via -e.
+	      HMAC  signatures	are  based off the group master key and ensure
+	      the sender of a message is a valid member of the group, but does
+	      not  guarantee  that the message came from a specific group mem-
+	      ber.  RSA and ECDSA signatures ensure that messages come from  a
+	      particular  member,  but	is  much much slower to calculate than
+	      HMAC and creates a larger per-packet overhead.  If  the  keytype
+	      specified	 by  -Y	 is an authentication mode cipher (i.e. AES in
+	      GCM or CCM mode), this field  is	ignored	 and  signatures  will
+	      instead  be  generated at the same time data is encrypted.  This
+	      also has the lowest size overhead and is the  fastest.   Default
+	      is "hmac".  Ignored if -Y is "none".
+
+       -e keyextype[:curve]
+	      Specifies	 the  key exchange algorithm to use.  Valid values are
+	      "rsa" for an RSA key exchange, "ecdh_rsa" for an Elliptic	 Curve
+	      Diffie-Hellman  (ECDH)  key  exchange  with  RSA signatures, and
+	      "ecdh_ecdsa" for an ECDH key  exchange  with  ECDSA  signatures.
+	      Using one of the ECDH schemes provides perfect forward security,
+	      while using just	RSA  is	 slightly  more	 resilient  to	replay
+	      attacks.	 If  ecdh_rsa  or  ecdh_ecdsa are chosen, the named EC
+	      curve that the ECDH key is based on may optionally be  selected,
+	      with  prime256v1	as  the default (See -k and -K for the list of
+	      available EC curves).  Default key  exchange  scheme  is	"rsa".
+	      Ignored if -Y is "none".
+
+       -c     If  specified,  forces  clients to authenticate by sending their
+	      RSA public key in a CLIENT_KEY message.  Client key fingerprints
+	      and  proxy  key fingerprints specified by -H and -j respectively
+	      will NOT be checked unless -c is specified.  Ignored  if	-Y  is
+	      "none".
+
+       -k key_file
+
+       -K key_length | curve
+	      These  two  options  are	used to read and/or write the server's
+	      RSA/ECDSA private key.  Both are ignored if -Y is "none".
+
+	      The type of private key read/written depend on the key  exchange
+	      algorithm	 chosen	 via  the  -e  option.	 If  -e	 is  "rsa"  or
+	      "ecdh_rsa", -K specifies the key length in bits of an  RSA  pub-
+	      lic/private  keypair to generate, and -k expects an RSA key.  If
+	      -e is "ecdh_ecdsa", -K specifies a named EC curve on which an EC
+	      public/private keypair is generated, and -k expects an EC key.
+
+	      The  list of supported EC curves is as follows (availability may
+	      vary depending on system settings and crypto library used):
+
+	      sect163k1	 sect163r1  sect163r2  sect193r1  sect193r2  sect233k1
+	      sect233r1	 sect239k1  sect283k1  sect283r1  sect409k1  sect409r1
+	      sect571k1	 sect571r1  secp160k1  secp160r1  secp160r2  secp192k1
+	      prime192v1  secp224k1  secp224r1	secp256k1 prime256v1 secp384r1
+	      secp521r1
+
+	      If neither -k nor -K are specified, either an  RSA  private  key
+	      512  bits	 in  length  or	 an EC private key on curve prime256p1
+	      (depending on the value of -e) is generated but not persisted.
+
+	      If -k is specified but not -K, the RSA or ECDSA private  key  is
+	      read from key_file.
+
+	      If -k is not specified but -K is, an RSA or ECDSA private key is
+	      generated but not persisted.
+
+	      If both -k and -K are specified, an RSA or ECDSA private key  is
+	      generated and stored in key_file.
+
+	      The  definition  of  key_file is dependent on the crypto library
+	      UFTP is compiled to use.
+
+	      On Windows systems, UFTP can built to use either CNG,  which  is
+	      the  new	API supported by Windows Vista and Windows 7, or Cryp-
+	      toAPI, which is the legacy API and the  only  one	 available  to
+	      Windows XP.
+
+	      Under  CryptoAPI,	 all  RSA private keys must be stored in a key
+	      container (technically only keys used  to	 sign  data,  but  for
+	      UFTP's  purposes this is the case).  Key containers are internal
+	      to Windows, and each user (and the system) has its  own  set  of
+	      key  containers.	In this case, key_file is actually the name of
+	      the key container.  When -k is not specified, the generated  key
+	      is  not  persisted.  Elliptic Curve algorithms are not supported
+	      under CryptoAPI.
+
+	      Under CNG, RSA and ECDSA private keys are	 also  stored  in  key
+	      containers, and RSA keys created by CrypoAPI may be read by CNG.
+	      Like CryptoAPI, key_file also specifies the key container	 name,
+	      and  the	generated key is not persisted if -k is not specified.
+	      CNG only supports 3 named EC curves: prime256v1, secp384r1,  and
+	      secp521r1.
+
+	      All  other  systems use OpenSSL for the crypto library (although
+	      under Windows UFTP can be also be built to  use  it).   In  this
+	      case,  key_file  specifies a file name where the RSA private key
+	      is stored unencrypted in PEM format (the OS is expected to  pro-
+	      tect this file).	When both -k and -K are specified, the file is
+	      only written to if it does not currently	exist.	 If  the  file
+	      does  exist,  an	error  message will be returned and the server
+	      will exit.  When -k is not specified, the generated key  is  not
+	      persisted.   These  PEM  files  may  also be manipulated via the
+	      openssl(1) command line tool.
+
+	      Keys can also be generated and  viewed  via  the	uftp_keymgt(1)
+	      utility.
+
+       -l     Follow  symbolic	links.	By default, if the server encounters a
+	      symbolic link, it will send the link itself instead of the  file
+	      it  points  to.	Specifying this flag causes the server to send
+	      the file the link points to.
+
+       -T     Print the timestamp on each line of output.  If -L is specified,
+	      this option is implied.
+
+       -b block_size
+	      Specifies the size of a data block.  This value should be around
+	      100-200 bytes less that the path MTU to provide ample  room  for
+	      all  headers  and extensions, up to and including the IP and UDP
+	      headers.	Prior to version 4.0, this option  specified  the  MTU
+	      and calculated the block size based on that.  Default is 1300.
+
+       -t ttl Specifies the time-to-live for multicast packets.	 Default is 1.
+
+       -Q dscp
+	      Specifies the Differentiated Services Code  Point	 (DSCP),  for-
+	      merly  Type  of Service (TOS), in the IP header for all outgoing
+	      packets.	Valid values are 0-63 and may be specified  in	either
+	      decimal or hexadecimal.  Default is 0.
+
+	      On Windows XP systems, the OS doesn't allow this parameter to be
+	      changed by default.  To change this,  add/modify	the  following
+	      DWORD registry value, set to 0, and reboot:
+
+	      HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Ser-
+	      vices\Tcpip\Parameters\DisableUserTOSSetting
+
+	      Not currently supported on Windows Vista or later.
+
+       -z     Enables sync mode.  Clients  will	 check	if  an	incoming  file
+	      exists.	If so, the client will decline the incoming file if it
+	      either older than the existing file or the same age and the same
+	      size as the existing file.
+
+	      The status messages at the end of each file are modified in this
+	      mode into a parsable format.
+
+	      The following is printed for each client after all  have	regis-
+	      tered:
+
+	      CONNECT;status;target
+
+	      Where  "status" is either "success" or "failed", and "target" is
+	      the name of the client.
+
+	      The following is printed after each file:
+
+	      RESULT;target;filename;size;status;speed
+
+	      Where "target" is the name of the client, "file" is the name  of
+	      the  current  file,  "size" is the size of the file in kilobytes
+	      (i.e. 1234KB), "speed" is the transmission speed for  that  file
+	      in KB/s, and status is:
+
+	      copy: The file was sent
+
+	      overwrite: The file was sent, and overwrote an existing file
+
+	      skipped: The file was declined by the client because it is older
+	      that the existing file
+
+	      rejected: The file was rejected, because the file was sent  with
+	      an  absolute  pathname  and  either  the	client is using a temp
+	      directory or the filename doesn't match one of the client's des-
+	      tination directories.
+
+	      The following is printed at the end of the session:
+
+	      STATS;target;num_copy;num_over-
+	      write;num_skip;total_size;time;speed
+
+	      Where "target" is the name of the client, "num_copy" is the num-
+	      ber of files sentwith "copy" status, "num_overwrite" is the num-
+	      ber of files sent with "overwrite"  status,  "num_skip"  is  the
+	      number  of files sent with "skipped" status, "total_size" is the
+	      total size of all files sent in kilobytes, "time" is  the	 total
+	      transmission  time  for  all  files,  and "speed" is the overall
+	      transmission speed for all files.
+
+	      Also, the following line is printed verbatim prior to the	 STATS
+	      lines for ease of reading:
+
+	      HSTATS;target;copy;overwrite;skip;totalKB;time;speedKB/s
+
+       -Z     Sync  preview  mode.   Works like sync mode, except no files are
+	      actually transmitted, and the RESULT and STATS lines reflect the
+	      status of each file had they actually been sent.	The "time" and
+	      "speed" datapoints are approximated based	 on  the  transmission
+	      speed.
+
+       -I interface
+	      The interface to send the data from.  Can be specified either by
+	      interface name, by hostname, or by IP.  If  not  specified,  the
+	      default system interface is used.
+
+       -p port
+	      The UDP port number to send to.  Default is 1044.
+
+       -j proxylist_file
+	      A	 file  containing a list of proxies the server is expecting to
+	      hear from.  The file should contain the ID of a proxy optionally
+	      followed by the proxy's public key fingerprint, with one on each
+	      line.  If a key fingerprint is given, the key specified  by  the
+	      proxy  must  match  the  fingerprint.  This option should not be
+	      used without -H.	If -H is specified, -j must also be  specified
+	      if  proxies  are	expected to respond, otherwise the server will
+	      reject the proxies.
+
+	      Example contents:
+	      0x00001111|66:1E:C9:1D:FC:99:DB:60:B0:1A:F0:8F:CA:F4:28:27:A6:BE:94:BC
+	      0x00002222
+
+       -q     Quit-on-error flag.  Normally, the server will continue  with  a
+	      session  as  long	 as at least one client is still active.  With
+	      this flag, the server will quit if any client aborts, drops out,
+	      or  never	 responds.   Most  useful  in conjunction with clients
+	      using the temp directory option (-T) so that clients  that  suc-
+	      cessfully	 receive  at least one file before being told to abort
+	      don't have files from an	aborted	 session  in  the  destination
+	      directory.
+
+       -f     Restartable  flag.   If specified, and at least one client fails
+	      to receive all files, the server will write a restart file named
+	      "_group_{group  ID}_restart in the current directory to save the
+	      current state, which includes the group ID, list of  files,  and
+	      list  of	failed clients.	 This file can then be passed to -F to
+	      restart the failed transfer.
+
+       -y     For Windows systems using CryptoAPI or  CNG,  private  keys  are
+	      normally stored in the key container of the running user.	 Spec-
+	      ifying this option stores keys in the system key container.   On
+	      non-Windows systems, this option has no effect.
+
+       -x log_level
+	      Specifies	 current  logging level.  Valid values are 0-5, with 0
+	      being the least verbose and 5 being the most  verbose.   Default
+	      is 2, which is consistent with logging prior to version 3.5.
+
+       -H { host[,host...] | @hostlist_file }
+	      Specifies the clients for closed group membership.  Can be spec-
+	      ified as either a comma separated list of client IDs, or can  be
+	      read  from  hostlist_file.   This	 file is in the same format as
+	      proxylist_file.  Note that key fingerprints cannot be  specified
+	      using  the  comma	 separated  syntax.  Clients that are behind a
+	      proxy do not need key fingerprints specified, since the  proxy's
+	      key  fingerprint	will be checked instead.  If unspecified, open
+	      group membership is used, and any client may register.
+
+       -F restart_file
+	      Specifies the name of a restart file to use to resume  a	failed
+	      transfer.	  If  specified, -H may not be specified and all files
+	      listed to send will be ignored, since the restart file  contains
+	      both  of these.  All other command line options specified on the
+	      first attempt are not automatically applied, so  you  can	 alter
+	      then for the next attempt if need be.
+
+       -X exclude_file
+	      A	 file  containing the names of files/paths to be excluded from
+	      the session, one per line.  For example, if you send a directory
+	      called  d1  containing  subdirectories  d2,  d3, and d4, and you
+	      don't want to send the contents of d4, the  exclude_file	should
+	      contain a line reading "d1/d4".
+
+       -M pub_multicast_addr
+	      The  public  address  to announce on.  May be either a multicast
+	      address or a unicast address, and either IPv4  or	 IPv6.	 If  a
+	      unicast  address	is specified, the -P option is ignored and all
+	      data moves over the specified unicast address.  If  a  multicast
+	      IPv6  address  is specified, -P must also be specified.  Default
+	      is 230.4.4.1.
+
+       -P priv_multicast_addr
+	      The private multicast address that the data is  transferred  to.
+	      One  or  more parts of the IP address (other that the first) may
+	      be replaced with the letter 'x', resulting in  a	random	number
+	      being  chosen  for  that part, either 0-255 for IPv4 or 0-0xFFFF
+	      for IPv6.	 Default value is 230.5.5.x.   If  clients  are	 using
+	      source  specific multicast (SSM), this and -M must specify valid
+	      SSM addresses, which fall in the range 232.0.0.0/8 for IPv4  and
+	      ff3x::/32	 for IPv6 (here x specifies the multicast scope).  The
+	      values for -M and -P must both be the same IP version.
+
+       -C cc_type
+	      Specifies the congestion control mode to	use.   Currently  sup-
+	      ported  values are "none" and "tfmcc".  Specifiying "none" means
+	      data will be sent at a fixed rate as specified by the -R option.
+	      Specifying  "tfmcc"  will use the TCP Friendly Multicast Conges-
+	      tion Control scheme as specified in RFC 4654.  Default value  is
+	      "none".
+
+	      The  following is a description of how congestion control worked
+	      prior to version 4.0 and should be considered historical.
+
+	      Specifies a  congestion  control	config	file.	Normally,  the
+	      server always transmits at the speed specified by -R.  With this
+	      option, the speed can be adjusted each time the server  makes  a
+	      request  for  NAKs  from	the clients based on the percentage of
+	      NAKs received to data packets sent. The file consists of one  or
+	      more of the following lines:
+
+	      percentage;scaling_factor
+
+	      Where  "percentage"  is  a  whole number from 0-100 specifying a
+	      percentage of NAKs, and scaling_factor  is  a  positive  decimal
+	      number  that  the	 current sending rate is multiplied by for the
+	      given percentage.	 Entries must be listed in ascending order  by
+	      percentage.   If there is no entry for "100", the scaling factor
+	      for the last entry becomes the scaling factor for "100".
+
+	      When the server collects NAKs from the  clients,	it  calculates
+	      the NAK percentage, then searches the congestion control entries
+	      in order for a percengage greater than or equal to  the  current
+	      NAK  percentage, and adjusts the rate by the corresponding scal-
+	      ing factor.
+
+	      There may also be a single line specifying the maximum transmis-
+	      sion speed:
+
+	      max;speed
+
+	      Where  "speed" is the transmission speed in Kbps.	 If this entry
+	      is not specified, the maximum speed is the initial speed	speci-
+	      fied by -R.
+
+	      The  congestion  control	config	file  is reread each time just
+	      before adjusting	the  rate.   This  allows  environments	 which
+	      externally  monitor  the	network to adjust the configuration on
+	      the fly.	In the event of a failure to read the file,  the  last
+	      configuration successfully read is used.
+
+	      Here is a sample cc_config file:
+
+	      max;10000
+	      0;1.3
+	      5;1.1
+	      10;0.9
+	      25;0.7
+	      50;0.5
+	      100;0.4
+
+       -o
+
+       -D dest_name
+	      These  options specify the name given to the sent file(s) on the
+	      client side.  If only one file/directory is  specified  to  send
+	      and  -o  is  not	specified, the name spcified by -D is given to
+	      that file/directory, and the effects of -E are ignored.  If more
+	      than one file/directory is specified to send, or if -o is speci-
+	      fied, they are placed in a subdirectory with the	name  spcified
+	      by -D.
+
+	      This  option  may	 also  specify	an absolute path name.	If so,
+	      clients must be either all Windows or all UNIX-like, since  they
+	      have  differing filesystem structures, otherwise the behavior is
+	      undefined.  The server, however, need not be the same OS as  the
+	      clients.	 When  specifying an absolute path name, the path must
+	      be contained in one of a client's destination directories,  oth-
+	      erwise the client will reject the file.  When sending to Windows
+	      clients,	 an   absolute	  path	  may	 be    either	 local
+	      (drive:\path\to\file) or remote (\\host\share\path\to\file).
+
+       -E base_dir[,base_dir...]
+	      Specifies	 one  or more "base" directories for files.  Normally,
+	      for any file/directory specified, any leading path elements  are
+	      stripped	 from  the  name  before  sending.  If	the  specified
+	      file/directory name matches one of the  base  directories,  only
+	      the  path	 elements  of the base directory are stripped, and the
+	      remainder is sent as the file name.  Any	specified  file/direc-
+	      tory that does not match a base directory is skipped.
+
+	      For  example, without -E, if you pass /path/to/file to send, the
+	      transmitted filename is file.  If you  pass  in  -E  /path,  the
+	      transmitted file name is to/file.
+
+       -r init_grtt[:min_grtt:max_grtt]
+	      Specifies the initial value, and optionally the min and max val-
+	      ues, of the Group Round Trip Time (GRTT) used in timing calcula-
+	      tions.  The GRTT changes dynamically based on the network condi-
+	      tions.  This option is useful if the initial  connection	period
+	      is  to  short  or long, if receivers are getting bogged down and
+	      cannot respond to the server quick enough before timing out,  or
+	      if  receivers  are  getting  flagged with too high of an RTT and
+	      take too long to recover to a resonable  value.	 Valid	values
+	      are  0.001  to  1000.   Defaults are 0.5 for init_grtt, 0.01 for
+	      min_grtt, and 15.0 for max_grtt.
+
+       -s robust
+	      Specifies the robustness factor for message retransmission.  The
+	      server  will resend particular messages up to robust times while
+	      waiting for client responses.  Valid values are 10-50.   Default
+	      is 20.
+
+       -i list_file
+	      Name of a file containing a list of files to send, one per line.
+	      Empty lines are ignored.	Passing in  '-'	 for  list_file	 reads
+	      files from stdin.	 Other files specified on the command line are
+	      ignored if -i is given.
+
+       file [ file...]
+	      The file(s)  or  directory(ies)  to  send.   Any	special	 files
+	      (block/character devices, pipes, sockets, etc.) are skipped.  By
+	      default, any symbolic links are sent as  links  (see  -l).   Any
+	      Windows client will silently refuse to create them.  If -F or -i
+	      is specified, any files listed will be ignored.
+
+EXAMPLES
+       Starting with the default options:
+
+	    uftp the_file
+
+       The server sends the_file with no  encryption  at  1000	Kbps,  sending
+       announcements  over  230.4.4.1  and later messages over 230.5.5.x (x is
+       randomly selected).  Any client that responds to the announcement  will
+       be accepted.  The payload portion of the packets will be 1300 bytes.
+
+       To send at 50 Mbps:
+
+	    uftp -R 50000 the_file
+
+       Or to allow the transmission rate to be determined dynamically:
+
+	    uftp -C tfmcc the_file
+
+       To send multiple files:
+
+	    uftp file_1 file_2 file_3
+
+       or:
+
+	    uftp dir_1 dir_2 file_3
+
+       To  send multiple files that all land in a certain subdirectory on each
+       client:
+
+	    uftp -D dest_dir file_1 file_2
+
+       To send announcements over multicast address 224.1.2.3 and  later  mes-
+       sages over 224.4.5.6:
+
+	    uftp -M 224.1.2.3 -P 224.4.5.6 file
+
+       Or for IPv6:
+
+	    uftp -M ff02::1:2:3 -P ff02::4:5:6 file
+
+       Or in unicast mode:
+
+	    uftp -M host_or_ip file
+
+       Where  host_or_ip  is the hostname or unicast IP address of the host to
+       send to.
+
+       To send only to certain hosts:
+
+	    uftp -H client_id_1,client_id_2,client_id_3 file_to_send
+
+       or:
+
+	    uftp -H @file_containing_list_of_clients file_to_send
+
+       If you want to use jumbo ethernet frames of  9000  bytes	 (leaving  200
+       bytes of space for headers):
+
+	    uftp -b 8800 file_to_send
+
+       To  send	 /path/to/file1	 and  /path/to/file2,  and have them appear on
+       clients as /remote/dir/to/file1 and /remote/dir/to/file2:
+
+	    uftp -E /path -D /remote/dir /path/to/file1 /path/to/file2
+
+       To send a file encrypted with AES-256-CBC and SHA-1 hashing,  using  an
+       autogenerated 512-bit RSA key to negotiate the session:
+
+	    uftp -Y aes256-cbc -h sha1 file_to_send
+
+       To  do  the  above  with	 a  previously	generated  RSA	key  stored in
+       key_file_or_container (under Windows, the name of an internal key  con-
+       tainer, otherwise the name of a file containing the key in PEM format):
+
+	    uftp -Y aes256-cbc -h sha1 -k key_file_or_container file_to_send
+
+SEE ALSO
+       uftpd(1), uftpproxyd(1), uftp_keymgt(1)
+
+NOTES
+       The    latest	version	   of	  UFTP	   can	   be	  found	    at
+       http://www.tcnj.edu/~bush/uftp.html.   UFTP  is covered by the GNU Gen-
+       eral Public License.  Commercial licenses  and  support	are  available
+       from Dennis Bush (bush@tcnj.edu).
+
+
+
+UFTP 4.0			 27 April 2013			       uftp(1)
