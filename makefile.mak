@@ -94,10 +94,12 @@ client_common.obj: client_common.c client.h uftp_common.h uftp.h \
   encryption.h client_common.h
 client_config.obj: client_config.c client.h uftp_common.h uftp.h \
   encryption.h client_config.h
+client_fileinfo.obj: client_fileinfo.c client.h uftp_common.h uftp.h \
+  encryption.h client_common.h client_fileinfo.h client_transfer.h
 client_init.obj: client_init.c client.h uftp_common.h uftp.h encryption.h \
   client_init.h client_config.h client_common.h
 client_loop.obj: client_loop.c client.h uftp_common.h uftp.h encryption.h \
-  client_common.h client_loop.h client_announce.h \
+  client_common.h client_loop.h client_announce.h client_fileinfo.h \
   client_transfer.h heartbeat_send.h
 client_main.obj: client_main.c client_config.h client_init.h client_loop.h
 client_transfer.obj: client_transfer.c client.h uftp_common.h uftp.h \
@@ -111,12 +113,11 @@ server_config.obj: server_config.c server.h uftp_common.h uftp.h \
   encryption.h server_config.h
 server_init.obj: server_init.c server.h uftp_common.h uftp.h encryption.h \
   server_config.h server_init.h
-server_main.obj: server_main.c server_config.h uftp.h server_init.h \
-  server_send.h
+server_main.obj: server_main.c server_config.h server_init.h server_send.h
 server_phase.obj: server_phase.c server.h uftp_common.h uftp.h encryption.h \
-  server_common.h server_announce.h server_transfer.h
+  server_config.h server_common.h server_announce.h server_transfer.h
 server_send.obj: server_send.c server.h uftp_common.h uftp.h encryption.h \
-  server_send.h server_phase.h
+  server_send.h server_phase.h server_common.h
 server_transfer.obj: server_transfer.c server.h uftp_common.h uftp.h \
   encryption.h server_common.h server_transfer.h
 
@@ -140,7 +141,7 @@ encrypt_cng.obj: encrypt_cng.c uftp_common.h uftp.h encryption.h
 encrypt_cryptoapi.obj: encrypt_cryptoapi.c uftp_common.h uftp.h encryption.h
 encrypt_openssl.obj: encrypt_openssl.c uftp_common.h uftp.h encryption.h
 uftp_common.obj: uftp_common.c uftp.h uftp_common.h encryption.h
-heartbeat_send.o: heartbeat_send.c uftp_common.h uftp.h encryption.h \
+heartbeat_send.obj: heartbeat_send.c uftp_common.h uftp.h encryption.h \
   heartbeat_send.h
 win_func.obj: win_func.c win_func.h
 
@@ -151,8 +152,8 @@ UFTP_OBJS=win_func.obj uftp_common.obj encrypt_none.obj \
 	server_send.obj server_phase.obj \
 	server_common.obj server_config.obj server_init.obj server_main.obj
 
-UFTPD_OBJS=win_func.obj uftp_common.obj encrypt_none.obj \
-	client_loop.obj client_announce.obj client_transfer.obj \
+UFTPD_OBJS=win_func.obj uftp_common.obj encrypt_none.obj client_loop.obj \
+	client_announce.obj client_fileinfo.obj client_transfer.obj \
 	client_common.obj client_config.obj client_init.obj client_main.obj \
 	heartbeat_send.obj
 
@@ -170,8 +171,8 @@ UFTP_OBJS=win_func.obj uftp_common.obj encrypt_openssl.obj \
 	server_send.obj server_phase.obj \
 	server_common.obj server_config.obj server_init.obj server_main.obj
 
-UFTPD_OBJS=win_func.obj uftp_common.obj encrypt_openssl.obj \
-	client_loop.obj client_announce.obj client_transfer.obj \
+UFTPD_OBJS=win_func.obj uftp_common.obj encrypt_openssl.obj client_loop.obj \
+	client_announce.obj client_fileinfo.obj client_transfer.obj \
 	client_common.obj client_config.obj client_init.obj client_main.obj \
 	heartbeat_send.obj
 
@@ -189,8 +190,8 @@ UFTP_OBJS=win_func.obj uftp_common.obj encrypt_cryptoapi.obj \
 	server_send.obj server_phase.obj \
 	server_common.obj server_config.obj server_init.obj server_main.obj \
 
-UFTPD_OBJS=win_func.obj uftp_common.obj encrypt_cryptoapi.obj \
-	client_loop.obj client_announce.obj client_transfer.obj \
+UFTPD_OBJS=win_func.obj uftp_common.obj encrypt_cryptoapi.obj client_loop.obj \
+	client_announce.obj client_fileinfo.obj client_transfer.obj \
 	client_common.obj client_config.obj client_init.obj client_main.obj \
 	heartbeat_send.obj
 
@@ -208,8 +209,8 @@ UFTP_OBJS=win_func.obj uftp_common.obj encrypt_cng.obj \
 	server_send.obj server_phase.obj \
 	server_common.obj server_config.obj server_init.obj server_main.obj \
 
-UFTPD_OBJS=win_func.obj uftp_common.obj encrypt_cng.obj \
-	client_loop.obj client_announce.obj client_transfer.obj \
+UFTPD_OBJS=win_func.obj uftp_common.obj encrypt_cng.obj client_loop.obj \
+	client_announce.obj client_fileinfo.obj client_transfer.obj \
 	client_common.obj client_config.obj client_init.obj client_main.obj \
 	heartbeat_send.obj
 

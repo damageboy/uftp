@@ -161,7 +161,7 @@ struct pr_group_list_t {
  * Global command line values and sockets
  */
 extern SOCKET listener;
-extern char logfile[MAXPATHNAME], pidfile[MAXPATHNAME];
+extern char pidfile[MAXPATHNAME];
 extern char keyfile[MAXLIST][MAXPATHNAME], keyinfo[MAXLIST][MAXPATHNAME];
 extern int proxy_type, debug, rcvbuf, dscp, keyfile_count, keyinfo_count;
 extern int hb_interval, priority;

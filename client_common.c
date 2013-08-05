@@ -275,7 +275,8 @@ int other_mcast_users(struct group_list_t *group)
 /**
  * Run the postreceive script on list of received files
  */
-void run_postreceive_multi(struct group_list_t *group, char **files, int count)
+void run_postreceive_multi(struct group_list_t *group, char *const *files,
+                           int count)
 {
     char **params;
     char gid_str[10];
@@ -394,11 +395,9 @@ void run_postreceive_multi(struct group_list_t *group, char **files, int count)
 /**
  * Run the postreceive script on a received file
  */
-void run_postreceive(struct group_list_t *group, char *file)
+void run_postreceive(struct group_list_t *group, const char *file)
 {
-    char *files[1];
-
-    files[0] = file;
+    char *files[] = { (char *)file };
     run_postreceive_multi(group, files, 1);
 }
 
@@ -1053,10 +1052,10 @@ void update_loss_history(struct group_list_t *group, uint16_t txseq, int size)
         // Don't do this part unless we have at least MAXMISORDER packets
         // TODO: address issue of start_txseq being within MAXMISORDER sequence
         // numbers from the maximum
-        if (group->seq_wrap ||((int16_t)(group->max_txseq -
+        if (group->seq_wrap ||((uint16_t)(group->max_txseq -
                                     group->start_txseq) >= MAXMISORDER)) {
             for (i = group->max_txseq - MAXMISORDER;
-                    i != txseq - MAXMISORDER; i++) {
+                    i != (uint16_t)(txseq - MAXMISORDER); i++) {
                 if (!group->loss_history[i].found &&
                         ((diff_usec(group->loss_history[i].t,
                                     group->loss_events[0].t) > grtt_usec) ||

@@ -48,11 +48,18 @@
 #include "encryption.h"
 
 #define DEF_LOG_LEVEL 2
+#define DEF_MAX_LOG_COUNT 5
 
+extern char logfile[MAXPATHNAME];
 extern int showtime;
 extern FILE *applog;
-extern int log_level;
+extern int log_level, init_log_mux, use_log_mux, max_log_count;
+extern f_offset_t log_size, max_log_size;
+extern mux_t log_mux;
 
+void init_log(int __debug);
+void close_log();
+void roll_log();
 void logfunc(uint32_t group_id, uint16_t file_id, int level, int _showtime,
              int newline, int err, int sockerr, const char *str, ...);
 
@@ -200,6 +207,7 @@ int getifbyaddr(union sockaddr_u *su, const struct iflist *list, int len);
 
 int file_read(int fd, void *buf, int buflen, int allow_eof);
 int file_write(int fd, const void *buf, int buflen);
+int64_t free_space(const char *dir);
 
 int valid_priority(int priority);
 uint32_t rand32();

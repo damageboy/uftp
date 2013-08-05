@@ -75,6 +75,8 @@ int main(int argc, char *argv[])
     const char opts[] = "g:dm";
 
     log_level = 2;
+    max_log_size = 0;
+    init_log_mux = 0;
     applog = stderr;
     gen_key_len = 0;
     gen_key_curve = 0;

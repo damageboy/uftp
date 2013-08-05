@@ -28,16 +28,11 @@
  *  as that of the covered work.
  */
 
-#ifndef _CLIENT_ANNOUNCE_H
-#define _CLIENT_ANNOUNCE_H
+#ifndef _CLIENT_FILEINFO_H
+#define _CLIENT_FILEINFO_H
 
-void handle_announce(union sockaddr_u *src, const unsigned char *packet,
-                     unsigned packetlen, struct timeval rxtime);
-void handle_keyinfo(struct group_list_t *group, const unsigned char *message,
-                    unsigned meslen, uint32_t src_id);
-void handle_regconf(struct group_list_t *group, const unsigned char *message,
-                    unsigned meslen);
-void send_register(struct group_list_t *group);
-void send_keyinfo_ack(struct group_list_t *group);
+void handle_fileinfo(struct group_list_t *group, const unsigned char *message,
+                     unsigned meslen, struct timeval rxtime);
+void send_fileinfo_ack(struct group_list_t *group, int restart);
 
-#endif  // _CLIENT_ANNOUNCE_H
+#endif  // _CLIENT_FILEINFO_H

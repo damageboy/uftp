@@ -69,7 +69,9 @@ struct file_t {
     uint32_t last_block;        /// Block number of last block received
     uint16_t last_section;      /// Section number of last block received
     struct timeval nak_time;    /// Time to send out NAKs
-    uint16_t nak_section;       /// Maximum section number to send NAKs for
+    uint16_t nak_section_first; /// First section number to send NAKs for
+    uint16_t nak_section_last;  /// Last section number to send NAKs for
+    int got_done;               /// A DONE was received for this client
     f_offset_t curr_offset;     /// Current file pointer offset in fd
     int restart;                /// True if restarting a prior session
     int comp_status;            /// Value for status field of COMPLETE
@@ -174,13 +176,13 @@ struct group_list_t {
  */
 extern SOCKET listener;
 extern char tempdir[MAXDIRNAME], destdir[MAXDIR][MAXDIRNAME];
-extern char logfile[MAXPATHNAME], pidfile[MAXPATHNAME];
+extern char pidfile[MAXPATHNAME];
 extern char keyfile[MAXLIST][MAXPATHNAME], keyinfo[MAXLIST][MAXPATHNAME];
 extern char backupdir[MAXDIR][MAXDIRNAME];
 extern int debug, encrypted_only, dscp, destdircnt, tempfile, keyinfo_count;
 extern int interface_count, pub_multi_count, keyfile_count, rcvbuf, backupcnt;
 extern char postreceive[MAXPATHNAME], portname[PORTNAME_LEN];
-extern int port;
+extern int port, move_individual;
 extern uint32_t uid;
 extern union sockaddr_u hb_hosts[MAXLIST];
 extern struct iflist m_interface[MAX_INTERFACES];

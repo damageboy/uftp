@@ -1,4 +1,4 @@
-.TH uftpd 1 "27 April 2013" "UFTP 4.0"
+.TH uftpd 1 "30 July 2013" "UFTP 4.1"
 .SH NAME
 uftpd - Encrypted UDP based ftp with multicast - client daemon
 .SH SYNOPSIS
@@ -9,7 +9,8 @@ uftpd [ -d ] [ -p port ] [ -B buf_size ]
     [ -P pidfile ] [ -S serverlist_file ] [ -R proxy[/fp] ]
     [ -k keyfile[,keyfile...] ]
     [ -K rsa:key_len | ec:curve[,rsa:key_len | ec:curve...]]
-    [ -m ] [ -N priority ] [ -s postreceive_script ]
+    [ -m ] [ -N priority ] [ -i ] [ -s postreceive_script ]
+    [ -g max_log_size ] [ -n max_log_count ]
     [ -H hb_server[:port][,hb_server[:port]...] ]
     [ -h hb_interval ] [ -I interface[,interface...] ]
     [ -M pub_mcast_addr[,pub_mcast_addr...] ]
@@ -60,7 +61,7 @@ The -T option MUST be specified to allow the client to save the state of failed 
 
 Not compatible -A or -t.  Not compatible with -D when multiple destination directories are specified.  Also, no incoming files with an absolute path will be accepted if this option is specified.
 
-IMPORTANT: When full directories are received, the entire directory is moved at once to the destination directory, removing any existing file/directory.  This means that if an existing directory in dest_dir is the same name as a directory received into temp_dir, all files under the existing directory are deleted. 
+IMPORTANT: When full directories are received, the entire directory is moved at once to the destination directory, removing any existing file/directory.  This means that if an existing directory in dest_dir is the same name as a directory received into temp_dir, all files under the existing directory are deleted.  The -i option prevents by moving all files individually.
 .TP
 .B \-D dest_dir[,dest_dir...]
 Destination directories for all received files.  When an incoming file specifies an absolute path, it must match one of the destination directories, otherwise the file will be rejected.  Incoming files that don\(aqt specify an absolute path will be received into the first destination directory in the list.  Default is /tmp for UNIX-like systems, C:\\temp for Windows.
@@ -143,6 +144,9 @@ Sets the process priority.  On Windows systems, valid values are from -2 to 2, w
 
 On all other systems, this is the "nice" value.  Valid values are from -20 to 19, where -20 is the highest priority and 19 is the lowest priority.  Default is 0.
 .TP
+.B -i
+When -T is specified, directories are normally moved from the temp directory to the destionation directory at once, removing all existing files in the that subdirectory within the destionaion directory.  This option causes directories to be traversed so that all received files are moved individually, preventing unwanted deletions.  This also affects the operation of the -s option.  If -T is not specified, this option has no effect.
+.TP
 .B -s postreceive_script
 The full path to an external command or script to be called when files are received.  The command will be called as follows:
 
@@ -150,11 +154,16 @@ postreceive_script -I session_id file [ file... ]
 
 Where "session_id" is an 8 hexadecimal digit number identifiying the current session, and "file" is the full pathname to one or more received files/directories in the destination directory specified by -D.
 
-The way this script is called depends on whether or not a temp directory is specified by -T.  If a temp directory is not specified, the script gets called once for each file as soon as the file is received.  If a temp directory is specified, the script gets called once at the end of the session, and is passed all top level files/directories received.  Here, "top level files/directories" refers to all entries in the temp directory for the session, but not subdirectories.  So the script would be responsible for traversing any listed directories to find files contained within them.
+The way this script is called depends on whether or not a temp directory is specified by -T, and if -i is specified.  If a temp directory is not specified, or if both -T and -i are specified, the script gets called once for each file as soon as the file is received.  If a temp directory is specified but -i is not, the script gets called once at the end of the session, and is passed all top level files/directories received.  Here, "top level files/directories" refers to all entries in the temp directory for the session, but not subdirectories.  So the script would be responsible for traversing any listed directories to find files contained within them.
+.TP
+.B \-g max_log_size
+Specifies the maximum log file size in MB.  Once the log file reaches this size, the file is renamed with a .1 extension and a new log file is opened.  For example, if the log file is /tmp/uftpd.log, it will be renamed /tmp/uftpd.log.1 and a new /tmp/uftpd.log will be created.  Ignored if -d is specified.  Valid values are 1-1024.  Default is no log rolling.
+.TP
+.B \-n max_log_count
+Specifies the maximum number of archive log files to keep when log rolling is active.  When the log file rolls, archive logs are renamed with an incrementing numerical extension until the max is reached.  Archive log files beyond the maximum are deleted.  Ignored if -g is not specified.  Valid values are 1-1000.  Default is 5.
 .TP
 .B -H hb_server[:port][,hb_server[:port]...]
-Lists one or more proxies to send heartbeat messages to.  When sending a signed
-heartbeat message, the first key listed under -k is used to sign the message.  If port is not specified for a given proxy, the default port of 1044 is assumed.
+Lists one or more proxies to send heartbeat messages to.  When sending a signed heartbeat message, the first key listed under -k is used to sign the message.  If port is not specified for a given proxy, the default port of 1044 is assumed.
 .TP
 .B -h hb_interval
 The time in seconds between sending heartbeat messages.  Ignored if -H is not specified.
@@ -201,4 +210,4 @@ uftpd -B 2097152
 .SH SEE ALSO
 uftp(1), uftpproxyd(1), uftp_keymgt(1)
 .SH NOTES
-The latest version of UFTP can be found at http://www.tcnj.edu/~bush/uftp.html.  UFTP is covered by the GNU General Public License.  Commercial licenses and support are available from Dennis Bush (bush@tcnj.edu).
+The latest version of UFTP can be found at http://uftp-multicast.sourceforge.net.  UFTP is covered by the GNU General Public License.  Commercial licenses and support are available from Dennis Bush (bush@tcnj.edu).

@@ -115,6 +115,36 @@ void gotpipe(int sig)
     log2(0, 0, "Got SIGPIPE");
 }
 
+#ifdef WINDOWS
+/**
+ * Windows event handler, exits
+ */
+BOOL WINAPI winsig(DWORD event)
+{
+    switch (event) {
+    case CTRL_C_EVENT:
+        log0(0, 0, "Got CTRL_C_EVENT");
+        break;
+    case CTRL_BREAK_EVENT:
+        log0(0, 0, "Got CTRL_BREAK_EVENT");
+        break;
+    case CTRL_CLOSE_EVENT:
+        log0(0, 0, "Got CTRL_CLOSE_EVENT");
+        break;
+    case CTRL_LOGOFF_EVENT:
+        log0(0, 0, "Got CTRL_LOGOFF_EVENT");
+        break;
+    case CTRL_SHUTDOWN_EVENT:
+        log0(0, 0, "Got CTRL_SHUTDOWN_EVENT");
+        break;
+    default:
+        log0(0, 0, "GOT unknown event", event);
+        break;
+    }
+    exit(0);
+}
+#endif
+
 /**
  * Do initial setup before parsing arguments, including getting interface list
  */
@@ -138,27 +168,22 @@ void pre_initialize()
  */
 void daemonize()
 {
+    showtime = 1;
+    init_log_mux = 0;
 #ifdef WINDOWS
+    init_log(debug);
     if (!debug) {
-        int fd;
         FILE *pidfh;
 
-        if ((fd = open(logfile, O_WRONLY | O_APPEND | O_CREAT, 0644)) == -1) {
-            perror("Can't open log file");
-            exit(1);
-        }
         if (strcmp(pidfile, "")) {
             // Write out the pid file, before we redirect STDERR to the log.
             if ((pidfh = fopen(pidfile, "w")) == NULL) {
-                perror("Can't open pid file for writing");
+                syserror(0, 0, "Can't open pid file for writing");
                 exit(1);
             }
             fprintf(pidfh, "%d\n", GetCurrentProcessId());
             fclose(pidfh);
         }
-        dup2(fd, 2);
-        close(fd);
-        applog = stderr;
     }
 
     if (!SetPriorityClass(GetCurrentProcess(), get_win_priority(priority))) {
@@ -167,15 +192,12 @@ void daemonize()
                 GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
         log0(0, 0, "Error setting priority (%d): %s", GetLastError(), errbuf);
     }
+    SetConsoleCtrlHandler(winsig, TRUE);
 #else  // WINDOWS
     if (!debug) {
         int pid, fd;
         FILE *pidfh;
 
-        if ((fd = open(logfile, O_WRONLY | O_APPEND | O_CREAT, 0644)) == -1) {
-            perror("Can't open log file");
-            exit(1);
-        }
         if ((pid = fork()) == -1) {
             perror("Couldn't fork");
             exit(1);
@@ -183,18 +205,7 @@ void daemonize()
             parent = 1;
             exit(0);
         }
-        if (strcmp(pidfile, "")) {
-            // Write out the pid file, before we redirect STDERR to the log.
-            if ((pidfh = fopen(pidfile, "w")) == NULL) {
-                perror("Can't open pid file for writing");
-                exit(1);
-            }
-            fprintf(pidfh, "%d\n", getpid());
-            fclose(pidfh);
-        }
         setsid();
-        dup2(fd, 2);
-        close(fd);
         for (fd = 0; fd < 30; fd++) {
             if ((fd != 2) && (fd != listener)) {
                 close(fd);
@@ -206,7 +217,17 @@ void daemonize()
         chdir("/");
 #endif
         umask(0);
-        applog = stderr;
+
+        init_log(debug);
+        if (strcmp(pidfile, "")) {
+            // Write out the pid file, before we redirect STDERR to the log.
+            if ((pidfh = fopen(pidfile, "w")) == NULL) {
+                perror("Can't open pid file for writing");
+                exit(1);
+            }
+            fprintf(pidfh, "%d\n", getpid());
+            fclose(pidfh);
+        }
     }
 
     if (nice(priority) == -1) {

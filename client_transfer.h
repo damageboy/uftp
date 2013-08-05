@@ -44,7 +44,7 @@ void handle_cong_ctrl(struct group_list_t *group, const unsigned char *message,
                       unsigned meslen, struct timeval rxtime);
 void send_status(struct group_list_t *group, unsigned int section,
                  const unsigned char *naks, unsigned int nak_count);
-void send_complete(struct group_list_t *group);
+void send_complete(struct group_list_t *group, int freespace);
 void send_cc_ack(struct group_list_t *group);
 
 #endif  // _CLIENT_TRANSFER_H

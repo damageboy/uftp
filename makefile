@@ -98,10 +98,12 @@ client_common.o: client_common.c client.h uftp_common.h uftp.h \
   encryption.h client_common.h
 client_config.o: client_config.c client.h uftp_common.h uftp.h \
   encryption.h client_config.h
+client_fileinfo.o: client_fileinfo.c client.h uftp_common.h uftp.h \
+  encryption.h client_common.h client_fileinfo.h client_transfer.h
 client_init.o: client_init.c client.h uftp_common.h uftp.h encryption.h \
   client_init.h client_config.h client_common.h
 client_loop.o: client_loop.c client.h uftp_common.h uftp.h encryption.h \
-  client_common.h client_loop.h client_announce.h \
+  client_common.h client_loop.h client_announce.h client_fileinfo.h \
   client_transfer.h heartbeat_send.h
 client_main.o: client_main.c client_config.h client_init.h client_loop.h
 client_transfer.o: client_transfer.c client.h uftp_common.h uftp.h \
@@ -115,12 +117,11 @@ server_config.o: server_config.c server.h uftp_common.h uftp.h \
   encryption.h server_config.h
 server_init.o: server_init.c server.h uftp_common.h uftp.h encryption.h \
   server_config.h server_init.h
-server_main.o: server_main.c server_config.h uftp.h server_init.h \
-  server_send.h
+server_main.o: server_main.c server_config.h server_init.h server_send.h
 server_phase.o: server_phase.c server.h uftp_common.h uftp.h encryption.h \
-  server_common.h server_announce.h server_transfer.h
+  server_config.h server_common.h server_announce.h server_transfer.h
 server_send.o: server_send.c server.h uftp_common.h uftp.h encryption.h \
-  server_send.h server_phase.h
+  server_send.h server_phase.h server_common.h
 server_transfer.o: server_transfer.c server.h uftp_common.h uftp.h \
   encryption.h server_common.h server_transfer.h
 
@@ -153,7 +154,7 @@ UFTP_OBJS=uftp_common.o encrypt_none.o \
 	server_common.o server_config.o server_init.o server_main.o 
 
 UFTPD_OBJS=uftp_common.o encrypt_none.o \
-	client_loop.o client_announce.o client_transfer.o \
+	client_loop.o client_announce.o client_fileinfo.o client_transfer.o \
 	client_common.o client_config.o client_init.o client_main.o heartbeat_send.o
 
 UFTPPROXYD_OBJS=uftp_common.o encrypt_none.o \
@@ -169,7 +170,7 @@ UFTP_OBJS=uftp_common.o encrypt_openssl.o \
 	server_common.o server_config.o server_init.o server_main.o 
 
 UFTPD_OBJS=uftp_common.o encrypt_openssl.o \
-	client_loop.o client_announce.o client_transfer.o \
+	client_loop.o client_announce.o client_fileinfo.o client_transfer.o \
 	client_common.o client_config.o client_init.o client_main.o heartbeat_send.o
 
 UFTPPROXYD_OBJS=uftp_common.o encrypt_openssl.o \
@@ -195,7 +196,7 @@ uftp_keymgt: $(UFTP_KEYMGT_OBJS)
 %.o: %.c
 	$(CC) $(OPTIONS) $(INCLUDE) $(CFLAGS) $(MTFLAGS) -c $<
 
-install:
+install: all
 	install -m 755 -d $(DESTDIR)/bin
 	install -m 755 -d $(DESTDIR)/usr/sbin
 	install -m 755 -d $(DESTDIR)/usr/share/man/man1

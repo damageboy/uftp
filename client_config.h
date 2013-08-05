@@ -60,10 +60,10 @@
 #define USAGE "uftpd [ -d ] [ -p port ] [ -B buf_size ]\n\
     [ -E ] [ -Q dscp ] [ -U UID ] [ -x log_level ] [ -t ] [ -T temp_dir ]\n\
     [ -D dest_dir [ dest_dir... ]] [ -A backup_dir [ backup_dir... ]]\n\
-    [ -s postreceive_script] [ -L logfile ] [ -P pidfile ]\n\
+    [ -s postreceive_script] [ -L logfile ] [] [ -P pidfile ]\n\
     [ -S serverlist_file ] [ -R proxy[/fp] ] [ -k keyfile[,keyfile...] ]\n\
     [ -K rsa:key_length | ec:curve[,rsa:key_length | ec:curve...]]\n\
-    [ -m ] [ -N priority ]\n\
+    [ -m ] [ -N priority ] [ -i ] [ -g max_log_size ] [ -n max_log_count ]\n\
     [ -H hb_server[:port][,hb_server[:port]...] ] [ -h hb_interval ]\n\
     [ -I interface[,interface...] ] [ -M pub_mcast_addr[,pub_mcast_addr...] ]\n"
 

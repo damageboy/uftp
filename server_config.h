@@ -35,8 +35,8 @@
  * Default command line values
  */
 #define DEF_RATE                128000
-#define DEF_DEST_PORT                "1044"
-#define DEF_SRC_PORT                "0"
+#define DEF_PORT                "1044"
+#define DEF_SRCPORT             "0"
 #define DEF_PUB_MULTI           "230.4.4.1"
 #define DEF_PRIV_MULTI          "230.5.5.x"
 #define DEF_TTL                 1
@@ -48,6 +48,9 @@
 #define DEF_MIN_GRTT            0.01
 #define DEF_MAX_GRTT            15.0
 #define DEF_ROBUST              20
+#define DEF_TXWEIGHT            0
+#define DEF_MAX_NAK_PCT         100
+#define DEF_MAX_NAK_CNT         1
 #define DEF_KEYEXTYPE           KEYEX_RSA
 #define DEF_KEYTYPE             KEY_NONE
 #define DEF_HASHTYPE            HASH_SHA1

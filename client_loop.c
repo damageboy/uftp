@@ -51,6 +51,7 @@
 #include "client_common.h"
 #include "client_loop.h"
 #include "client_announce.h"
+#include "client_fileinfo.h"
 #include "client_transfer.h"
 #include "heartbeat_send.h"
 
@@ -66,10 +67,10 @@ struct timeval *getrecenttimeout()
 {
     static struct timeval tv = {0,0};
     struct timeval current_timestamp, min_timestamp;
-    int i, found_timeout, done;
+    int i, found_timeout, done, sent_naks;
     struct group_list_t *group;
     unsigned int section, nak_count;
-    unsigned char *naks = NULL;
+    unsigned char *naks;
 
     gettimeofday(&current_timestamp, NULL);
     done = 0;
@@ -91,7 +92,7 @@ struct timeval *getrecenttimeout()
                         send_abort(group, "Transfer timed out");
                         break;
                     case PHASE_COMPLETE:
-                        send_complete(group);
+                        send_complete(group, 0);
                         break;
                     }
                     done = 0;
@@ -110,29 +111,38 @@ struct timeval *getrecenttimeout()
                                      group->fileinfo.nak_time) >= 0) {
                     group->fileinfo.nak_time.tv_sec = 0;
                     group->fileinfo.nak_time.tv_usec = 0;
-                    // Only send NAKs for the earliest section that needs them
-                    for (section = 0; section < group->fileinfo.nak_section;
+                    // Send NAKs
+                    sent_naks = 0;
+                retry_naks:
+                    for (section = group->fileinfo.nak_section_first;
+                            section < group->fileinfo.nak_section_last;
                             section++) {
                         naks = NULL;
                         nak_count = get_naks(group, section, &naks);
                         log3(group->group_id, group->file_id,
                              "read %d NAKs for section %d", nak_count, section);
                         if (nak_count > 0) {
-                            break;
+                            send_status(group, section, naks, nak_count);
+                            sent_naks = 1;
                         }
                         free(naks);
                         naks = NULL;
                     }
-                    if (file_done(group, 0)) {
+                    if (file_done(group, 1)) {
                         log1(group->group_id, group->file_id,
                              "File transfer complete");
-                        send_complete(group);
+                        send_complete(group, 0);
                         file_cleanup(group, 0);
-                    } else if (nak_count > 0) {
-                        send_status(group, section, naks, nak_count);
+                    } else if (group->fileinfo.got_done && !sent_naks) {
+                        // We didn't send any NAKs since the last time
+                        // but the server is asking for some,
+                        // so check all prior sections
+                        group->fileinfo.nak_section_last = 
+                                group->fileinfo.nak_section_first;
+                        group->fileinfo.nak_section_first = 0;
+                        group->fileinfo.got_done = 0;
+                        goto retry_naks;
                     }
-                    free(naks);
-                    naks = NULL;
                 } else if ((group->fileinfo.nak_time.tv_sec != 0) &&
                            ((!found_timeout) ||
                             (cmptimestamp(group->fileinfo.nak_time,

@@ -1,3 +1,43 @@
+Version 4.1 - 7/30/2013
+  Changed the way the server handles NAKs from the clients.  Instead of
+    rewinding its current position as soon as NAKs are received, the server
+    will wait until the end of the pass, then start a new pass.  This more
+    closely resembles version 3.x behavior.
+  Added special metafiles @DELETE:{filename}, which deletes filename on the
+    client, and @FREESPACE, which reports the available free disk space on
+    the client's primary destination directory.
+  Upon receiving a FILEINFO, a client will abort if it doesn't have enough
+    free disk space to receive the file.
+  Added -S option to server to write parsable status information to a separate
+    log file.  This information was previously available only with the -z
+    option, and -z will no longer print this info without -S.
+  Added -N option which specifies the maximum NAK percentage a client may
+    report before potentially getting dropped.  Also added related -m option,
+    which specifies the number of times a client can exceed the maximum NAK
+    percentage before it is dropped.
+  Reinstated the -W option, which specifies the maximum file transfer time as
+    a percentage of the optimal time.
+  Added -i option to client to allow moving files one at a time from the temp
+    directory to the dest directory.  This option is necessary to prevent
+    previously received files in dest from being deleted when full directories
+    are received.
+  Added -u option to server to specify outgoing UDP port number.
+  Added log rolling to the server, client, and proxy.  The -g option specifies
+    the max log file size in MB before rolling, and the -n option specifies
+    the number of rolled log files to save.
+  The server may now specify clients by their IPv4 name/address as well as
+    their ID, assuming the clients in question use their IPv4 address as their
+    ID, making for cleaner backward compatibility with version 3.x.
+  Fixed several bugs in the TFMCC implementation:
+    Fixed counter wraparound issue.
+    Fixed crash when more than a few hundred clients are active.
+    Fixed bug which caused rate to be set to 0.
+  Fixed crash when sending an empty file.
+  Added signal handlers in server so that it will save restart info if the
+    user interrupts it.
+  Fixed issue with printing of client IDs in server.
+  Dependency fixes in makefile
+
 Version 4.0 - 4/27/2013
   Added support for IPv6.  On systems that support dual stack IPv4/IPv6
     sockets, clients and proxies may listen on multicast groups for both

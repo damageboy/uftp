@@ -11,6 +11,7 @@ SYNOPSIS
 	   [ -N priority ] [ -O out_multi_interface ]
 	   [ -U UID ] [ -q dest_port ] [ -m ] [ -x log_level ]
 	   [ -H hb_server[:port][,hb_server[:port]...] ]
+	   [ -g max_log_size ] [ -n max_log_count ]
 	   [ -h hb_interval ] [ -B udp_buf_size ] [ -L logfile ]
 	   [ -P pidfile ] [ -C clientlist_file ]
 	   [ -S serverlist_file ] [ -k keyfile[,keyfile...] ]
@@ -19,7 +20,7 @@ SYNOPSIS
 	   [ -M pub_mcast_addr[,pub_mcast_addr...] ]
 
 DESCRIPTION
-       uftpproxyd  is  the proxy daemon of the UFTP suite.  It performs multi-
+       uftpproxyd  is  the proxy daemon of the UFTP suite.  It performs multi‐
        cast tunneling, NAT traversal, and client response aggregation.	It  is
        used  in one of two scenarios.  The first is when the server and one or
        more clients are on separate networks and cannot	 be  reached  directly
@@ -35,12 +36,12 @@ DESCRIPTION
        A server proxy is typically local to a server and acts as the  upstream
        end  of a multicast tunnel.  It listens on the public multicast address
        (and private multicast address when specified) and forwards  downstream
-       packets	to  a  specific address downstream.  Upstream packets are for-
+       packets	to  a  specific address downstream.  Upstream packets are for‐
        warded back where the announcement originated from.
 
        A client proxy is typically local to one or more clients and forms  the
        downstream  end	of  a multicast tunnel.	 It receives unicast data from
-       one or more server proxies and forwards downstream traffic to the  mul-
+       one or more server proxies and forwards downstream traffic to the  mul‐
        ticast  address	specified in the packet header.	 Upstream traffic from
        clients is gathered and forwarded back where the announcement came from
        as an aggregated response.
@@ -51,23 +52,23 @@ DESCRIPTION
        NATed, the upstream server proxy may not know the IP/port of the client
        proxy,  so  the	server proxy can be configured to wait for a heartbeat
        message, and use the IP/port the heartbeat came from as its  downstream
-       address.	  If the server proxy is also behind a firewall or NAT, a sec-
+       address.	  If the server proxy is also behind a firewall or NAT, a sec‐
        ond server proxy on a machine with a  publicly  accessible  IP  can  be
        inserted	 between the first server proxy and the client proxy.  In this
-       case, the first server proxy is set up to use the second as  its	 down-
+       case, the first server proxy is set up to use the second as  its	 down‐
        stream  address, and the second server proxy is set up to use the first
        heartbeat it receives from a client proxy as its downstream address.
 
        A response proxy functions as a response aggregator in situations where
        the server has direct multicast accessibility to clients but the number
        of clients are to high for the server to handle itself.	It listens  on
-       the public multicast address (and private multicast address when speci-
+       the public multicast address (and private multicast address when speci‐
        fied), but does not forward packets from the server since those packets
        reach clients directly.	It does however send some messages directly to
-       clients in the process of establishing encryption keys.	Upstream traf-
+       clients in the process of establishing encryption keys.	Upstream traf‐
        fic  from clients is gathered and forwarded back where the announcement
        came from as an aggregated response.  Clients in this  environment  are
-       configured  to  send  all responses to a specific response proxy.  Mes-
+       configured  to  send  all responses to a specific response proxy.  Mes‐
        sages sent directly from response  proxies  to  clients	use  multicast
        (either	the  primary public address, or the private address, depending
        on the message).
@@ -124,15 +125,15 @@ EXAMPLES
        send to the client proxy on network C.
 
        Client proxies normally should NOT run on the same machine as a client.
-       Doing so can result in the server getting confused when	it  sees  mes-
+       Doing so can result in the server getting confused when	it  sees  mes‐
        sages  coming  from a proxy and a client with the same IP and therefore
-       cannot tell the difference.  This can only work if the machine has mul-
+       cannot tell the difference.  This can only work if the machine has mul‐
        tiple IPs and the client proxy and client listen on different IPs.
 
        NOTE: When using proxies in environments where private IP addresses are
-       in use (10.x.x.x, 172.16-31.x.x, 192.168.x.x), it  is  strongly	recom-
+       in use (10.x.x.x, 172.16-31.x.x, 192.168.x.x), it  is  strongly	recom‐
        mended  to  assign a unique ID to each client and client proxy, and for
-       servers to call out clients by unique ID instead of name/IP.  This pre-
+       servers to call out clients by unique ID instead of name/IP.  This pre‐
        vents  IP address collisions at the server between two clients with the
        same local IP.
 
@@ -165,7 +166,7 @@ EXAMPLES
 
 
        Figure 2 shows a simplified setup involving a server, two clients,  and
-       two  response  proxies, all on the same network segment.	 In this envi-
+       two  response  proxies, all on the same network segment.	 In this envi‐
        ronment, multicast messages from each proxy reaches both	 clients,  not
        just the client it serves.
 
@@ -266,9 +267,9 @@ EXAMPLES
 
 
        In Figure 4, each proxy is at least one hop away from  the  clients  it
-       serves,	and at least one hop away from the server.  In this case, mul-
+       serves,	and at least one hop away from the server.  In this case, mul‐
        ticast messages from each proxy only  go	 to  the  clients  it  serves.
-       Also, since the proxies are not on the same network as the server, mes-
+       Also, since the proxies are not on the same network as the server, mes‐
        sages coming from the client don't have	any  effect  on	 the  server's
        local  network.	 A  setup  like this is the most scalabile, and is the
        most flexible since another server on a different network  can  utilize
@@ -307,7 +308,7 @@ OPTIONS
 
        -N priority
 	      Sets the process priority.  On Windows systems, valid values are
-	      from -2 to 2, with a default of 0.  These correspond to the fol-
+	      from -2 to 2, with a default of 0.  These correspond to the fol‐
 	      lowing priorities:
 
 	      -2 High
@@ -316,65 +317,81 @@ OPTIONS
 	       1 Below Normal
 	       2 Low
 
-	      On all other systems, this is the "nice"	value.	 Valid	values
-	      are  from -20 to 19, where -20 is the highest priority and 19 is
+	      On  all  other  systems, this is the "nice" value.  Valid values
+	      are from -20 to 19, where -20 is the highest priority and 19  is
 	      the lowest priority.  Default is 0.
 
        -O out_multi_interface
 	      The interface to send the data from.  Can be specified either by
-	      interface	 name,	by  hostname, or by IP.	 If not specified, the
-	      default system interface is used.	 Applies only to client	 prox-
+	      interface name, by hostname, or by IP.  If  not  specified,  the
+	      default  system interface is used.  Applies only to client prox‐
 	      ies.
 
-       -U UID The  unique  ID  for this proxy.	May be specified either as a 6
-	      digit hexadecimal number (0xnnnnnn) or as an IP address  of  the
+       -U UID The unique ID for this proxy.  May be specified either  as  a  6
+	      digit  hexadecimal  number (0xnnnnnn) or as an IP address of the
 	      form 0.n.n.n.
 
        -q dest_port
-	      The  port number of the downstream proxy (for server proxies) or
+	      The port number of the downstream proxy (for server proxies)  or
 	      clients (for client proxies).
 
-       -m     For Windows systems using CryptoAPI or  CNG,  private  keys  are
-	      normally stored in the key container of the running user.	 Spec-
-	      ifying this option stores keys  in  the  system  key  container.
-	      Useful  when running as a service.  On non-Windows systems, this
+       -m     For  Windows  systems  using  CryptoAPI or CNG, private keys are
+	      normally stored in the key container of the running user.	 Spec‐
+	      ifying  this  option  stores  keys  in the system key container.
+	      Useful when running as a service.	 On non-Windows systems,  this
 	      option has no effect.
 
        -x log_level
-	      Specifies current logging level.	Valid values are 0-5,  with  0
-	      being  the  least verbose and 5 being the most verbose.  Default
+	      Specifies	 current  logging level.  Valid values are 0-5, with 0
+	      being the least verbose and 5 being the most  verbose.   Default
 	      is 2, which is consistent with logging prior to version 3.5.
 
        -H hb_server[:port][,hb_server[:port]...]
-	      Lists one or more proxies to send heartbeat messages  to.	  When
-	      sending  a  signed heartbeat message, the first key listed under
-	      -k is used to sign the message.  If port is not specified for  a
+	      Lists  one  or more proxies to send heartbeat messages to.  When
+	      sending a signed heartbeat message, the first key	 listed	 under
+	      -k  is used to sign the message.	If port is not specified for a
 	      given proxy, the default port of 1044 is assumed.
 
        -h hb_interval
 	      The time in seconds between sending heartbeat messages.  Ignored
 	      if -H is not specified.
 
+       -g max_log_size
+	      Specifies	 the  maximum  log file size in MB.  Once the log file
+	      reaches this size, the file is renamed with a .1 extension and a
+	      new  log	file  is  opened.   For	 example,  if  the log file is
+	      /tmp/uftpproxyd.log, it will  be	renamed	 /tmp/uftpproxyd.log.1
+	      and a new /tmp/uftpproxyd.log will be created.  Ignored if -d is
+	      specified.  Valid values are 1-1024.  Default is no log rolling.
+
+       -n max_log_count
+	      Specifies the maximum number of archive log files to  keep  when
+	      log  rolling  is	active.	 When the log file rolls, archive logs
+	      are renamed with an incrementing numerical extension  until  the
+	      max  is  reached.	  Archive  log	files  beyond  the maximum are
+	      deleted.	Ignored if -g is  not  specified.   Valid  values  are
+	      1-1000.  Default is 5.
+
        -B buf_size
-	      The size in bytes of the UDP send buffer and receive  buffer  to
-	      use.   Valid  values are 65536-104857600 (64KB-100MB).  Defaults
+	      The  size	 in bytes of the UDP send buffer and receive buffer to
+	      use.  Valid values are 65536-104857600  (64KB-100MB).   Defaults
 	      to 262144.
 
        -L logfile
-	      Specifies the log	 file.	 Default  is  /tmp/uftpproxyd.log  for
+	      Specifies	 the  log  file.   Default  is /tmp/uftpproxyd.log for
 	      UNIX-like systems systems, C:\uftpproxyd_log.txt for Windows.
 
        -Q dscp
-	      Specifies	 the  Differentiated  Services Code Point (DSCP), for-
-	      merly Type of Service (TOS), in the IP header for	 all  outgoing
-	      packets.	 Valid	values are 0-63 and may be specified in either
+	      Specifies the Differentiated Services Code  Point	 (DSCP),  for‐
+	      merly  Type  of Service (TOS), in the IP header for all outgoing
+	      packets.	Valid values are 0-63 and may be specified  in	either
 	      decimal or hexadecimal.  Default is 0.
 
 	      On Windows XP systems, the OS doesn't allow this parameter to be
-	      changed  by  default.   To change this, add/modify the following
+	      changed by default.  To change this,  add/modify	the  following
 	      DWORD registry value, set to 0, and reboot:
 
-	      HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Ser-
+	      HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Ser‐
 	      vices\Tcpip\Parameters\DisableUserTOSSetting
 
 	      Not currently supported on Windows Vista or later.
@@ -384,10 +401,10 @@ OPTIONS
 	      no pidfile.
 
        -C clientlist_file
-	      A file containing a list of clients  the	proxy  will  allow  to
-	      receive  files  from.   The file should contain the name/IP of a
+	      A	 file  containing  a  list  of clients the proxy will allow to
+	      receive files from.  The file should contain the	name/IP	 of  a
 	      client followed by the client's public key fingerprint, with one
-	      on  each	line.	The key specified by the client must match the
+	      on each line.  The key specified by the client  must  match  the
 	      fingerprint.  Applies only to client proxies.
 
 	      Example contents:
@@ -395,21 +412,21 @@ OPTIONS
 	      0x00002222
 
        -S serverlist_file
-	      A file containing a list of servers.  The	 file  should  contain
-	      the  ID  of  the	server,	 the  IP address the proxy expects the
-	      server's request to come from, and optionally the server's  pub-
-	      lic  key	fingerprint, with one entry for a server on each line.
-	      For client proxies, this is the list of servers the  proxy  will
+	      A	 file  containing  a list of servers.  The file should contain
+	      the ID of the server, the	 IP  address  the  proxy  expects  the
+	      server's	request to come from, and optionally the server's pub‐
+	      lic key fingerprint, with one entry for a server on  each	 line.
+	      For  client  proxies, this is the list of servers the proxy will
 	      allow to connect, and the key specified by the server must match
-	      the fingerprint.	For server proxies, if	your  system  supports
+	      the  fingerprint.	  For  server proxies, if your system supports
 	      source specific multicast (SSM), the proxy will subscribe to all
 	      public and private multicast addresses using SSM for all servers
 	      listed.  Response proxies perform both of the above functions
 
-	      When  this option is specified, the public and private addresses
-	      specified by the	server	must  be  valid	 SSM  addresses.   Any
-	      ANNOUNCE	that  specifies	 a  private IP that is not a valid SSM
-	      address will be rejected.	 Valid SSM addresses are in the	 232/8
+	      When this option is specified, the public and private  addresses
+	      specified	 by  the  server  must	be  valid  SSM addresses.  Any
+	      ANNOUNCE that specifies a private IP that is  not	 a  valid  SSM
+	      address  will be rejected.  Valid SSM addresses are in the 232/8
 	      range for IPv4 and the ff30::/96 range for IPv6.
 
 	      Example contents:
@@ -420,29 +437,29 @@ OPTIONS
        -k keyfile[,keyfile...]
 
        -K rsa:key_length | ec:curve[,rsa:key_length | ec:curve...]
-	      These  two  options  are	used  to read and/or write the proxy's
+	      These two options are used to  read  and/or  write  the  proxy's
 	      RSA/ECDSA private keys.
 
-	      The -K option creates one or more RSA  or	 ECDSA	private	 keys.
-	      New  keys	 are specified as either rsa:key_length, which creates
-	      an RSA private key key_length bits wide, or as  ec:curve,	 which
+	      The  -K  option  creates	one or more RSA or ECDSA private keys.
+	      New keys are specified as either rsa:key_length,	which  creates
+	      an  RSA  private key key_length bits wide, or as ec:curve, which
 	      creates an EC key using the curve "curve".
 
-	      The  list of supported EC curves is as follows (availability may
+	      The list of supported EC curves is as follows (availability  may
 	      vary depending on system settings and crypto library used):
 
 	      sect163k1	 sect163r1  sect163r2  sect193r1  sect193r2  sect233k1
 	      sect233r1	 sect239k1  sect283k1  sect283r1  sect409k1  sect409r1
 	      sect571k1	 sect571r1  secp160k1  secp160r1  secp160r2  secp192k1
-	      prime192v1  secp224k1  secp224r1	secp256k1 prime256v1 secp384r1
+	      prime192v1 secp224k1 secp224r1  secp256k1	 prime256v1  secp384r1
 	      secp521r1
 
 	      If only -K is specified, the keys created are not persisted.
 
-	      If only -k is specified, this option reads RSA or ECDSA  private
+	      If  only -k is specified, this option reads RSA or ECDSA private
 	      keys from each keyfile.
 
-	      If  -k  and -K are specified, the keys created by -K are written
+	      If -k and -K are specified, the keys created by -K  are  written
 	      to the keyfiles listed by -k.  In this case, -k and -K must give
 	      the same number of items.
 
@@ -452,75 +469,75 @@ OPTIONS
 	      If -k is specified but not -K, the RSA or ECDSA private keys are
 	      read from each keyfile.
 
-	      The  definition  of  keyfile  is dependent on the crypto library
+	      The definition of keyfile is dependent  on  the  crypto  library
 	      UFTP is compiled to use.
 
-	      On Windows systems, UFTP can built to use either CNG,  which  is
-	      the  new	API supported by Windows Vista and Windows 7, or Cryp-
-	      toAPI, which is the legacy API and the  only  one	 available  to
+	      On  Windows  systems, UFTP can built to use either CNG, which is
+	      the new API supported by Windows Vista and Windows 7,  or	 Cryp‐
+	      toAPI,  which  is	 the  legacy API and the only one available to
 	      Windows XP.
 
-	      Under  CryptoAPI,	 all  RSA private keys must be stored in a key
-	      container (technically only keys used  to	 sign  data,  but  for
-	      UFTP's  purposes this is the case).  Key containers are internal
-	      to Windows, and each user (and the system) has its  own  set  of
-	      key  containers.	In this case, key_file is actually the name of
-	      the key container.  When -k is not specified, the generated  key
-	      is  not  persisted.  Elliptic Curve algorithms are not supported
+	      Under CryptoAPI, all RSA private keys must be stored  in	a  key
+	      container	 (technically  only  keys  used	 to sign data, but for
+	      UFTP's purposes this is the case).  Key containers are  internal
+	      to  Windows,  and	 each user (and the system) has its own set of
+	      key containers.  In this case, key_file is actually the name  of
+	      the  key container.  When -k is not specified, the generated key
+	      is not persisted. Elliptic Curve algorithms  are	not  supported
 	      under CryptoAPI.
 
-	      Under CNG, RSA and ECDSA private keys are	 also  stored  in  key
+	      Under  CNG,  RSA	and  ECDSA private keys are also stored in key
 	      containers, and RSA keys created by CrypoAPI may be read by CNG.
-	      Like CryptoAPI, key_file also specifies the key container	 name,
-	      and  the	generated key is not persisted if -k is not specified.
-	      CNG only supports 3 named EC curves: prime256v1, secp384r1,  and
+	      Like  CryptoAPI, key_file also specifies the key container name,
+	      and the generated key is not persisted if -k is  not  specified.
+	      CNG  only supports 3 named EC curves: prime256v1, secp384r1, and
 	      secp521r1.
 
-	      All  other  systems use OpenSSL for the crypto library (although
-	      under Windows UFTP can be also be built to  use  it).   In  this
-	      case,  key_file  specifies a file name where the RSA private key
-	      is stored unencrypted in PEM format (the OS is expected to  pro-
+	      All other systems use OpenSSL for the crypto  library  (although
+	      under  Windows  UFTP  can	 be also be built to use it).  In this
+	      case, key_file specifies a file name where the RSA  private  key
+	      is  stored unencrypted in PEM format (the OS is expected to pro‐
 	      tect this file).	When both -k and -K are specified, the file is
-	      only written to if it does not currently	exist.	 If  the  file
-	      does  exist,  an	error  message will be returned and the server
-	      will exit.  When -k is not specified, the generated key  is  not
-	      persisted.   These  PEM  files  may  also be manipulated via the
+	      only  written  to	 if  it does not currently exist.  If the file
+	      does exist, an error message will be  returned  and  the	server
+	      will  exit.   When -k is not specified, the generated key is not
+	      persisted.  These PEM files may  also  be	 manipulated  via  the
 	      openssl(1) command line tool.
 
-	      Keys can also be generated and  viewed  via  the	uftp_keymgt(1)
+	      Keys  can	 also  be  generated and viewed via the uftp_keymgt(1)
 	      utility.
 
        -e ecdh_curve
-	      Specifies	 the  EC curve type to use for a response proxy's ECDH
+	      Specifies the EC curve type to use for a response	 proxy's  ECDH
 	      private key.  This option MUST be specified for a response proxy
 	      to use an ECDH key exchange scheme.  If unspecified, no ECDH key
 	      will be created.	Ignored if -r is not specified.
 
        -I interface[,interface...]
-	      For server proxies, lists one or more interfaces	to  listen  to
-	      multicast	 traffic  on.	For  client  proxies, the interface it
-	      reports itself as to servers and	clients.   Interfaces  can  be
+	      For  server  proxies,  lists one or more interfaces to listen to
+	      multicast traffic on.  For  client  proxies,  the	 interface  it
+	      reports  itself  as  to  servers and clients.  Interfaces can be
 	      specified either by interface name, by hostname, or by IP.  When
-	      receiving a closed group membership request,  the	 client	 proxy
+	      receiving	 a  closed  group membership request, the client proxy
 	      will participate if any of these interfaces matches an IP in the
-	      announcement.  The default is to listen on all active  non-loop-
-	      back  interfaces.	 NOTE: Since Windows doesn't have named inter-
-	      faces (not in the sense that UNIX-like systems do),  only	 host-
+	      announcement.   The default is to listen on all active non-loop‐
+	      back interfaces.	NOTE: Since Windows doesn't have named	inter‐
+	      faces  (not  in the sense that UNIX-like systems do), only host‐
 	      names or IP addresses are accepted on Windows.
 
        -M pub_multicast_addr[,pub_multicast_addr...]
-	      The  list of public multicast addresses to listen on.  Used only
+	      The list of public multicast addresses to listen on.  Used  only
 	      by server proxies.  Default is 230.4.4.1
 
 SEE ALSO
        uftp(1), uftpd(1), uftp_keymgt(1)
 
 NOTES
-       The    latest	version	   of	  UFTP	   can	   be	  found	    at
-       http://www.tcnj.edu/~bush/uftp.html.   UFTP  is covered by the GNU Gen-
-       eral Public License.  Commercial licenses  and  support	are  available
-       from Dennis Bush (bush@tcnj.edu).
+       The   latest  version  of  UFTP	can  be	 found	at  http://uftp-multi‐
+       cast.sourceforge.net.  UFTP  is	covered	 by  the  GNU  General	Public
+       License.	  Commercial  licenses	and  support are available from Dennis
+       Bush (bush@tcnj.edu).
 
 
 
-UFTP 4.0			 27 April 2013			 uftpproxyd(1)
+UFTP 4.1			 30 July 2013			 uftpproxyd(1)

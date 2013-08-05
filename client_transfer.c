@@ -58,9 +58,142 @@
 #include "client_common.h"
 #include "client_transfer.h"
 
+void move_files_individual(struct group_list_t *group, const char *local_temp,
+                           const char *local_dest);
+
+/**
+ * Moves a file from the temp to the destination directory
+ */
+void move_file_individual(struct group_list_t *group, const char *local_temp,
+                          const char *local_dest, const char *filename)
+{
+    char temppath[MAXPATHNAME], destpath[MAXPATHNAME];
+    stat_struct temp_stat, dest_stat;
+    int len, found_dir;
+
+    len = snprintf(temppath, sizeof(temppath), "%s%c%s", local_temp,
+                   PATH_SEP, filename);
+    if ((len >= sizeof(temppath)) || (len == -1)) {
+        log0(group->group_id, group->file_id,
+                "Max pathname length exceeded: %s%c%s", local_temp,
+                PATH_SEP, filename);
+        return;
+    }
+    len = snprintf(destpath, sizeof(destpath), "%s%c%s", local_dest,
+                   PATH_SEP, filename);
+    if ((len >= sizeof(destpath)) || (len == -1)) {
+        log0(group->group_id, group->file_id,
+                "Max pathname length exceeded: %s%c%s", local_dest,
+                PATH_SEP, filename);
+        return;
+    }
+
+    if (lstat_func(temppath, &temp_stat) == -1) {
+        syserror(group->group_id, group->file_id,
+                 "Error getting file status for %s", temppath);
+        return;
+    }
+    if (S_ISDIR(temp_stat.st_mode)) {
+        found_dir = 0;
+        if (lstat_func(destpath, &dest_stat) != -1) {
+            if (!S_ISDIR(dest_stat.st_mode)) {
+                clear_path(destpath, group);
+            } else {
+                found_dir = 1;
+            }
+        }
+        if (!found_dir) {
+            if (mkdir(destpath, 0755) == -1) {
+                syserror(group->group_id, group->file_id,
+                         "Failed to create directory %s", destpath);
+                return;
+            }
+        }
+        move_files_individual(group, temppath, destpath);
+    } else {
+        clear_path(destpath, group);
+#ifdef WINDOWS
+        if (!MoveFile(temppath, destpath)) {
+            char errbuf[300];
+            FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+                    GetLastError(), 0, errbuf, sizeof(errbuf),NULL);
+            log0(group->group_id, group->file_id,
+                    "error (%d): %s", GetLastError(), errbuf);
+        }
+#else
+        if (rename(temppath, destpath) == -1) {
+            syserror(group->group_id,
+                     group->file_id, "Couldn't move file");
+        }
+#endif
+        run_postreceive(group, destpath);
+    }
+}
+/**
+ * Move all files from temp to destination directory if at end of group.
+ * Called recursively to move each file individually.
+ */
+void move_files_individual(struct group_list_t *group, const char *local_temp,
+                           const char *local_dest)
+{
+    int emptydir;
+
+    {
+#ifdef WINDOWS
+        intptr_t ffhandle;
+        struct _finddatai64_t finfo;
+        char dirglob[MAXPATHNAME];
+
+        snprintf(dirglob, sizeof(dirglob), "%s%c*", local_temp, PATH_SEP);
+        if ((ffhandle = _findfirsti64(dirglob, &finfo)) == -1) {
+            syserror(group->group_id, group->file_id,
+                     "Failed to open directory %s", dirglob);
+            return;
+        }
+        emptydir = 1;
+        do {
+            if (strcmp(finfo.name, ".") && strcmp(finfo.name, "..")) {
+                emptydir = 0;
+                move_file_individual(group, local_temp, local_dest, finfo.name);
+            }
+        } while (_findnexti64(ffhandle, &finfo) == 0);
+        _findclose(ffhandle);
+#else
+        DIR *dir;
+        struct dirent *de;
+
+        if ((dir = opendir(local_temp)) == NULL) {
+            syserror(group->group_id, group->file_id,
+                     "Failed to open directory %s", local_temp);
+            return;
+        }
+        emptydir = 1;
+        // errno needs to be set to 0 before calling readdir, otherwise
+        // we'll report a false error when we exhaust the directory
+        while ((errno = 0, de = readdir(dir)) != NULL) {
+            if (strcmp(de->d_name, ".") && strcmp(de->d_name, "..")) {
+                emptydir = 0;
+                move_file_individual(group, local_temp, local_dest, de->d_name);
+            }
+        }
+        if (errno && (errno != ENOENT)) {
+            syserror(group->group_id, group->file_id,
+                     "Failed to read directory %s", tempdir);
+        }
+        closedir(dir);
+#endif
+    }
+    if (emptydir) {
+        run_postreceive(group, local_dest);
+    }
+    if (rmdir(local_temp) == -1) {
+        syserror(group->group_id, group->file_id,
+                 "Failed remove temp directory %s", local_temp);
+    }
+}
+
 /**
  * Move all files from temp to destination directory if at end of group
- * TODO: add option to move files one at a time?
  */
 void move_files(struct group_list_t *group)
 {
@@ -69,6 +202,18 @@ void move_files(struct group_list_t *group)
     int len, filecount, i;
 
     if (!strcmp(tempdir, "") || (group->file_id != 0)) {
+        return;
+    }
+    if (move_individual) {
+        len = snprintf(temppath, sizeof(temppath), "%s%c_group_%08X",
+                       tempdir, PATH_SEP, group->group_id);
+        if ((len >= sizeof(temppath)) || (len == -1)) {
+            log0(group->group_id, group->file_id,
+                    "Max pathname length exceeded: %s%c_group_%08X",
+                    tempdir, PATH_SEP, group->group_id);
+        } else {
+            move_files_individual(group, temppath, destdir[0]);
+        }
         return;
     }
 
@@ -304,13 +449,29 @@ void send_status(struct group_list_t *group, unsigned int section,
 }
 
 /**
+ * Sets the fields in a EXT_FREESPACE_INFO extension for transmission
+ */
+void set_freespace_info(struct group_list_t *group, 
+                        struct freespace_info_he *freespace)
+{
+    int64_t disk_space;
+
+    disk_space = free_space(group->fileinfo.filepath);
+    freespace->exttype = EXT_FREESPACE_INFO;
+    freespace->extlen = sizeof(struct freespace_info_he) / 4;
+    freespace->freespace_hi = (uint32_t)(disk_space >> 32);
+    freespace->freespace_lo = (uint32_t)(disk_space & 0xFFFFFFFF);
+}
+
+/**
  * Sends back a COMPLETE message in response to a DONE or FILEINFO
  */
-void send_complete(struct group_list_t *group)
+void send_complete(struct group_list_t *group, int set_freespace)
 {
     unsigned char *buf, *encrypted, *outpacket;
     struct uftp_h *header;
     struct complete_h *complete;
+    struct freespace_info_he *freespace;
     int payloadlen, enclen;
     struct timeval tv;
 
@@ -331,14 +492,24 @@ void send_complete(struct group_list_t *group)
 
     header = (struct uftp_h *)buf;
     complete = (struct complete_h *)(buf + sizeof(struct uftp_h));
+    freespace = (struct freespace_info_he *)((unsigned char *)complete +
+                    sizeof(struct complete_h));
 
     set_uftp_header(header, COMPLETE, group);
     complete->func = COMPLETE;
-    complete->hlen = sizeof(struct complete_h) / 4;
+    if (set_freespace) {
+        complete->hlen = (sizeof(struct complete_h) +
+                            sizeof(struct freespace_info_he)) / 4;
+    } else {
+        complete->hlen = sizeof(struct complete_h) / 4;
+    }
     complete->status = group->fileinfo.comp_status;
     complete->file_id = htons(group->file_id);
+    if (set_freespace) {
+        set_freespace_info(group, freespace);
+    }
 
-    payloadlen = sizeof(struct complete_h);
+    payloadlen = complete->hlen * 4;
     if ((group->phase != PHASE_REGISTERED) && (group->keytype != KEY_NONE)) {
         encrypted = NULL;
         if (!encrypt_and_sign(buf, &encrypted, payloadlen, &enclen,
@@ -561,7 +732,12 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
             // Start timer to send NAKs
             gettimeofday(&group->fileinfo.nak_time, NULL);
             add_timeval_d(&group->fileinfo.nak_time, 1 * group->grtt);
-            group->fileinfo.nak_section = section;
+            group->fileinfo.nak_section_first = group->fileinfo.last_section;
+            group->fileinfo.nak_section_last = section;
+            group->fileinfo.got_done = 0;
+            log3(group->group_id, group->file_id, "New section, set NAK timer "
+                    "for sections %d - %d", group->fileinfo.nak_section_first,
+                    group->fileinfo.nak_section_last);
         }
         group->fileinfo.last_section = section;
     }
@@ -728,7 +904,7 @@ void handle_done(struct group_list_t *group, const unsigned char *message,
 
     section = ntohs(done->section);
     if ((ntohs(done->file_id) != group->file_id) &&
-            (ntohs(done->file_id) != 0)) {
+            (ntohs(done->file_id) != 0) && (group->phase != PHASE_MIDGROUP)) {
         // Silently reject if not for this file and not end of group
         return;
     }
@@ -756,20 +932,43 @@ void handle_done(struct group_list_t *group, const unsigned char *message,
             } else {
                 add_timeval_d(&group->expire_time, group->robust * group->grtt);
             }
-            send_complete(group);
+            send_complete(group, 0);
         } else {
             if (file_done(group, 1)) {
                 log1(group->group_id, group->file_id, "File transfer complete");
-                send_complete(group);
+                group->fileinfo.nak_time.tv_sec = 0;
+                group->fileinfo.nak_time.tv_usec = 0;
+                send_complete(group, 0);
                 file_cleanup(group, 0);
             } else if (group->fileinfo.nak_time.tv_sec == 0) {
                 log4(group->group_id, group->file_id,
                         "Setting nak_time to trigger in %.6f", group->grtt);
                 gettimeofday(&group->fileinfo.nak_time, NULL);
                 add_timeval_d(&group->fileinfo.nak_time, 1 * group->grtt);
-                group->fileinfo.nak_section = section + 1;
+                group->fileinfo.nak_section_first=group->fileinfo.last_section;
+                group->fileinfo.nak_section_last = section + 1;
+                group->fileinfo.got_done = 1;
+                log3(group->group_id, group->file_id, "Got DONE for client, "
+                        "set NAK timer for sections %d - %d",
+                        group->fileinfo.nak_section_first,
+                        group->fileinfo.nak_section_last);
             }
+            group->fileinfo.last_section = section + 1;
         }
+    } else if (group->phase != PHASE_MIDGROUP) {
+        if ((section + 1 > group->fileinfo.last_section) &&
+                (group->fileinfo.nak_time.tv_sec == 0)) {
+            // Start timer to send NAKs
+            gettimeofday(&group->fileinfo.nak_time, NULL);
+            add_timeval_d(&group->fileinfo.nak_time, 1 * group->grtt);
+            group->fileinfo.nak_section_first = group->fileinfo.last_section;
+            group->fileinfo.nak_section_last = section + 1;
+            group->fileinfo.got_done = 0;
+            log3(group->group_id, group->file_id, "Got DONE, set NAK timer "
+                    "for sections %d - %d", group->fileinfo.nak_section_first,
+                    group->fileinfo.nak_section_last);
+        }
+        group->fileinfo.last_section = section + 1;
     }
     set_timeout(group, 0);
 }

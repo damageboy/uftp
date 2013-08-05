@@ -60,17 +60,18 @@
  */
 SOCKET sock;
 union sockaddr_u listen_dest, receive_dest;
-int max_rate, rate, rcvbuf, packet_wait;
-int client_auth, quit_on_error, dscp, follow_links;
+int max_rate, rate, rcvbuf, packet_wait, txweight, max_nak_pct;
+int client_auth, quit_on_error, dscp, follow_links, max_nak_cnt;
 int save_fail, restart_groupid, restart_groupinst; 
-int sync_mode, sync_preview, dest_is_dir, cc_type;
+int sync_mode, sync_preview, dest_is_dir, cc_type, user_abort;
 unsigned int ttl;
-char dest_port[PORTNAME_LEN];
-char src_port[PORTNAME_LEN];
+char port[PORTNAME_LEN], srcport[PORTNAME_LEN];
 char pub_multi[INET6_ADDRSTRLEN], priv_multi[INET6_ADDRSTRLEN]; 
-char logfile[MAXPATHNAME], keyfile[MAXPATHNAME], cc_config[MAXPATHNAME];
+char keyfile[MAXPATHNAME], cc_config[MAXPATHNAME];
 char filelist[MAXFILES][MAXPATHNAME], exclude[MAXEXCLUDE][MAXPATHNAME];
 char basedir[MAXDIR][MAXDIRNAME], destfname[MAXPATHNAME];
+char statusfilename[MAXPATHNAME];
+FILE *status_file;
 struct iflist ifl[MAX_INTERFACES];
 int keytype, hashtype, sigtype, keyextype, newkeylen, sys_keys;
 int blocksize, datapacketsize;
@@ -100,21 +101,35 @@ uint8_t ecdh_curve, ecdsa_curve;
  */
 void add_dest_by_name(const char *destname, const char *fingerprint, int proxy)
 {
+    struct addrinfo ai_hints, *ai_rval;
     uint32_t uid;
+    int rval;
 
     if (destcount == MAXDEST) {
         fprintf(stderr,"Exceeded maximum destination count\n");
         exit(1);
     }
 
-    uid = strtoul(destname, NULL, 16);
-    if ((uid == 0xffffffff) || (uid == 0)) {
-        fprintf(stderr, "Invalid UID %s\n", destname);
-        exit(1);
+    // Check if the client is specified by an IPv4 name/address
+    ai_hints.ai_family = AF_INET;
+    ai_hints.ai_socktype = SOCK_DGRAM;
+    ai_hints.ai_protocol = 0;
+    ai_hints.ai_flags = 0;
+    if ((rval = getaddrinfo(destname, NULL, &ai_hints, &ai_rval)) != 0) {
+        uid = strtoul(destname, NULL, 16);
+        if ((uid == 0xffffffff) || (uid == 0)) {
+            fprintf(stderr, "Invalid UID %s\n", destname);
+            exit(1);
+        }
+        destlist[destcount].id = htonl(uid);
+    } else {
+        destlist[destcount].id =
+               ((struct sockaddr_in *)ai_rval->ai_addr)->sin_addr.s_addr;
+        freeaddrinfo(ai_rval);
     }
-    destlist[destcount].id = htonl(uid);
+
     snprintf(destlist[destcount].name, sizeof(destlist[destcount].name),
-             "0x%08X", uid);
+             "%s", destname);
     destlist[destcount].proxyidx = -1;
     destlist[destcount].clientcnt = proxy ? 0 : -1;
     destlist[destcount].has_fingerprint =
@@ -133,9 +148,10 @@ void set_defaults()
     memset(destfname, 0, sizeof(destfname));
     memset(cc_config, 0, sizeof(cc_config));
     destcount = 0;
-    strncpy(dest_port, DEF_DEST_PORT, sizeof(dest_port)-1);
-    strncpy(src_port, DEF_SRC_PORT, sizeof(src_port)-1);
-    dest_port[sizeof(dest_port)-1] = '\x0';
+    strncpy(port, DEF_PORT, sizeof(port)-1);
+    port[sizeof(port)-1] = '\x0';
+    strncpy(srcport, DEF_SRCPORT, sizeof(srcport)-1);
+    srcport[sizeof(srcport)-1] = '\x0';
     rate = DEF_RATE;
     max_rate = 0;
     memset(&out_if, 0, sizeof(out_if));
@@ -161,6 +177,9 @@ void set_defaults()
     priv_multi[sizeof(priv_multi)-1] = '\x0';
     strncpy(logfile, "", sizeof(logfile)-1);
     logfile[sizeof(logfile)-1] = '\x0';
+    strncpy(statusfilename, "", sizeof(statusfilename)-1);
+    statusfilename[sizeof(statusfilename)-1] = '\x0';
+    status_file = NULL;
     filecount = 0;
     excludecount = 0;
     basedircount = 0;
@@ -179,6 +198,12 @@ void set_defaults()
     max_grtt = DEF_MAX_GRTT;
     robust = DEF_ROBUST;
     send_seq = 0;
+    user_abort = 0;
+    txweight = DEF_TXWEIGHT;
+    max_nak_pct = DEF_MAX_NAK_PCT;
+    max_nak_cnt = DEF_MAX_NAK_CNT;
+    max_log_size = 0;
+    max_log_count = DEF_MAX_LOG_COUNT;
 }
 
 /**
@@ -423,8 +448,8 @@ void process_args(int argc, char *argv[])
     char keylenstr[50];
     struct addrinfo ai_hints, *ai_rval;
     FILE *destfile, *excludefile, *listfile;
-    const char opts[] = 
-        "x:R:L:B:Y:h:w:e:ck:K:lTb:t:Q:zZI:p:g:j:qfyH:F:X:M:P:C:D:oE:r:s:i:";
+    const char opts[] = "x:R:L:B:g:n:m:Y:h:w:e:ck:K:lTb:t:Q:"
+                        "zZI:p:u:j:qfyH:F:X:M:P:C:D:oE:S:r:s:i:W:N:";
 
     const struct option long_opts[] = {
         { "rate", required_argument, NULL, 'R' },
@@ -507,6 +532,28 @@ void process_args(int argc, char *argv[])
             rcvbuf = atoi(optarg);
             if ((rcvbuf < 65536) || (rcvbuf > 104857600)) {
                 fprintf(stderr, "Invalid receive buffer size\n");
+                exit(1);
+            }
+            break;
+        case 'g':
+            max_log_size = atoi(optarg);
+            if ((max_log_size < 1) || (max_log_size > 1024)) {
+                fprintf(stderr, "Invalid max log size\n");
+                exit(1);
+            }
+            max_log_size *= 1000000;
+            break;
+        case 'n':
+            max_log_count = atoi(optarg);
+            if ((max_log_count < 1) || (max_log_count > 1000)) {
+                fprintf(stderr, "Invalid max log count\n");
+                exit(1);
+            }
+            break;
+        case 'm':
+            max_nak_cnt = atoi(optarg);
+            if ((max_nak_cnt < 1) || (max_nak_cnt > 1000)) {
+                fprintf(stderr, "Invalid max nak count\n");
                 exit(1);
             }
             break;
@@ -642,13 +689,13 @@ void process_args(int argc, char *argv[])
             sync_mode = 1;
             break;
         case 'p':
-            strncpy(dest_port, optarg, sizeof(dest_port)-1);
-            dest_port[sizeof(dest_port)-1] = '\x0';
+            strncpy(port, optarg, sizeof(port)-1);
+            port[sizeof(port)-1] = '\x0';
             break;
-        case 'g':
-          strncpy(src_port, optarg, sizeof(src_port)-1);
-          src_port[sizeof(src_port)-1] = '\x0';
-          break;
+        case 'u':
+            strncpy(srcport, optarg, sizeof(srcport)-1);
+            srcport[sizeof(srcport)-1] = '\x0';
+            break;
         case 'j':
             if (read_restart) {
                 fprintf(stderr,"Can't specify both -j and -F\n");
@@ -827,6 +874,10 @@ void process_args(int argc, char *argv[])
                 p = strtok(NULL, ",");
             }
             break;
+        case 'S':
+            strncpy(statusfilename, optarg, sizeof(statusfilename)-1);
+            statusfilename[sizeof(statusfilename)-1] = '\x0';
+            break;
         case 'r':
             p = strtok(optarg, ":");
             if (!p) {
@@ -915,6 +966,20 @@ void process_args(int argc, char *argv[])
                 exit(1);
             }
             fclose(listfile);
+            break;
+        case 'W':
+            txweight = atoi(optarg);
+            if ((txweight < 110) || (txweight > 10000)) {
+                fprintf(stderr, "Invalid txweight\n");
+                exit(1);
+            }
+            break;
+        case 'N':
+            max_nak_pct = atoi(optarg);
+            if ((max_nak_pct < 0) || (max_nak_pct > 100)) {
+                fprintf(stderr, "Invalid max_nak_pct\n");
+                exit(1);
+            }
             break;
         case '?':
             fprintf(stderr, USAGE);

@@ -150,7 +150,7 @@ typedef pthread_t thread_t;
 
 #endif // if WINDOWS
 
-#define VERSIONSTR "UFTP version 4.0  Copyright (C) 2001-2013  Dennis A. Bush"
+#define VERSIONSTR "UFTP version 4.1  Copyright (C) 2001-2013  Dennis A. Bush"
 #define UFTP_VER_NUM 0x40
 
 #define ANNOUNCE      1
@@ -175,9 +175,11 @@ typedef pthread_t thread_t;
 #define CONG_CTRL    20
 #define CC_ACK       21
 
-#define FTYPE_REG   0
-#define FTYPE_DIR   1
-#define FTYPE_LINK  2
+#define FTYPE_REG       0
+#define FTYPE_DIR       1
+#define FTYPE_LINK      2
+#define FTYPE_DELETE    3
+#define FTYPE_FREESPACE 4
 
 #define KEY_NONE        0
 #define KEY_DES         1
@@ -250,6 +252,8 @@ typedef pthread_t thread_t;
 #define EXT_PGMCC_NAK_INFO  5
 #define EXT_PGMCC_ACK_INFO  6
 
+#define EXT_FREESPACE_INFO 7
+
 #define FLAG_SYNC_MODE      0x01
 #define FLAG_SYNC_PREVIEW   0x02
 #define FLAG_IPV6           0x04
@@ -282,7 +286,7 @@ typedef pthread_t thread_t;
 #define MAXDIR 10
 #define MAXSECTION 65536
 
-#define DESTNAME_LEN 10
+#define DESTNAME_LEN 80
 #define IFNAME_LEN 25
 #define PORTNAME_LEN 20
 #define MAX_INTERFACES 100
@@ -528,6 +532,14 @@ struct complete_h {
     uint8_t reserved1;
     uint16_t reserved2;
 };  // sizeof = 8 + {uint32_t[]}
+
+struct freespace_info_he {
+    uint8_t exttype;  // always EXT_FREESPACE_INFO
+    uint8_t extlen;
+    uint16_t reserved;
+    uint32_t freespace_hi;
+    uint32_t freespace_lo;
+};  // sizeof = 12
 
 struct doneconf_h {
     uint8_t func;  // always DONE_CONF

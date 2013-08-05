@@ -34,8 +34,9 @@
 struct group_list_t *find_group(uint32_t group_id, uint8_t group_inst);
 int uid_in_list(uint32_t *addrlist, int size);
 void read_restart_file(struct group_list_t *group);
-void run_postreceive_multi(struct group_list_t *group, char **files, int count);
-void run_postreceive(struct group_list_t *group, char *file);
+void run_postreceive_multi(struct group_list_t *group, char *const *files,
+                           int count);
+void run_postreceive(struct group_list_t *group, const char *file);
 void file_cleanup(struct group_list_t *group, int abort);
 void set_uftp_header(struct uftp_h *header, int func,
                      struct group_list_t *group);

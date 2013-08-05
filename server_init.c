@@ -36,6 +36,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <errno.h>
+#include <signal.h>
 
 #ifdef WINDOWS
 
@@ -98,11 +99,54 @@ void cleanup(void)
         }
     }
     crypto_cleanup();
+    if (status_file) {
+        fclose(status_file);
+    }
 
 #ifdef WINDOWS
     WSACleanup();
 #endif
 }
+
+/**
+ * Generic signal handler, sets user_abort flag
+ */
+void gotsig(int sig)
+{
+    log0(0, 0, "Got signal %d, aborting", sig);
+    user_abort = 1;
+}
+
+#ifdef WINDOWS
+/**
+ * Windows event handler, sets user_abort flag
+ */
+BOOL WINAPI winsig(DWORD event)
+{
+    switch (event) {
+    case CTRL_C_EVENT:
+        log0(0, 0, "Got CTRL_C_EVENT");
+        break;
+    case CTRL_BREAK_EVENT:
+        log0(0, 0, "Got CTRL_BREAK_EVENT");
+        break;
+    case CTRL_CLOSE_EVENT:
+        log0(0, 0, "Got CTRL_CLOSE_EVENT");
+        break;
+    case CTRL_LOGOFF_EVENT:
+        log0(0, 0, "Got CTRL_LOGOFF_EVENT");
+        break;
+    case CTRL_SHUTDOWN_EVENT:
+        log0(0, 0, "Got CTRL_SHUTDOWN_EVENT");
+        break;
+    default:
+        log0(0, 0, "GOT unknown event", event);
+        break;
+    }
+    user_abort = 1;
+    return TRUE;
+}
+#endif
 
 /**
  * Do initial setup before parsing arguments, including getting interface list
@@ -130,9 +174,8 @@ void pre_initialize()
 void create_sockets()
 {
     struct addrinfo ai_hints, *ai_rval;
-    union sockaddr_u su;
     char *p, tmp_multi[INET6_ADDRSTRLEN];
-    int found_if, fdflag, bcast, rval, i, s_port;
+    int found_if, fdflag, bcast, rval, i;
 
     // Set up global sockaddr_u structs for public and private addresses
     // Perform octet substitution on private multicast address
@@ -142,7 +185,7 @@ void create_sockets()
     ai_hints.ai_socktype = SOCK_DGRAM;
     ai_hints.ai_protocol = 0;
     ai_hints.ai_flags = 0;
-    if ((rval = getaddrinfo(pub_multi, dest_port, &ai_hints, &ai_rval)) != 0) {
+    if ((rval = getaddrinfo(pub_multi, port, &ai_hints, &ai_rval)) != 0) {
         log0(0, 0, "Invalid public address or port: %s", gai_strerror(rval));
         exit(1);
     }
@@ -169,7 +212,7 @@ void create_sockets()
                 priv_multi[sizeof(priv_multi)-1] = '\x0';
             }
         }
-        if ((rval = getaddrinfo(priv_multi, dest_port, &ai_hints, &ai_rval)) != 0) {
+        if ((rval = getaddrinfo(priv_multi, port, &ai_hints, &ai_rval)) != 0) {
             log0(0, 0, "Invalid private address: %s", gai_strerror(rval));
             exit(1);
         }
@@ -222,18 +265,20 @@ void create_sockets()
         sockerror(0, 0, "Error creating socket");
         exit(1);
     }
-    memset(&su, 0, sizeof(su));
-    su.ss.ss_family = listen_dest.ss.ss_family;
-    s_port = atoi(src_port);
-    if (su.ss.ss_family == AF_INET)
-      su.sin.sin_port = htons(s_port);
-    else if  (su.ss.ss_family == AF_INET6)
-      su.sin6.sin6_port = htons(s_port);
-
-    if (bind(sock, (struct sockaddr *)&su, family_len(su)) == SOCKET_ERROR) {
+    memset(&ai_hints, 0, sizeof(ai_hints));
+    ai_hints.ai_family = listen_dest.ss.ss_family;
+    ai_hints.ai_socktype = SOCK_DGRAM;
+    ai_hints.ai_protocol = 0;
+    ai_hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
+    if ((rval = getaddrinfo(NULL, srcport, &ai_hints, &ai_rval)) != 0) {
+        log0(0, 0, "Error getting bind address: %s", gai_strerror(rval));
+        exit(1);
+    }
+    if (bind(sock, ai_rval->ai_addr, ai_rval->ai_addrlen) == SOCKET_ERROR) {
         sockerror(0, 0, "Error binding socket");
         exit(1);
     }
+    freeaddrinfo(ai_rval);
 
     // Set send/receive buffer size, ttl, and multicast interface
     if (rcvbuf) {
@@ -455,18 +500,33 @@ void key_init()
 void initialize()
 {
     atexit(cleanup);
+    init_log_mux = 1;
+    init_log(0);
 
-    if (strcmp(logfile, "")) {
-        int fd;
-        if ((fd = open(logfile, O_WRONLY | O_APPEND | O_CREAT, 0644)) == -1) {
-            perror("Can't open log file");
+#ifdef WINDOWS
+    SetConsoleCtrlHandler(winsig, TRUE);
+#else
+    {
+        struct sigaction act;
+
+        sigfillset(&act.sa_mask);
+        act.sa_flags = SA_NOCLDSTOP | SA_NOCLDWAIT | SA_RESTART;
+
+        act.sa_handler = gotsig;
+        sigaction(SIGINT, &act, NULL);
+        sigaction(SIGTERM, &act, NULL);
+        sigaction(SIGPIPE, &act, NULL);
+        act.sa_handler = SIG_IGN;
+        sigaction(SIGCHLD, &act, NULL);
+    }
+#endif
+
+    if (strcmp(statusfilename, "")) {
+        if ((status_file = fopen(statusfilename, "at")) == NULL) {
+            perror("Can't open status file");
             exit(1);
         }
-        dup2(fd, 2);
-        close(fd);
-        showtime = 1;
     }
-    applog = stderr;
 
     key_init();
     create_sockets();

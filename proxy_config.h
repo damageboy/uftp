@@ -58,6 +58,7 @@
     [ -t ttl ] [ -Q dscp ] [ -N priority ] [ -O out_multi_interface ]\n\
     [ -U UID ] [ -q dest_port ] [ -m ] [ -x log_level ]\n\
     [ -H hb_server[:port][,hb_server[:port]...] ] [ -h hb_interval ]\n\
+    [ -g max_log_size ] [ -n max_log_count ]\n\
     [ -B udp_buf_size ] [ -L logfile ] [ -P pidfile ] [ -C clientlist_file ]\n\
     [ -S serverlist_file ] [ -e ecdh_curve ] [ -k keyfile[,keyfile...] ]\n\
     [ -K rsa:key_length | ec:curve[,rsa:key_length | ec:curve...]]\n\

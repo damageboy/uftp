@@ -1,4 +1,4 @@
-.TH uftpproxyd 1 "27 April 2013" "UFTP 4.0"
+.TH uftpproxyd 1 "30 July 2013" "UFTP 4.1"
 .SH NAME
 uftpproxyd - Encrypted UDP based ftp with multicast - proxy daemon
 .SH SYNOPSIS
@@ -7,6 +7,7 @@ uftpproxyd { -s { dest | fp=fingerprint } | -c | -r }
     [ -N priority ] [ -O out_multi_interface ]
     [ -U UID ] [ -q dest_port ] [ -m ] [ -x log_level ]
     [ -H hb_server[:port][,hb_server[:port]...] ]
+    [ -g max_log_size ] [ -n max_log_count ]
     [ -h hb_interval ] [ -B udp_buf_size ] [ -L logfile ]
     [ -P pidfile ] [ -C clientlist_file ]
     [ -S serverlist_file ] [ -k keyfile[,keyfile...] ]
@@ -263,6 +264,12 @@ Lists one or more proxies to send heartbeat messages to.  When sending a signed 
 .B -h hb_interval
 The time in seconds between sending heartbeat messages.  Ignored if -H is not specified.
 .TP
+.B \-g max_log_size
+Specifies the maximum log file size in MB.  Once the log file reaches this size, the file is renamed with a .1 extension and a new log file is opened.  For example, if the log file is /tmp/uftpproxyd.log, it will be renamed /tmp/uftpproxyd.log.1 and a new /tmp/uftpproxyd.log will be created.  Ignored if -d is specified.  Valid values are 1-1024.  Default is no log rolling.
+.TP
+.B \-n max_log_count
+Specifies the maximum number of archive log files to keep when log rolling is active.  When the log file rolls, archive logs are renamed with an incrementing numerical extension until the max is reached.  Archive log files beyond the maximum are deleted.  Ignored if -g is not specified.  Valid values are 1-1000.  Default is 5.
+.TP
 .B \-B buf_size
 The size in bytes of the UDP send buffer and receive buffer to use.  Valid values are 65536-104857600 (64KB-100MB).  Defaults to 262144.
 .TP
@@ -346,4 +353,4 @@ The list of public multicast addresses to listen on.  Used only by server proxie
 .SH SEE ALSO
 uftp(1), uftpd(1), uftp_keymgt(1)
 .SH NOTES
-The latest version of UFTP can be found at http://www.tcnj.edu/~bush/uftp.html.  UFTP is covered by the GNU General Public License.  Commercial licenses and support are available from Dennis Bush (bush@tcnj.edu).
+The latest version of UFTP can be found at http://uftp-multicast.sourceforge.net.  UFTP is covered by the GNU General Public License.  Commercial licenses and support are available from Dennis Bush (bush@tcnj.edu).

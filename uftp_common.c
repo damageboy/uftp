@@ -107,6 +107,7 @@ void getiflist(struct iflist *list, int *len)
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <net/if.h>
+#include <sys/statvfs.h>
 
 #include "uftp.h"
 #include "uftp_common.h"
@@ -495,9 +496,119 @@ uint8_t get_curve(const char *name)
     }
 }
 
+char logfile[MAXPATHNAME];
 int showtime;
 FILE *applog;
-int log_level;
+int log_level, init_log_mux, use_log_mux, max_log_count;
+f_offset_t log_size, max_log_size;
+mux_t log_mux;
+
+static int rolling = 0;
+
+/**
+ * Initialize the log file.
+ */
+void init_log(int __debug)
+{
+    use_log_mux = 0;
+    if (init_log_mux) {
+        if (mux_create(log_mux)) {
+            perror("Failed to create log mutex");
+            exit(1);
+        }
+    }
+
+    if (strcmp(logfile, "") && !__debug) {
+        int fd;
+        stat_struct statbuf;
+
+        if ((lstat_func(logfile, &statbuf) != -1) && S_ISREG(statbuf.st_mode)) {
+            log_size = statbuf.st_size;
+        } else {
+            log_size = 0;
+        }
+        if ((fd = open(logfile, O_WRONLY | O_APPEND | O_CREAT, 0644)) == -1) {
+            perror("Can't open log file");
+            exit(1); 
+        }
+        dup2(fd, 2);
+        close(fd);
+
+        showtime = 1;
+    } else {
+        log_size = 0;
+        max_log_size = 0;
+        max_log_count = 0;
+    }
+    applog = stderr;
+}
+
+/**
+ * Close log file
+ */
+void close_log()
+{
+    if (init_log_mux) {
+        mux_destroy(log_mux);
+    }
+    fclose(applog);
+}
+
+/**
+ * Rolls the log file.
+ */
+void roll_log()
+{
+    char oldname[MAXPATHNAME], newname[MAXPATHNAME];
+    int rval, fd, i;
+
+    if (rolling) return;
+    rolling = 1;
+    log2(0, 0, "Rolling logs");
+    for (i = max_log_count; i >=0; i--) {
+        if (i == 0) {
+            rval = snprintf(oldname, sizeof(oldname), "%s", logfile);
+            if  (rval >= sizeof(oldname)) {
+                log0(0, 0, "Old log name too long");
+                rolling = 0;
+                return;
+            }
+        } else {
+            rval = snprintf(oldname, sizeof(oldname), "%s.%d", logfile, i);
+            if  (rval >= sizeof(oldname)) {
+                log0(0, 0, "Old log name too long");
+                rolling = 0;
+                return;
+            }
+        }
+        rval = snprintf(newname, sizeof(newname), "%s.%d", logfile, i + 1);
+        if  (rval >= sizeof(oldname)) {
+            log0(0, 0, "New log name too long");
+            rolling = 0;
+            return;
+        }
+        if (i == max_log_count) {
+            if (unlink(oldname) == -1) {
+                syserror(0, 0, "Couldn't remove log %s", oldname);
+            }
+        } else {
+            if (rename(oldname, newname) == -1) {
+                syserror(0,0, "Couldn't rename log %s to %s", oldname, newname);
+            }
+        }
+    }
+    log2(0, 0, "Opening new log");
+    if ((fd=open(logfile, O_WRONLY | O_APPEND | O_CREAT, 0644)) == -1) {
+        syserror(0, 0, "Can't open log file");
+        exit(1); 
+    }
+    log2(0, 0, "Switching to new log");
+    dup2(fd, 2);
+    close(fd);
+    log_size = 0;
+    log2(0, 0, "Switch to new log complete");
+    rolling = 0;
+}
 
 /**
  * The main logging function.
@@ -510,45 +621,70 @@ void logfunc(uint32_t group_id, uint16_t file_id, int level, int _showtime,
     struct timeval tv;
     time_t t;
     va_list args;
+    int write_len;
  
     if (level > log_level) return;
+    if (use_log_mux && !rolling) {
+        if (mux_lock(log_mux)) {
+            write_len = fprintf(applog, "Failed to lock log mutex\n");
+            if (write_len != -1) log_size += write_len;
+        }
+    }
     if (_showtime) {
         gettimeofday(&tv, NULL);
         // In Windows, tv.tv_sec is long, not time_t
         t = tv.tv_sec;
         timeval = localtime(&t);
-        fprintf(applog, "%04d/%02d/%02d %02d:%02d:%02d.%06d: ",
+        write_len = fprintf(applog, "%04d/%02d/%02d %02d:%02d:%02d.%06d: ",
                 timeval->tm_year + 1900, timeval->tm_mon + 1, timeval->tm_mday,
                 timeval->tm_hour, timeval->tm_min, timeval->tm_sec,
                 (int)tv.tv_usec);
+        if (write_len != -1) log_size += write_len;
     }
     if (group_id && file_id) {
-        fprintf(applog, "[%08X:%04X]: ", group_id, file_id);
+        write_len = fprintf(applog, "[%08X:%04X]: ", group_id, file_id);
+        if (write_len != -1) log_size += write_len;
     } else if (group_id && !file_id) {
-        fprintf(applog, "[%08X:0]: ", group_id);
+        write_len = fprintf(applog, "[%08X:0]: ", group_id);
+        if (write_len != -1) log_size += write_len;
     } else if (!group_id && file_id) {
-        fprintf(applog, "[%04X]: ", file_id);
+        write_len = fprintf(applog, "[%04X]: ", file_id);
+        if (write_len != -1) log_size += write_len;
     }
     va_start(args, str);
-    vfprintf(applog, str, args);
+    write_len = vfprintf(applog, str, args);
+    if (write_len != -1) log_size += write_len;
     va_end(args);
     if (sockerr) {
 #ifdef WINDOWS
         char errbuf[300];
         FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, WSAGetLastError(),
                       0, errbuf, sizeof(errbuf), NULL);
-        fprintf(applog, ": (%d) %s", WSAGetLastError(), errbuf);
+        write_len = fprintf(applog, ": (%d) %s", WSAGetLastError(), errbuf);
         newline = 0;
 #else
-        fprintf(applog, ": %s", strerror(err));
+        write_len = fprintf(applog, ": %s", strerror(err));
 #endif
+        if (write_len != -1) log_size += write_len;
     } else if (err) {
-        fprintf(applog, ": %s", strerror(err));
+        write_len = fprintf(applog, ": %s", strerror(err));
+        if (write_len != -1) log_size += write_len;
     } 
     if (newline) {
-        fprintf(applog, "\n");
+        write_len = fprintf(applog, "\n");
+        if (write_len != -1) log_size += write_len;
     }
     fflush(applog);
+    if ((max_log_size > 0) && (log_size > max_log_size)) {
+        roll_log();
+    }
+    if (use_log_mux && !rolling) {
+        if (mux_unlock(log_mux)) {
+            write_len = fprintf(applog, "Failed to unlock log mutex\n");
+            if (write_len != -1) log_size += write_len;
+            fflush(applog);
+        }
+    }
 }
 
 /**
@@ -1769,6 +1905,50 @@ int file_write(int fd, const void *buf, int buflen)
         return -1;
     }
     return write_len;
+}
+
+/**
+ * Returns the free disk space in bytes of the filesystem that contains
+ * the given file.  Returns 2^63-1 on error.
+ */
+int64_t free_space(const char *file)
+{
+#ifdef WINDOWS
+    ULARGE_INTEGER bytes_free;
+    char *dirname, *filename;
+
+    split_path(file, &dirname, &filename);
+    if (dirname == NULL) {
+        free(dirname);
+        free(filename);
+        return 0x7FFFFFFFFFFFFFFFULL;
+    }
+    if (!GetDiskFreeSpaceEx(dirname, &bytes_free, NULL, NULL)) {
+        char errbuf[300];
+        FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+                GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
+        log0(0, 0, "Error in GetDiskFreeSpaceEx: %s", errbuf);
+        free(dirname);
+        free(filename);
+        return 0x7FFFFFFFFFFFFFFFULL;
+    } else {
+        log3(0, 0, "Free space: %s", printll(bytes_free.QuadPart));
+        free(dirname);
+        free(filename);
+        return bytes_free.QuadPart;
+    }
+#else
+    struct statvfs buf;
+
+    if (statvfs(file, &buf) == -1) {
+        syserror(0, 0, "statvfs failed");
+        return 0x7FFFFFFFFFFFFFFFULL;
+    } else {
+        log3(0, 0, "Free space: %s",
+                printll((uint64_t)buf.f_bsize * buf.f_bavail));
+        return (int64_t)buf.f_bsize * buf.f_bavail;
+    }
+#endif
 }
 
 /**

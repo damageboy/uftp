@@ -13,7 +13,8 @@ SYNOPSIS
 	   [ -P pidfile ] [ -S serverlist_file ] [ -R proxy[/fp] ]
 	   [ -k keyfile[,keyfile...] ]
 	   [ -K rsa:key_len | ec:curve[,rsa:key_len | ec:curve...]]
-	   [ -m ] [ -N priority ] [ -s postreceive_script ]
+	   [ -m ] [ -N priority ] [ -i ] [ -s postreceive_script ]
+	   [ -g max_log_size ] [ -n max_log_count ]
 	   [ -H hb_server[:port][,hb_server[:port]...] ]
 	   [ -h hb_interval ] [ -I interface[,interface...] ]
 	   [ -M pub_mcast_addr[,pub_mcast_addr...] ]
@@ -42,14 +43,14 @@ OPTIONS
 	      If it is IPv6, the UID is the last 4 bytes of the address.
 
        -B buf_size
-	      The size in bytes of the UDP receive buffer to use.  Valid  val-
+	      The size in bytes of the UDP receive buffer to use.  Valid  val‐
 	      ues are 65536-104857600 (64KB-100MB).  Defaults to 262144.
 
        -E     Only  allow incoming sessions if encryption is enabled.  Default
 	      is to allow both encrypted and unencrypted sessions.
 
        -Q dscp
-	      Specifies the Differentiated Services Code  Point	 (DSCP),  for-
+	      Specifies the Differentiated Services Code  Point	 (DSCP),  for‐
 	      merly  Type  of Service (TOS), in the IP header for all outgoing
 	      packets.	Valid values are 0-63 and may be specified  in	either
 	      decimal or hexadecimal.  Default is 0.
@@ -58,7 +59,7 @@ OPTIONS
 	      changed by default.  To change this,  add/modify	the  following
 	      DWORD registry value, set to 0, and reboot:
 
-	      HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Ser-
+	      HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Ser‐
 	      vices\Tcpip\Parameters\DisableUserTOSSetting
 
 	      Not currently supported on Windows Vista or later.
@@ -87,37 +88,38 @@ OPTIONS
 
 	      Not compatible -A or -t.	Not compatible with -D	when  multiple
 	      destination  directories are specified.  Also, no incoming files
-	      with an absolute path will be accepted if this option is	speci-
+	      with an absolute path will be accepted if this option is	speci‐
 	      fied.
 
-	      IMPORTANT: When full directories are received, the entire direc-
+	      IMPORTANT: When full directories are received, the entire direc‐
 	      tory is moved at once to the destination directory, removing any
-	      existing	file/directory.	 This means that if an existing direc-
+	      existing	file/directory.	 This means that if an existing direc‐
 	      tory in dest_dir is the same name as a directory	received  into
-	      temp_dir, all files under the existing directory are deleted.
+	      temp_dir,	 all  files  under the existing directory are deleted.
+	      The -i option prevents by moving all files individually.
 
        -D dest_dir[,dest_dir...]
-	      Destination  directories for all received files.	When an incom-
-	      ing file specifies an absolute path, it must match  one  of  the
-	      destination  directories,	 otherwise  the file will be rejected.
-	      Incoming files that don't	 specify  an  absolute	path  will  be
-	      received	into  the  first  destination  directory  in the list.
+	      Destination directories for all received files.  When an	incom‐
+	      ing  file	 specifies  an absolute path, it must match one of the
+	      destination directories, otherwise the file  will	 be  rejected.
+	      Incoming	files  that  don't  specify  an	 absolute path will be
+	      received into the	 first	destination  directory	in  the	 list.
 	      Default is /tmp for UNIX-like systems, C:\temp for Windows.
 
        -A backup_dir[,backup_dir...]
 	      Specifies backup directories.  Each backup directory corresponds
-	      to  a  destination  directory, so the number of each MUST be the
-	      same.  Existing files that  would	 be  overwritten  by  incoming
-	      files  are  moved	 to the corresponding backup directory for the
-	      selected destination directory, first under timestamped directo-
+	      to a destination directory, so the number of each	 MUST  be  the
+	      same.   Existing	files  that  would  be overwritten by incoming
+	      files are moved to the corresponding backup  directory  for  the
+	      selected destination directory, first under timestamped directo‐
 	      ries, then under the full path of the existing file.
 
-	      For  example,  if /full/path/to/file would be overwritten, it is
-	      moved to {backup_dir}/YYYYMMDD/HHMMSS/full/path/to/file.	 Under
+	      For example, if /full/path/to/file would be overwritten,	it  is
+	      moved  to {backup_dir}/YYYYMMDD/HHMMSS/full/path/to/file.	 Under
 	      Windows, drive letters for local files are not part of the name,
-	      but host/share names for network files are.  So  C:\path\to\file
+	      but  host/share names for network files are.  So C:\path\to\file
 	      would be backed up to {backup_dir}\YYYYMMDD\HHMMSS\path\to\file,
-	      and   \\host\share\path\to\file	would	be   backed   up    to
+	      and    \\host\share\path\to\file	 would	 be   backed   up   to
 	      {backup_dir}\YYYYMMDD\HHMMSS\host\share\path\to\file.
 
 	      Not compatible with -T.
@@ -131,66 +133,66 @@ OPTIONS
 	      no pidfile.
 
        -S serverlist_file
-	      A	 file  containing  a  list of servers the client will allow to
+	      A file containing a list of servers the  client  will  allow  to
 	      send files to it.	 The file should contain the ID of the server,
-	      the  IP  address the client expects the server's request to come
-	      from, and optionally the server's public key  fingerprint,  with
-	      one  entry  for  a server on each line.  If a key fingerprint is
-	      given, the key specified by the server must  match  the  finger-
+	      the IP address the client expects the server's request  to  come
+	      from,  and  optionally the server's public key fingerprint, with
+	      one entry for a server on each line.  If a  key  fingerprint  is
+	      given,  the  key	specified by the server must match the finger‐
 	      print.  If your system supports source specific multicast (SSM),
-	      the client will subscribe to all public  and  private  multicast
+	      the  client  will	 subscribe to all public and private multicast
 	      addresses using SSM for all servers listed.
 
-	      When  this option is specified, the public and private addresses
-	      specified by the	server	must  be  valid	 SSM  addresses.   Any
-	      ANNOUNCE	that  specifies	 a  private IP that is not a valid SSM
-	      address will be rejected.	 Valid SSM addresses are in the	 232/8
+	      When this option is specified, the public and private  addresses
+	      specified	 by  the  server  must	be  valid  SSM addresses.  Any
+	      ANNOUNCE that specifies a private IP that is  not	 a  valid  SSM
+	      address  will be rejected.  Valid SSM addresses are in the 232/8
 	      range for IPv4 and the ff30::/96 range for IPv6.
 
 	      Example contents:
 	      0x11112222|192.168.1.101|66:1E:C9:1D:FC:99:DB:60:B0:1A:F0:8F:CA:F4:28:27:A6:BE:94:BC
 	      0x11113333|fe80::213:72ff:fed6:69ca
 
-	      When  expecting to receive from a server that is behind a proxy,
-	      the file should list the ID of the server along with the IP  and
+	      When expecting to receive from a server that is behind a	proxy,
+	      the  file should list the ID of the server along with the IP and
 	      fingerprint of the client proxy.	The proxy can authenticate the
 	      server.
 
        -R proxy[/fingerprint]
-	      Specifies the name/IP of the response proxy that	all  responses
-	      are  forwarded  to.   If	fingerprint is given, it specifies the
-	      proxy's public key fingerprint.  Upon startup, the  client  will
-	      query  the  proxy	 for  its public key, retrying every 5 seconds
-	      until it gets a successful response.  The client	cannot	accept
-	      an  encrypted  file  transfer  from  a  server until it gets the
+	      Specifies	 the  name/IP of the response proxy that all responses
+	      are forwarded to.	 If fingerprint is  given,  it	specifies  the
+	      proxy's  public  key fingerprint.	 Upon startup, the client will
+	      query the proxy for its public key,  retrying  every  5  seconds
+	      until  it	 gets a successful response.  The client cannot accept
+	      an encrypted file transfer from  a  server  until	 it  gets  the
 	      proxy's key.
 
        -k keyfile[,keyfile...]
 
        -K rsa:key_length | ec:curve[,rsa:key_length | ec:curve...]
-	      These two options are used to read  and/or  write	 the  client's
+	      These  two  options  are	used to read and/or write the client's
 	      RSA/ECDSA private keys.
 
-	      The  -K  option  creates	one or more RSA or ECDSA private keys.
-	      New keys are specified as either rsa:key_length,	which  creates
-	      an  RSA  private key key_length bits wide, or as ec:curve, which
+	      The -K option creates one or more RSA  or	 ECDSA	private	 keys.
+	      New  keys	 are specified as either rsa:key_length, which creates
+	      an RSA private key key_length bits wide, or as  ec:curve,	 which
 	      creates an EC key using the curve "curve".
 
-	      The list of supported EC curves is as follows (availability  may
+	      The  list of supported EC curves is as follows (availability may
 	      vary depending on system settings and crypto library used):
 
 	      sect163k1	 sect163r1  sect163r2  sect193r1  sect193r2  sect233k1
 	      sect233r1	 sect239k1  sect283k1  sect283r1  sect409k1  sect409r1
 	      sect571k1	 sect571r1  secp160k1  secp160r1  secp160r2  secp192k1
-	      prime192v1 secp224k1 secp224r1  secp256k1	 prime256v1  secp384r1
+	      prime192v1  secp224k1  secp224r1	secp256k1 prime256v1 secp384r1
 	      secp521r1
 
 	      If only -K is specified, the keys created are not persisted.
 
-	      If  only -k is specified, this option reads RSA or ECDSA private
+	      If only -k is specified, this option reads RSA or ECDSA  private
 	      keys from each keyfile.
 
-	      If -k and -K are specified, the keys created by -K  are  written
+	      If  -k  and -K are specified, the keys created by -K are written
 	      to the keyfiles listed by -k.  In this case, -k and -K must give
 	      the same number of items.
 
@@ -200,53 +202,53 @@ OPTIONS
 	      If -k is specified but not -K, the RSA or ECDSA private keys are
 	      read from each keyfile.
 
-	      The definition of keyfile is dependent  on  the  crypto  library
+	      The  definition  of  keyfile  is dependent on the crypto library
 	      UFTP is compiled to use.
 
-	      On  Windows  systems, UFTP can built to use either CNG, which is
-	      the new API supported by Windows Vista and Windows 7,  or	 Cryp-
-	      toAPI,  which  is	 the  legacy API and the only one available to
+	      On Windows systems, UFTP can built to use either CNG,  which  is
+	      the  new	API supported by Windows Vista and Windows 7, or Cryp‐
+	      toAPI, which is the legacy API and the  only  one	 available  to
 	      Windows XP.
 
-	      Under CryptoAPI, all RSA private keys must be stored  in	a  key
-	      container	 (technically  only  keys  used	 to sign data, but for
-	      UFTP's purposes this is the case).  Key containers are  internal
-	      to  Windows,  and	 each user (and the system) has its own set of
-	      key containers.  In this case, key_file is actually the name  of
-	      the  key container.  When -k is not specified, the generated key
-	      is not persisted. Elliptic Curve algorithms  are	not  supported
+	      Under  CryptoAPI,	 all  RSA private keys must be stored in a key
+	      container (technically only keys used  to	 sign  data,  but  for
+	      UFTP's  purposes this is the case).  Key containers are internal
+	      to Windows, and each user (and the system) has its  own  set  of
+	      key  containers.	In this case, key_file is actually the name of
+	      the key container.  When -k is not specified, the generated  key
+	      is  not  persisted.  Elliptic Curve algorithms are not supported
 	      under CryptoAPI.
 
-	      Under  CNG,  RSA	and  ECDSA private keys are also stored in key
+	      Under CNG, RSA and ECDSA private keys are	 also  stored  in  key
 	      containers, and RSA keys created by CrypoAPI may be read by CNG.
-	      Like  CryptoAPI, key_file also specifies the key container name,
-	      and the generated key is not persisted if -k is  not  specified.
-	      CNG  only supports 3 named EC curves: prime256v1, secp384r1, and
+	      Like CryptoAPI, key_file also specifies the key container	 name,
+	      and  the	generated key is not persisted if -k is not specified.
+	      CNG only supports 3 named EC curves: prime256v1, secp384r1,  and
 	      secp521r1.
 
-	      All other systems use OpenSSL for the crypto  library  (although
-	      under  Windows  UFTP  can	 be also be built to use it).  In this
-	      case, key_file specifies a file name where the RSA  private  key
-	      is  stored unencrypted in PEM format (the OS is expected to pro-
+	      All  other  systems use OpenSSL for the crypto library (although
+	      under Windows UFTP can be also be built to  use  it).   In  this
+	      case,  key_file  specifies a file name where the RSA private key
+	      is stored unencrypted in PEM format (the OS is expected to  pro‐
 	      tect this file).	When both -k and -K are specified, the file is
-	      only  written  to	 if  it does not currently exist.  If the file
-	      does exist, an error message will be  returned  and  the	server
-	      will  exit.   When -k is not specified, the generated key is not
-	      persisted.  These PEM files may  also  be	 manipulated  via  the
+	      only written to if it does not currently	exist.	 If  the  file
+	      does  exist,  an	error  message will be returned and the server
+	      will exit.  When -k is not specified, the generated key  is  not
+	      persisted.   These  PEM  files  may  also be manipulated via the
 	      openssl(1) command line tool.
 
-	      Keys  can	 also  be  generated and viewed via the uftp_keymgt(1)
+	      Keys can also be generated and  viewed  via  the	uftp_keymgt(1)
 	      utility.
 
-       -m     For Windows systems using CryptoAPI or  CNG,  private  keys  are
-	      normally stored in the key container of the running user.	 Spec-
-	      ifying this option stores keys  in  the  system  key  container.
-	      Useful  when running as a service.  On non-Windows systems, this
+       -m     For  Windows  systems  using  CryptoAPI or CNG, private keys are
+	      normally stored in the key container of the running user.	 Spec‐
+	      ifying  this  option  stores  keys  in the system key container.
+	      Useful when running as a service.	 On non-Windows systems,  this
 	      option has no effect.
 
        -N priority
 	      Sets the process priority.  On Windows systems, valid values are
-	      from -2 to 2, with a default of 0.  These correspond to the fol-
+	      from -2 to 2, with a default of 0.  These correspond to the fol‐
 	      lowing priorities:
 
 	      -2 High
@@ -255,9 +257,17 @@ OPTIONS
 	       1 Below Normal
 	       2 Low
 
-	      On all other systems, this is the "nice"	value.	 Valid	values
-	      are  from -20 to 19, where -20 is the highest priority and 19 is
+	      On  all  other  systems, this is the "nice" value.  Valid values
+	      are from -20 to 19, where -20 is the highest priority and 19  is
 	      the lowest priority.  Default is 0.
+
+       -i     When  -T	is  specified, directories are normally moved from the
+	      temp directory to the destionation directory at  once,  removing
+	      all  existing files in the that subdirectory within the destion‐
+	      aion directory.  This option causes directories to be  traversed
+	      so  that	all  received files are moved individually, preventing
+	      unwanted deletions.  This also affects the operation of  the  -s
+	      option.  If -T is not specified, this option has no effect.
 
        -s postreceive_script
 	      The full path to an external command or script to be called when
@@ -266,20 +276,37 @@ OPTIONS
 	      postreceive_script -I session_id file [ file... ]
 
 	      Where "session_id" is an 8 hexadecimal digit number identifiying
-	      the current session, and "file" is the full pathname to  one  or
-	      more  received  files/directories	 in  the destination directory
+	      the  current  session, and "file" is the full pathname to one or
+	      more received files/directories  in  the	destination  directory
 	      specified by -D.
 
-	      The way this script is called depends on whether or not  a  temp
-	      directory is specified by -T.  If a temp directory is not speci-
-	      fied, the script gets called once for each file as soon  as  the
-	      file  is received.  If a temp directory is specified, the script
-	      gets called once at the end of the session, and  is  passed  all
-	      top   level   files/directories	received.   Here,  "top	 level
+	      The  way	this script is called depends on whether or not a temp
+	      directory is specified by -T, and if -i is specified.  If a temp
+	      directory	 is not specified, or if both -T and -i are specified,
+	      the script gets called once for each file as soon as the file is
+	      received.	  If  a temp directory is specified but -i is not, the
+	      script gets called once at the end of the session, and is passed
+	      all  top	level  files/directories  received.   Here, "top level
 	      files/directories" refers to all entries in the  temp  directory
 	      for the session, but not subdirectories.	So the script would be
 	      responsible for traversing any listed directories to find	 files
 	      contained within them.
+
+       -g max_log_size
+	      Specifies	 the  maximum  log file size in MB.  Once the log file
+	      reaches this size, the file is renamed with a .1 extension and a
+	      new  log	file  is  opened.   For	 example,  if  the log file is
+	      /tmp/uftpd.log, it will be renamed /tmp/uftpd.log.1  and	a  new
+	      /tmp/uftpd.log  will  be	created.   Ignored if -d is specified.
+	      Valid values are 1-1024.	Default is no log rolling.
+
+       -n max_log_count
+	      Specifies the maximum number of archive log files to  keep  when
+	      log  rolling  is	active.	 When the log file rolls, archive logs
+	      are renamed with an incrementing numerical extension  until  the
+	      max  is  reached.	  Archive  log	files  beyond  the maximum are
+	      deleted.	Ignored if -g is  not  specified.   Valid  values  are
+	      1-1000.  Default is 5.
 
        -H hb_server[:port][,hb_server[:port]...]
 	      Lists  one  or more proxies to send heartbeat messages to.  When
@@ -293,7 +320,7 @@ OPTIONS
 
        -I interface[,interface...]
 	      Lists  one or more interfaces to listen to multicast traffic on.
-	      Interfaces can be specified either by interface name,  by	 host-
+	      Interfaces can be specified either by interface name,  by	 host‐
 	      name,  or	 by  IP.   When	 receiving  a  closed group membership
 	      request, the client will participate if any of these  interfaces
 	      matches an IP in the announcement.  When receiving an open group
@@ -319,8 +346,8 @@ EXAMPLES
 	    uftpd
 
        The  client  runs as a daemon and listens for announcements on UDP port
-       1044 on multicast address 230.4.4.1 on all non-loopback network	inter-
-       faces.  Incoming files are received directly into /tmp (C:\temp on Win-
+       1044 on multicast address 230.4.4.1 on all non-loopback network	inter‐
+       faces.  Incoming files are received directly into /tmp (C:\temp on Win‐
        dows).  A 512-bit RSA key is generated to handle encrypted sessions.
 
        Suppose you want an  external  process  to  handle  incoming  files  in
@@ -350,11 +377,11 @@ SEE ALSO
        uftp(1), uftpproxyd(1), uftp_keymgt(1)
 
 NOTES
-       The     latest	  version     of     UFTP     can    be	   found    at
-       http://www.tcnj.edu/~bush/uftp.html.  UFTP is covered by the  GNU  Gen-
-       eral  Public  License.	Commercial  licenses and support are available
-       from Dennis Bush (bush@tcnj.edu).
+       The   latest  version  of  UFTP	can  be	 found	at  http://uftp-multi‐
+       cast.sourceforge.net.  UFTP  is	covered	 by  the  GNU  General	Public
+       License.	  Commercial  licenses	and  support are available from Dennis
+       Bush (bush@tcnj.edu).
 
 
 
-UFTP 4.0			 27 April 2013			      uftpd(1)
+UFTP 4.1			 30 July 2013			      uftpd(1)

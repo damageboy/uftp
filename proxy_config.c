@@ -56,7 +56,7 @@
  * Global command line values and sockets
  */
 SOCKET listener;
-char logfile[MAXPATHNAME], pidfile[MAXPATHNAME];
+char pidfile[MAXPATHNAME];
 char keyfile[MAXLIST][MAXPATHNAME], keyinfo[MAXLIST][MAXPATHNAME];
 int proxy_type, debug, rcvbuf, dscp, keyfile_count, keyinfo_count;
 int hb_interval, priority;
@@ -199,6 +199,8 @@ void set_defaults()
     sys_keys = 0;
     priority = 0;
     ecdh_curve = 0;
+    max_log_size = 0;
+    max_log_count = DEF_MAX_LOG_COUNT;
 }
 
 /**
@@ -210,7 +212,7 @@ void process_args(int argc, char *argv[])
     int c, i, listidx, rval;
     long tmpval;
     char *p, *p2, *hoststr, *portstr, pubname[INET6_ADDRSTRLEN];
-    const char opts[] = "s:crdx:p:t:Q:N:O:U:q:mh:H:B:L:P:C:S:e:k:K:I:M:";
+    const char opts[] = "s:crdx:p:t:Q:N:O:U:q:mh:H:g:n:B:L:P:C:S:e:k:K:I:M:";
 
     set_defaults();
     srand((unsigned int)time(NULL) ^ getpid());
@@ -383,6 +385,21 @@ void process_args(int argc, char *argv[])
             hb_interval = atoi(optarg);
             if ((hb_interval <= 0) || (hb_interval > 3600)) {
                 fprintf(stderr, "Invalid hearbeat interval\n");
+                exit(1);
+            }
+            break;
+        case 'g':
+            max_log_size = atoi(optarg);
+            if ((max_log_size < 1) || (max_log_size > 1024)) {
+                fprintf(stderr, "Invalid max log size\n");
+                exit(1);
+            }
+            max_log_size *= 1000000;
+            break;
+        case 'n':
+            max_log_count = atoi(optarg);
+            if ((max_log_count < 1) || (max_log_count > 1000)) {
+                fprintf(stderr, "Invalid max log count\n");
                 exit(1);
             }
             break;

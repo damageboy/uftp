@@ -54,13 +54,13 @@
  */
 SOCKET listener;
 char tempdir[MAXDIRNAME], destdir[MAXDIR][MAXDIRNAME];
-char logfile[MAXPATHNAME], pidfile[MAXPATHNAME];
+char pidfile[MAXPATHNAME];
 char keyfile[MAXLIST][MAXPATHNAME], keyinfo[MAXLIST][MAXPATHNAME];
 char backupdir[MAXDIR][MAXDIRNAME];
 int debug, encrypted_only, dscp, destdircnt, tempfile, keyinfo_count;
 int interface_count, pub_multi_count, keyfile_count, rcvbuf, backupcnt;
 char postreceive[MAXPATHNAME], portname[PORTNAME_LEN];
-int port;
+int port, move_individual;
 uint32_t uid;
 union sockaddr_u hb_hosts[MAXLIST];
 struct iflist m_interface[MAX_INTERFACES];
@@ -76,6 +76,9 @@ int privkey_type[MAXLIST];
 struct fp_list_t proxy_info;
 union key_t proxy_pubkey, proxy_dhkey;
 int proxy_pubkeytype;
+
+extern char *optarg;
+extern int optind;
 
 /**
  * Adds a server and its fingerprint to the list of approved servers
@@ -149,6 +152,9 @@ void set_defaults()
     hb_interval = DEF_HB_INT;
     priority = 0;
     memset(postreceive, 0, sizeof(postreceive));
+    move_individual = 0;
+    max_log_size = 0;
+    max_log_count = DEF_MAX_LOG_COUNT;
 }
 
 /**
@@ -162,7 +168,7 @@ void process_args(int argc, char *argv[])
     char line[1000], *servername, *ipstr, *fingerprint;
     char *p, *p2, *hoststr, *portstr, pubname[INET6_ADDRSTRLEN];
     FILE *serverfile;
-    const char opts[] = "dx:L:P:s:I:p:tT:D:A:M:B:Q:EU:S:R:k:K:mN:h:H:";
+    const char opts[] = "dx:L:P:s:I:p:tT:D:A:M:B:Q:EU:S:R:k:K:mN:ig:n:h:H:";
 
     set_defaults();
 
@@ -392,6 +398,24 @@ void process_args(int argc, char *argv[])
             priority = atoi(optarg);
             if (!valid_priority(priority)) {
                 fprintf(stderr, "Invalid priority value\n");
+                exit(1);
+            }
+            break;
+        case 'i':
+            move_individual = 1;
+            break;
+        case 'g':
+            max_log_size = atoi(optarg);
+            if ((max_log_size < 1) || (max_log_size > 1024)) {
+                fprintf(stderr, "Invalid max log size\n");
+                exit(1);
+            }
+            max_log_size *= 1000000;
+            break;
+        case 'n':
+            max_log_count = atoi(optarg);
+            if ((max_log_count < 1) || (max_log_count > 1000)) {
+                fprintf(stderr, "Invalid max log count\n");
                 exit(1);
             }
             break;

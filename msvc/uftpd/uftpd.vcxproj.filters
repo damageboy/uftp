@@ -18,78 +18,84 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\encryption.h">
+    <ClInclude Include="..\..\client.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\heartbeat_send.h">
+    <ClInclude Include="..\..\client_announce.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\uftp.h">
+    <ClInclude Include="..\..\client_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\uftp_common.h">
+    <ClInclude Include="..\..\client_config.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\win_func.h">
+    <ClInclude Include="..\..\client_init.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\client_transfer.h">
+    <ClInclude Include="..\..\client_loop.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\client.h">
+    <ClInclude Include="..\..\client_transfer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\client_announce.h">
+    <ClInclude Include="..\..\encryption.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\client_common.h">
+    <ClInclude Include="..\..\heartbeat_send.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\client_config.h">
+    <ClInclude Include="..\..\uftp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\client_init.h">
+    <ClInclude Include="..\..\uftp_common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\client_loop.h">
+    <ClInclude Include="..\..\win_func.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\client_fileinfo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\client_loop.c">
+    <ClCompile Include="..\..\client_announce.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\client_main.c">
+    <ClCompile Include="..\..\client_common.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\client_transfer.c">
+    <ClCompile Include="..\..\client_config.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\client_announce.c">
+    <ClCompile Include="..\..\client_init.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\client_common.c">
+    <ClCompile Include="..\..\client_loop.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\client_config.c">
+    <ClCompile Include="..\..\client_main.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\client_init.c">
+    <ClCompile Include="..\..\client_transfer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\encrypt_openssl.c">
+    <ClCompile Include="..\..\encrypt_openssl.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\uftp_common.c">
+    <ClCompile Include="..\..\getopt.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\win_func.c">
+    <ClCompile Include="..\..\heartbeat_send.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\heartbeat_send.c">
+    <ClCompile Include="..\..\uftp_common.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\getopt.c">
+    <ClCompile Include="..\..\win_func.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\client_fileinfo.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

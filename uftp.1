@@ -1,19 +1,21 @@
-.TH uftp 1 "27 April 2013" "UFTP 4.0"
+.TH uftp 1 "30 July 2013" "UFTP 4.1"
 .SH NAME
 uftp - Encrypted UDP based ftp with multicast - server
 .SH SYNOPSIS
 uftp [ -R txrate ] [ -L logfile ] [ -B udp_buf_size ]
+    [ -g max_log_size ] [ -n max_log_count ]
     [ -Y keytype ] [ -h hashtype ] [ -w sigtype ]
-    [ -e keyextype[:curve] ] [ -c ]
+    [ -e keyextype[:curve] ] [ -c ] [ -m max_nak_count ]
     [ -k key_file ] [ -K key_length | curve ] [ -l ] [ -T ]
     [ -b block_size ] [ -t ttl ] [ -Q dscp ] [ -z | -Z ]
-    [ -I interface ] [ -p port ] [ -j proxylist_file ]
-    [ -q ] [ -f ] [ -y ] [ -x log_level ]
+    [ -I interface ] [ -p port ] [ -u source_port ]
+    [ -j proxylist_file ] [ -q ] [ -f ] [ -y ]
+    [ -x log_level ] [ -W txweight ]
     [ -H host[,host...] | -H @hostlist_file
     | -F restart_file ] [ -X exclude_file ]
     [ -M pub_multicast_addr ] [ -P priv_multicast_addr ]
-    [ -C cc_type ] [ -o ] [ -D dest_name ]
-    [ -E base_dir[,base_dir... ] ]
+    [ -N max_nak_pct ] [ -C cc_type ] [ -o ][ -D dest_name ]
+    [ -E base_dir[,base_dir... ] ] [ -S status_file ]
     [ -r init_grtt[:min_grtt:max_grtt] ] [ -s robust ]
     { -i list_file | file [ file... ] }
 .SH DESCRIPTION
@@ -33,6 +35,12 @@ Specifies the log file.  Default is to write to stderr.
 .B \-B buf_size
 The size in bytes of the UDP send buffer and receive buffer to use.  Valid values are 65536-104857600 (64KB-100MB).  Defaults to 262144.
 .TP
+.B \-g max_log_size
+Specifies the maximum log file size in MB.  Once the log file reaches this size, the file is renamed with a .1 extension and a new log file is opened.  For example, if the log file is /tmp/uftp.log, it will be renamed /tmp/uftp.log.1 and a new /tmp/uftp.log will be created.  Ignored if -L is not specified.  Valid values are 1-1024.  Default is no log rolling.
+.TP
+.B \-n max_log_count
+Specifies the maximum number of archive log files to keep when log rolling is active.  When the log file rolls, archive logs are renamed with an incrementing numerical extension until the max is reached.  Archive log files beyond the maximum are deleted.  Ignored if -L and -g are not specified.  Valid values are 1-1000.  Default is 5.
+.TP
 .B \-Y keytype
 The symmetric encryption algorithm to use.  Valid values are "des" for DES in CBC mode, "3des" for three key Triple DES in CBC mode, "aes128-cbc", "aes256-cbc", "aes128-gcm", "aes256-gcm", "aes128-ccm", "aes256-ccm", or "none" to not set up encryption at all.  The GCM and CCM modes are authenticated encryption modes which applies a signatures at the same time as encryption.  If one of these modes are specifies, the value of -w is ignored.  Default is "none".  Not all installations may support all of these algorithms.
 .TP
@@ -47,6 +55,9 @@ Specifies the key exchange algorithm to use.  Valid values are "rsa" for an RSA 
 .TP
 .B \-c
 If specified, forces clients to authenticate by sending their RSA public key in a CLIENT_KEY message.  Client key fingerprints and proxy key fingerprints specified by -H and -j respectively will NOT be checked unless -c is specified.  Ignored if -Y is "none".
+.TP
+.B \-m max_nak_count
+Specifies the number of times a client reports naks beyond the maximum percentage before getting dropped.  Valid values are 1-10.  Default is 1.
 .TP
 .B \-k key_file
 .TP
@@ -103,37 +114,7 @@ Not currently supported on Windows Vista or later.
 .B \-z
 Enables sync mode.  Clients will check if an incoming file exists.  If so, the client will decline the incoming file if it either older than the existing file or the same age and the same size as the existing file.
 
-The status messages at the end of each file are modified in this mode into a parsable format.
-
-The following is printed for each client after all have registered:
-
-CONNECT;status;target
-
-Where "status" is either "success" or "failed", and "target" is the name of the client.
-
-The following is printed after each file:
-
-RESULT;target;filename;size;status;speed
-
-Where "target" is the name of the client, "file" is the name of the current file, "size" is the size of the file in kilobytes (i.e. 1234KB), "speed" is the transmission speed for that file in KB/s, and status is:
-
-copy: The file was sent
-
-overwrite: The file was sent, and overwrote an existing file
-
-skipped: The file was declined by the client because it is older that the existing file
-
-rejected: The file was rejected, because the file was sent with an absolute pathname and either the client is using a temp directory or the filename doesn\(aqt match one of the client\(aqs destination directories.
-
-The following is printed at the end of the session:
-
-STATS;target;num_copy;num_overwrite;num_skip;total_size;time;speed
-
-Where "target" is the name of the client, "num_copy" is the number of files sentwith "copy" status, "num_overwrite" is the number of files sent with "overwrite" status, "num_skip" is the number of files sent with "skipped" status, "total_size" is the total size of all files sent in kilobytes, "time" is the total transmission time for all files, and "speed" is the overall transmission speed for all files.
-
-Also, the following line is printed verbatim prior to the STATS lines for ease of reading:
-
-HSTATS;target;copy;overwrite;skip;totalKB;time;speedKB/s
+As of version 4.1, parsable output that was previously generated by this option is now enabled separately via the -S option.
 .TP
 .B \-Z
 Sync preview mode.  Works like sync mode, except no files are actually transmitted, and the RESULT and STATS lines reflect the status of each file had they actually been sent.  The "time" and "speed" datapoints are approximated based on the transmission speed.
@@ -143,6 +124,9 @@ The interface to send the data from.  Can be specified either by interface name,
 .TP
 .B \-p port
 The UDP port number to send to.  Default is 1044.
+.TP
+.B \-u source_port
+The UDP port number to send from.  Default is 0, which uses a random port number.
 .TP
 .B \-j proxylist_file
 A file containing a list of proxies the server is expecting to hear from.  The file should contain the ID of a proxy optionally followed by the proxy\(aqs public key fingerprint, with one on each line.  If a key fingerprint is given, the key specified by the proxy must match the fingerprint.  This option should not be used without -H.  If -H is specified, -j must also be specified if proxies are expected to respond, otherwise the server will reject the proxies.
@@ -165,6 +149,9 @@ For Windows systems using CryptoAPI or CNG, private keys are normally stored in 
 .B \-x log_level
 Specifies current logging level.  Valid values are 0-5, with 0 being the least verbose and 5 being the most verbose.  Default is 2, which is consistent with logging prior to version 3.5.
 .TP
+.B \-W txweight
+Sets the maximum file transfer time, expressed as a percentage of the optimal time.  Valid values are 110-10000.  Ignored if congestion control is enabled.  Default is no maximum time.
+.TP
 .B \-H { host[,host...] | @hostlist_file }
 Specifies the clients for closed group membership.  Can be specified as either a comma separated list of client IDs, or can be read from hostlist_file.  This file is in the same format as proxylist_file.  Note that key fingerprints cannot be specified using the comma separated syntax.  Clients that are behind a proxy do not need key fingerprints specified, since the proxy\(aqs key fingerprint will be checked instead.  If unspecified, open group membership is used, and any client may register.
 .TP
@@ -179,6 +166,9 @@ The public address to announce on.  May be either a multicast address or a unica
 .TP
 .B \-P priv_multicast_addr
 The private multicast address that the data is transferred to.  One or more parts of the IP address (other that the first) may be replaced with the letter \(aqx\(aq, resulting in a random number being chosen for that part, either 0-255 for IPv4 or 0-0xFFFF for IPv6.  Default value is 230.5.5.x.  If clients are using source specific multicast (SSM), this and -M must specify valid SSM addresses, which fall in the range 232.0.0.0/8 for IPv4 and ff3x::/32 for IPv6 (here x specifies the multicast scope).  The values for -M and -P must both be the same IP version.
+.TP
+.B \-N max_nak_pct
+Specifies the maximum percentage of NAKs that a client can report for a particular section.  This option works with the -m option, which specifies the number of times a client may exceed this limit before getting dropped.  This allows the server to keep a very slow client from stalling the session for others.  Valid values are 0-100.  Default is 100.
 .TP
 .B \-C cc_type
 Specifies the congestion control mode to use.  Currently supported values are "none" and "tfmcc".  Specifiying "none" means data will be sent at a fixed rate as specified by the -R option.  Specifying "tfmcc" will use the TCP Friendly Multicast Congestion Control scheme as specified in RFC 4654.  Default value is "none".
@@ -226,6 +216,39 @@ Specifies one or more "base" directories for files.  Normally, for any file/dire
 
 For example, without -E, if you pass /path/to/file to send, the transmitted filename is file.  If you pass in -E /path, the transmitted file name is to/file.
 .TP
+.B \-S status_file
+Prints easily parsable status information to a file.  This information was previously only available in sync mode (-z) and was mixed with the normal logging output.
+
+The following is printed for each client after all have registered:
+
+CONNECT;status;target
+
+Where "status" is either "success" or "failed", and "target" is the name of the client.
+
+The following is printed after each file:
+
+RESULT;target;filename;size;status;speed
+
+Where "target" is the name of the client, "file" is the name of the current file, "size" is the size of the file in kilobytes (i.e. 1234KB), "speed" is the transmission speed for that file in KB/s, and status is:
+
+copy: The file was sent.
+
+overwrite: The file was sent, and overwrote an existing file.  Only generated in sync mode.
+
+skipped: The file was declined by the client because it is older that the existing file.  Only generated in sync mode.
+
+rejected: The file was rejected, because the file was sent with an absolute pathname and either the client is using a temp directory or the filename doesn\(aqt match one of the client\(aqs destination directories.
+
+The following is printed at the end of the session:
+
+STATS;target;num_copy;num_overwrite;num_skip;total_size;time;speed
+
+Where "target" is the name of the client, "num_copy" is the number of files sentwith "copy" status, "num_overwrite" is the number of files sent with "overwrite" status, "num_skip" is the number of files sent with "skipped" status, "total_size" is the total size of all files sent in kilobytes, "time" is the total transmission time for all files, and "speed" is the overall transmission speed for all files.
+
+Also, the following line is printed verbatim prior to the STATS lines for ease of reading:
+
+HSTATS;target;copy;overwrite;skip;totalKB;time;speedKB/s
+.TP
 .B \-r init_grtt[:min_grtt:max_grtt]
 Specifies the initial value, and optionally the min and max values, of the Group Round Trip Time (GRTT) used in timing calculations.  The GRTT changes dynamically based on the network conditions.  This option is useful if the initial connection period is to short or long, if receivers are getting bogged down and cannot respond to the server quick enough before timing out, or if receivers are getting flagged with too high of an RTT and take too long to recover to a resonable value.   Valid values are 0.001 to 1000.  Defaults are 0.5 for init_grtt, 0.01 for min_grtt, and 15.0 for max_grtt.
 .TP
@@ -237,6 +260,8 @@ Name of a file containing a list of files to send, one per line.  Empty lines ar
 .TP
 .B file [ file...]
 The file(s) or directory(ies) to send.  Any special files (block/character devices, pipes, sockets, etc.) are skipped.  By default, any symbolic links are sent as links (see -l).  Any Windows client will silently refuse to create them.  If -F or -i is specified, any files listed will be ignored.
+
+There are also special metafile names that can send commands to the clients.  The @DELETE:{filename} metafile instructs the client to delete the given filename.  The usual rules regarding which of the client\(aqs destination directories to use also applies here.  The @FREESPACE metafile will cause the client to report back the amount of free disk space in the primary destination directory.
 .SH EXAMPLES
 .P
 Starting with the default options:
@@ -336,4 +361,4 @@ uftp -Y aes256-cbc -h sha1 -k key_file_or_container file_to_send
 uftpd(1), uftpproxyd(1), uftp_keymgt(1)
 .SH NOTES
 .P
-The latest version of UFTP can be found at http://www.tcnj.edu/~bush/uftp.html.  UFTP is covered by the GNU General Public License.  Commercial licenses and support are available from Dennis Bush (bush@tcnj.edu).
+The latest version of UFTP can be found at http://uftp-multicast.sourceforge.net.  UFTP is covered by the GNU General Public License.  Commercial licenses and support are available from Dennis Bush (bush@tcnj.edu).

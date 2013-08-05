@@ -49,7 +49,8 @@ enum client_status {
     DEST_ABORT = -2,        /// An ABORT was either sent to or received from
     DEST_REGISTERED = -1,   /// Registered but haven't received INFO_ACK
     DEST_ACTIVE = 0,        /// Ready to receive data
-    DEST_DONE = 1           /// Client finished successfully, sent COMPLETE
+    DEST_ACTIVE_NAK = 1,    /// Ready to receive data, sent back NAKs
+    DEST_DONE = 2           /// Client finished successfully, sent COMPLETE
 };
 
 /**
@@ -113,6 +114,7 @@ struct destinfo_t {
     int proxyidx;                   /// Index of the proxy serving this client
     int clientcnt;                  /// The number of clients a proxy serves
     uint32_t *clients;              /// Indexes of clients served by this proxy
+    int64_t freespace;              /// Free disk space reported by client
     int8_t status;                  /// Specified by a client_status value
     int8_t comp_status;             /// Completion status as given by COMPLETE
     int8_t registered;              /// True if we received a REGISTER
@@ -125,6 +127,7 @@ struct destinfo_t {
     double rtt;                     /// RTT to this client
     int8_t rtt_measured;            /// True if RTT measured this round
     int8_t rtt_sent;                /// True if RTT sent in a CONG_CTRL
+    int8_t max_nak_exceed;          /// How often client exceeded max naks
     int8_t has_fingerprint;         /// True if we have client's key fingerprint
     uint8_t keyfingerprint[HMAC_LEN];       /// Fingerprint of RSA key
     struct encinfo_t *encinfo;      /// If encryption enabled, encryption info
@@ -165,17 +168,18 @@ struct cc_config_t {
  */
 extern SOCKET sock;
 extern union sockaddr_u listen_dest, receive_dest;
-extern int max_rate, rate, rcvbuf, packet_wait;
-extern int client_auth, quit_on_error, dscp, follow_links;
+extern int max_rate, rate, rcvbuf, packet_wait, txweight, max_nak_pct;
+extern int client_auth, quit_on_error, dscp, follow_links, max_nak_cnt;
 extern int save_fail, restart_groupid, restart_groupinst;
-extern int sync_mode, sync_preview, dest_is_dir, cc_type;
+extern int sync_mode, sync_preview, dest_is_dir, cc_type, user_abort;
 extern unsigned int ttl;
-extern char dest_port[PORTNAME_LEN];
-extern char src_port[PORTNAME_LEN];
+extern char port[PORTNAME_LEN], srcport[PORTNAME_LEN];
 extern char pub_multi[INET6_ADDRSTRLEN], priv_multi[INET6_ADDRSTRLEN];
-extern char logfile[MAXPATHNAME], keyfile[MAXPATHNAME], cc_config[MAXPATHNAME];
+extern char keyfile[MAXPATHNAME], cc_config[MAXPATHNAME];
 extern char filelist[MAXFILES][MAXPATHNAME], exclude[MAXEXCLUDE][MAXPATHNAME];
 extern char basedir[MAXDIR][MAXDIRNAME], destfname[MAXPATHNAME];
+extern char statusfilename[MAXPATHNAME];
+extern FILE *status_file;
 extern struct iflist ifl[MAX_INTERFACES];
 extern int keytype, hashtype, sigtype, keyextype, newkeylen, sys_keys;
 extern int blocksize, datapacketsize;
