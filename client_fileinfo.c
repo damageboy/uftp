@@ -163,7 +163,7 @@ int read_fileinfo(struct group_list_t *group, const unsigned char *message,
     }
     p = strstr(group->fileinfo.name, "..");
     if ((p != NULL) && ((p[2] == '\x0') || (p[2] == '/') || (p[2] == '\\')) &&
-            ((p == name) || (p[-1] == '/') || (p[-1] == '\\'))) {
+           ((p == group->fileinfo.name) || (p[-1] == '/') || (p[-1] == '\\'))) {
         log1(group->group_id, ntohs(fileinfo->file_id),
                 "Rejecting FILEINFO from server: filename contains ..");
         early_complete(group, COMP_STAT_REJECTED, 0);
@@ -258,7 +258,6 @@ int setup_dest_file(struct group_list_t *group)
             early_complete(group, COMP_STAT_REJECTED, 0);
             return 0;
         }
-
     }
     len = snprintf(group->fileinfo.temppath, sizeof(group->fileinfo.temppath),
                    "%s.~uftp-%08X-%04X", group->fileinfo.filepath,

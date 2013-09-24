@@ -1,3 +1,11 @@
+Version 4.1.2 - 8/20/2013
+  Fixed client pathname checking that disallows ".." path elements.
+  Server wasn't writing clients to the restart file that didn't send a
+    COMPLETE message for the session.  Bug fixed.
+
+Version 4.1.1 - 8/8/2013
+  Fixed byte ordering issue in EXT_FREESPACE_INFO extension.
+
 Version 4.1 - 7/30/2013
   Changed the way the server handles NAKs from the clients.  Instead of
     rewinding its current position as soon as NAKs are received, the server

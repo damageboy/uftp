@@ -459,8 +459,8 @@ void set_freespace_info(struct group_list_t *group,
     disk_space = free_space(group->fileinfo.filepath);
     freespace->exttype = EXT_FREESPACE_INFO;
     freespace->extlen = sizeof(struct freespace_info_he) / 4;
-    freespace->freespace_hi = (uint32_t)(disk_space >> 32);
-    freespace->freespace_lo = (uint32_t)(disk_space & 0xFFFFFFFF);
+    freespace->freespace_hi = htonl((uint32_t)(disk_space >> 32));
+    freespace->freespace_lo = htonl((uint32_t)(disk_space & 0xFFFFFFFF));
 }
 
 /**

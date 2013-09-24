@@ -166,14 +166,14 @@ void create_cc_list(unsigned char **body, int *len)
         destlist[clr].rtt_sent = 1;
         count++;
     }
-    for (i = 0; (i < no_rtt_len) && (*len < maxlist); i++) {
+    for (i = 0; (i < no_rtt_len) && (count < maxlist); i++) {
         list[count].dest_id = destlist[no_rtt[i]].id;
         list[count].flags = FLAG_CC_RTT | (slowstart ? FLAG_CC_START : 0);
         list[count].rtt = quantize_grtt(destlist[no_rtt[i]].rtt);
         count++;
         destlist[i].rtt_sent = 1;
     }
-    for (i = 0; (i < has_rtt_len) && (*len < maxlist); i++) {
+    for (i = 0; (i < has_rtt_len) && (count < maxlist); i++) {
         list[count].dest_id = destlist[has_rtt[i]].id;
         list[count].flags = FLAG_CC_RTT | (slowstart ? FLAG_CC_START : 0);
         list[count].rtt = quantize_grtt(destlist[has_rtt[i]].rtt);
@@ -248,14 +248,27 @@ void send_cong_ctrl(const struct finfo_t *finfo, double l_grtt,
 }
 
 /**
+ * Handle a EXT_FREESPACE_INFO extension in a COMPLETE
+ */ 
+void handle_freespace_info(const struct freespace_info_he *freespace,
+                           int hostidx)
+{
+    destlist[hostidx].freespace = ntohl(freespace->freespace_lo);
+    destlist[hostidx].freespace |= (int64_t)ntohl(freespace->freespace_hi)<<32;
+}
+
+/**
  * Process an expected COMPLETE message
  */
 void handle_complete(const unsigned char *message, unsigned meslen,
                      struct finfo_t *finfo, int hostidx)
 {
     struct complete_h *complete;
+    struct freespace_info_he *freespace;
+    uint8_t *he;
     uint32_t *idlist;
     int clientcnt, clientidx, dupmsg, isproxy, i;
+    unsigned extlen;
     char status[20];
 
     complete = (struct complete_h *)message;
@@ -269,6 +282,9 @@ void handle_complete(const unsigned char *message, unsigned meslen,
         return;
     }
     if (ntohs(complete->file_id) != finfo->file_id) {
+        if (finfo->file_id == 0) {
+            return;  // Reject silently
+        }
         log1(0, 0, "Rejecting COMPLETE from %s: invalid file ID %04X, "
                    "expected %04X ", destlist[hostidx].name,
                    ntohs(complete->file_id), finfo->file_id);
@@ -283,6 +299,20 @@ void handle_complete(const unsigned char *message, unsigned meslen,
             }
         }
         return;
+    }
+    freespace = NULL;
+    if (complete->hlen * 4U > sizeof(struct complete_h)) {
+        he = (uint8_t *)complete + sizeof(struct complete_h);
+        if (*he == EXT_FREESPACE_INFO) {
+            freespace = (struct freespace_info_he *)he;
+            extlen = freespace->extlen * 4U;
+            if ((extlen > (complete->hlen * 4U) - sizeof(struct complete_h)) ||
+                    extlen < sizeof(struct freespace_info_he)) {
+                log1(0, 0, "Rejecting COMPLETE from %s: invalid extension size",
+                           destlist[hostidx].name);
+                return;
+            }
+        }
     }
 
     dupmsg = (destlist[hostidx].status == DEST_DONE);
@@ -331,6 +361,9 @@ void handle_complete(const unsigned char *message, unsigned meslen,
         finfo->deststate[hostidx].conf_sent = 0;
         destlist[hostidx].status = DEST_DONE;
         gettimeofday(&finfo->deststate[hostidx].time, NULL);
+    }
+    if (freespace) {
+        handle_freespace_info(freespace, hostidx);
     }
 }
 
@@ -417,13 +450,13 @@ void handle_tfmcc_ack_info(const struct tfmcc_ack_info_he *tfmcc, int hostidx)
  * Sets *status_postion to the lowest numbered packet NAKed in this message
  */
 void handle_status(const unsigned char *message, unsigned meslen,
-                   struct finfo_t *finfo, int hostidx, int *status_position)
+                   struct finfo_t *finfo, int hostidx, int *got_naks)
 {
     struct status_h *status;
     struct tfmcc_ack_info_he *tfmcc;
     uint8_t *naklist, *he;
     unsigned section, current_section, naks, section_offset, blocks_this_sec;
-    unsigned nakidx, listidx, i;
+    unsigned nakidx, listidx, nak_bytes, i, j;
     unsigned extlen;
 
     status = (struct status_h *)message;
@@ -487,8 +520,8 @@ void handle_status(const unsigned char *message, unsigned meslen,
         } else {
             current_section = current_position / finfo->secsize_big;
         }
-        if (section >= current_section) {
-            // Don't accept if it's at or ahead of the current transmit position
+        if (section == current_section) {
+            // Don't accept if it's for the current section
             log3(0, 0, "Dropping STATUS for section %d", section);
             if (mux_unlock(mux_main)) {
                 log0(0, 0, "Failed to unlock mutex in handle_status");
@@ -497,7 +530,33 @@ void handle_status(const unsigned char *message, unsigned meslen,
         }
     }
 
-    for (*status_position = -1, naks = 0, i = 0; i < blocks_this_sec; i++) {
+    // Count the NAKs first to see if there's an excessive amount
+    nak_bytes = blocks_this_sec / 8;
+    for (naks = 0, i = 0; i < nak_bytes; i++) {
+        for (j = 0; j < 8; j++) {
+            if ((naklist[i] & (1 << j)) != 0) {
+                naks++;
+            }
+        }
+    }
+    if ((naks * 100 / blocks_this_sec) > (unsigned)max_nak_pct) {
+        destlist[hostidx].max_nak_exceed++;
+    }
+    if (destlist[hostidx].max_nak_exceed >= max_nak_cnt) {
+        log1(0, 0, "Got excessive NAKs (%d) "
+                "for section %d from %s %s, aborting", naks, section,
+                (destlist[hostidx].clientcnt != -1) ? "proxy" : "client",
+                destlist[hostidx].name);
+        destlist[hostidx].status = DEST_ABORT;
+        send_abort(finfo, "Excessive NAKs received",
+                &receive_dest, destlist[hostidx].id, (keytype != KEY_NONE), 0);
+        if (mux_unlock(mux_main)) {
+            log0(0, 0, "Failed to unlock mutex in handle_status");
+        }
+        return;
+    }
+    // Now record the NAKs
+    for (naks = 0, i = 0; i < blocks_this_sec; i++) {
         // Each bit represents a NAK; check each one
         // Simplified: (naklist[listidx / 8] & (1 << (listidx % 8)))
         nakidx = i + section_offset;
@@ -505,9 +564,7 @@ void handle_status(const unsigned char *message, unsigned meslen,
         if ((naklist[listidx >> 3] & (1 << (listidx & 7))) != 0) {
             log4(0, 0, "Got NAK for %d", nakidx);
             finfo->naklist[nakidx] = 1;
-            if (*status_position == -1) {
-                *status_position = nakidx;
-            }
+            *got_naks = 1;
             naks++;
         }
     }
@@ -518,7 +575,7 @@ void handle_status(const unsigned char *message, unsigned meslen,
     log2(0, 0, "Got %d NAKs for section %d from %s %s", naks, section,
             (destlist[hostidx].clientcnt != -1) ? "proxy" : "client",
             destlist[hostidx].name);
-    log3(0, 0, "  status_position = %d", *status_position);
+    destlist[hostidx].status = DEST_ACTIVE_NAK;
 }
 
 /**
@@ -610,17 +667,16 @@ int send_data(const struct finfo_t *finfo, unsigned char *packet, int datalen,
 }
 
 /**
- * Print the final statistics for the given file while in sync mode
+ * Print the final statistics for the given file to the status file
  */
-void print_sync_status(const struct finfo_t *finfo, struct timeval start_time)
+void print_status_file(const struct finfo_t *finfo, struct timeval start_time)
 {
     double elapsed_time, throughput;
     int i;
 
     if (finfo->file_id == 0) {
-        log0(0, 0, "- Status -");
-        log0(0, 0, "HSTATS;target;copy;overwrite;"
-                   "skip;totalMB;time;speedKB/s");
+        fprintf(status_file, "HSTATS;target;copy;overwrite;"
+                   "skip;totalMB;time;speedKB/s\n");
         for (i = 0; i < destcount; i++) {
             if (destlist[i].clientcnt >= 0) {
                 continue;
@@ -631,7 +687,7 @@ void print_sync_status(const struct finfo_t *finfo, struct timeval start_time)
             } else {
                 throughput = 0;
             }
-            log0(0, 0, "STATS;%s;%d;%d;%d;%sMB;%.3f;%.2fKB/s",
+            fprintf(status_file, "STATS;%s;%d;%d;%d;%sMB;%.3f;%.2fKB/s\n",
                     destlist[i].name, destlist[i].num_copy,
                     destlist[i].num_overwrite, destlist[i].num_skip,
                     printll(destlist[i].total_size / 1048576),
@@ -645,17 +701,17 @@ void print_sync_status(const struct finfo_t *finfo, struct timeval start_time)
         if (destlist[i].clientcnt >= 0) {
             continue;
         }
-        clog0(0, 0, "RESULT;%s;%s;%sKB;", destlist[i].name,
+        fprintf(status_file, "RESULT;%s;%s;%sKB;", destlist[i].name,
                 finfo->destfname, printll(finfo->size / 1024));
         switch (destlist[i].status) {
         case DEST_MUTE:
-            slog0("mute;");
+            fprintf(status_file, "mute;\n");
             break;
         case DEST_LOST:
-            slog0("lost;");
+            fprintf(status_file, "lost;\n");
             break;
         case DEST_ABORT:
-            slog0("aborted;");
+            fprintf(status_file, "aborted;\n");
             break;
         case DEST_DONE:
             if (sync_preview) {
@@ -672,31 +728,35 @@ void print_sync_status(const struct finfo_t *finfo, struct timeval start_time)
             }
             switch (destlist[i].comp_status) {
             case COMP_STAT_NORMAL:
-                slog0("copy;%.2fKB/s", throughput);
+                fprintf(status_file, "copy;%.2fKB/s\n", throughput);
                 destlist[i].num_copy++;
                 destlist[i].total_time += elapsed_time;
                 destlist[i].total_size += finfo->size;
                 break;
             case COMP_STAT_SKIPPED:
-                slog0("skipped;");
+                fprintf(status_file, "skipped;\n");
                 destlist[i].num_skip++;
                 break;
             case COMP_STAT_OVERWRITE:
-                slog0("overwritten;%.2fKB/s", throughput);
+                fprintf(status_file, "overwritten;%.2fKB/s\n", throughput);
                 destlist[i].num_overwrite++;
                 destlist[i].total_time += elapsed_time;
                 destlist[i].total_size += finfo->size;
                 break;
             case COMP_STAT_REJECTED:
-                slog0("rejected;");
+                fprintf(status_file, "rejected;\n");
                 break;
             default:
-                slog0("Unknown;");
+                fprintf(status_file, "Unknown;\n");
                 break;
+            }
+            if (destlist[i].freespace != -1) {
+                fprintf(status_file, "FREESPACE;%s;%s\n", finfo->destfname,
+                        printll(destlist[i].freespace));
             }
             break;
         default:
-            slog0("Unknown;");
+            fprintf(status_file, "Unknown;\n");
             break;
         }
     }
@@ -711,9 +771,8 @@ void print_status(const struct finfo_t *finfo, struct timeval start_time)
     double elapsed_time;
     int i;
 
-    if (sync_mode) {
-        print_sync_status(finfo, start_time);
-        return;
+    if (status_file) {
+        print_status_file(finfo, start_time);
     }
 
     if (finfo->file_id == 0) {
@@ -738,16 +797,38 @@ void print_status(const struct finfo_t *finfo, struct timeval start_time)
             slog0("Aborted");
             break;
         case DEST_DONE:
-            if (destlist[i].comp_status == COMP_STAT_REJECTED) {
+            switch (destlist[i].comp_status) {
+            case COMP_STAT_NORMAL:
+                if (diff_usec(finfo->deststate[i].time, done_time) > 0) {
+                    done_time = finfo->deststate[i].time;
+                }
+                elapsed_time = (double)diff_usec(finfo->deststate[i].time,
+                                                 start_time) / 1000000;
+                slog0("Completed   time: %7.3f seconds", elapsed_time);
+                break;
+            case COMP_STAT_SKIPPED:
+                slog0("Skipped");
+                break;
+            case COMP_STAT_OVERWRITE:
+                if (diff_usec(finfo->deststate[i].time, done_time) > 0) {
+                    done_time = finfo->deststate[i].time;
+                }
+                elapsed_time = (double)diff_usec(finfo->deststate[i].time,
+                                                 start_time) / 1000000;
+                slog0("Completed(overwritten)   time: %7.3f seconds",
+                        elapsed_time);
+                break;
+            case COMP_STAT_REJECTED:
                 slog0("Rejected");
                 break;
+            default:
+                slog0("Unknown completion status: %d", destlist[i].comp_status);
+                break;
             }
-            if (diff_usec(finfo->deststate[i].time, done_time) > 0) {
-                done_time = finfo->deststate[i].time;
+            if (destlist[i].freespace != -1) {
+                log0(0, 0, "  Free space on host: %s bytes",
+                        printll(destlist[i].freespace));
             }
-            elapsed_time = (double)diff_usec(finfo->deststate[i].time,
-                                             start_time) / 1000000;
-            slog0("Completed   time: %7.3f seconds", elapsed_time);
             break;
         default:
             slog0("Unknown  code: %d", destlist[i].status);

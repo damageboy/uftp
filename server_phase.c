@@ -206,7 +206,7 @@ int announce_phase(struct finfo_t *finfo)
         log1(0, 0, "  sending as: %s", finfo->destfname);
         switch (finfo->ftype) {
         case FTYPE_REG:
-            log2(0, 0, "Bytes: %s  Blocks: %d  Sections: %d", 
+            log2(0, 0, "Bytes: %s  Blocks: %d  Sections: %d",
                        printll(finfo->size), finfo->blocks, finfo->sections);
             log3(0, 0, "small section size: %d, "
                 "big section size: %d, " "# big sections: %d",
@@ -322,7 +322,7 @@ int announce_phase(struct finfo_t *finfo)
             }
             if (gotall) {
                 // Break out right away if this is a file registration.
-                // For group registration, do one last wait, even if 
+                // For group registration, do one last wait, even if
                 // encryption is enabled since we can still send a
                 // REG_CONF for a client behind a proxy.
                 // Change the timeout to 1 * grtt
@@ -345,8 +345,8 @@ int announce_phase(struct finfo_t *finfo)
     }
     recalculate_grtt(1, 1);
     for (i = 0, gotone = 0, anyerror = 0; i < destcount; i++) {
-        gotone = gotone || (((destlist[i].status == DEST_ACTIVE) || 
-                             (destlist[i].status == DEST_DONE)) && 
+        gotone = gotone || (((destlist[i].status == DEST_ACTIVE) ||
+                             (destlist[i].status == DEST_DONE)) &&
                             (destlist[i].clientcnt == -1));
         if (destlist[i].status == DEST_REGISTERED) {
             if (announce) {
@@ -504,7 +504,7 @@ int seek_block(int file, int block, f_offset_t *offset)
 {
     f_offset_t new_offset;
 
-    if ((new_offset = lseek_func(file, 
+    if ((new_offset = lseek_func(file,
             ((f_offset_t)block * blocksize) - *offset, SEEK_CUR)) == -1) {
         syserror(0, 0, "lseek failed for file");
         return 0;
@@ -512,7 +512,7 @@ int seek_block(int file, int block, f_offset_t *offset)
     if (new_offset != (f_offset_t)block * blocksize) {
         log0(0, 0, "block %d: offset is %s", block, printll(new_offset));
         log0(0, 0, "  should be %s", printll((f_offset_t)block * blocksize));
-        if ((new_offset = lseek_func(file, 
+        if ((new_offset = lseek_func(file,
                 ((f_offset_t)block * blocksize) - (new_offset), SEEK_CUR)) == -1) {
             syserror(0, 0, "lseek failed for file");
             return 0;
@@ -594,7 +594,7 @@ int put_cc_queue(unsigned char *item, int len)
         log1(0, 0, "cc_queue full");
         return 0;
     }
-    
+
     cc_queue[cc_queue_end].data = item;
     cc_queue[cc_queue_end++].len = len;
     if (cc_queue_end == CC_QUEUE_LEN) {
@@ -849,7 +849,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
         do_halfrate = 0;
         gettimeofday(&now, NULL);
         if ((cc_type == CC_TFMCC) && (cmptimestamp(now, next_cc) > 0)) {
-            create_cc_list(&cc_body, &cc_len); 
+            create_cc_list(&cc_body, &cc_len);
             if (!put_cc_queue(cc_body, cc_len)) {
                 log1(0, 0, "Couldn't queue up CONG_CTRL: list full!");
                 free(cc_body);
@@ -1010,7 +1010,6 @@ void transfer_receive_thread(struct finfo_t *finfo)
             log0(0, 0, "Failed to unlock mutex in transfer_receive_thread");
             continue;
         }
-
     } while (!l_file_done_flag);
 
     found_error = 0;
@@ -1300,7 +1299,14 @@ void completion_phase(struct finfo_t *finfo)
             }
             last_pass = 1;
             send_doneconf(finfo, attempt + 1);
-        } 
+        }
+    }
+    for (i = 0; i < destcount; i++) {
+      if (destlist[i].status == DEST_ACTIVE) {
+        log1(0, 0, "Couldn't get COMPLETE for group from %s",
+          destlist[i].name);
+        destlist[i].status = DEST_LOST;
+      }
     }
 
     send_doneconf(finfo, attempt + 1);
@@ -1308,4 +1314,3 @@ void completion_phase(struct finfo_t *finfo)
     free(packet);
     free(decrypted);
 }
-
