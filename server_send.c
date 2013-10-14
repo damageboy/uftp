@@ -79,7 +79,8 @@ int file_excluded(const char *filename)
  * Returns 0 if a file was sent and none received it, 1 otherwise
  */
 int send_file(const char *basedir, const char *filename,
-              const char *n_destfname, uint32_t group_id, uint8_t group_inst)
+              const char *n_destfname, uint32_t group_id, uint8_t group_inst,
+              int delete, int freespace)
 {
     static uint16_t file_id = 1;
     struct finfo_t finfo;
@@ -94,21 +95,71 @@ int send_file(const char *basedir, const char *filename,
                     basedir, PATH_SEP, filename);
         return 1;
     }
-    if (follow_links) {
-        rval = stat_func(path, &statbuf);
-    } else {
-        rval = lstat_func(path, &statbuf);
-    }
-    if (rval == -1) {
-        syserror(0, 0, "Error getting file status for %s", filename);
-        return 1;
+    if (!delete && !freespace) {
+        if (follow_links) {
+            rval = stat_func(path, &statbuf);
+        } else {
+            rval = lstat_func(path, &statbuf);
+        }
+        if (rval == -1) {
+            syserror(0, 0, "Error getting file status for %s", filename);
+            return 1;
+        }
     }
     if (file_excluded(filename)) {
         log0(0, 0, "Skipping %s", filename);
         return 1;
     }
     rval = 1;
-    if (S_ISREG(statbuf.st_mode)) {
+    if (freespace) {
+        memset(&finfo, 0, sizeof(struct finfo_t));
+        finfo.ftype = FTYPE_FREESPACE;
+        finfo.basedir = basedir;
+        finfo.filename = n_destfname;
+        finfo.destfname = n_destfname;
+        finfo.group_id = group_id;
+        finfo.group_inst = group_inst;
+        finfo.file_id = file_id++;
+        if (file_id == 0) {
+            file_id = 1;
+        }
+        finfo.deststate = calloc(destcount ? destcount : MAXDEST,
+                sizeof(struct deststate_t));
+        if (finfo.deststate == NULL) {
+            syserror(0, 0, "calloc failed!");
+            exit(1);
+        }
+
+        rval = announce_phase(&finfo);
+        if (rval) {
+            rval = transfer_phase(&finfo);
+        }
+        free(finfo.deststate);
+    } else if (delete) {
+        memset(&finfo, 0, sizeof(struct finfo_t));
+        finfo.ftype = FTYPE_DELETE;
+        finfo.basedir = basedir;
+        finfo.filename = filename;
+        finfo.destfname = n_destfname;
+        finfo.group_id = group_id;
+        finfo.group_inst = group_inst;
+        finfo.file_id = file_id++;
+        if (file_id == 0) {
+            file_id = 1;
+        }
+
+        finfo.deststate = calloc(destcount ? destcount : MAXDEST,
+                sizeof(struct deststate_t));
+        if (finfo.deststate == NULL) {
+            syserror(0, 0, "calloc failed!");
+            exit(1);
+        }
+        rval = announce_phase(&finfo);
+        if (rval) {
+            rval = transfer_phase(&finfo);
+        }
+        free(finfo.deststate);
+    } else if (S_ISREG(statbuf.st_mode)) {
         if ((fd = open(path, OPENREAD, 0)) == -1) {
             syserror(0, 0, "Error reading file %s", filename);
             return 1;
@@ -129,15 +180,23 @@ int send_file(const char *basedir, const char *filename,
         finfo.tstamp = statbuf.st_mtime;
 
         maxsecsize = (blocksize * 8 > MAXSECTION ? MAXSECTION : blocksize * 8);
-        finfo.blocks = (int32_t)((finfo.size / blocksize) +
-                (finfo.size % blocksize ? 1 : 0));
-        finfo.sections = (finfo.blocks / maxsecsize) +
-                (finfo.blocks % maxsecsize ? 1 : 0);
-        finfo.secsize_small = finfo.blocks / finfo.sections;
-        finfo.secsize_big = finfo.secsize_small +
-                (finfo.blocks % finfo.sections ? 1 : 0);
-        finfo.big_sections =
-                finfo.blocks - (finfo.secsize_small * finfo.sections);
+        if (finfo.size) {
+            finfo.blocks = (int32_t)((finfo.size / blocksize) +
+                    (finfo.size % blocksize ? 1 : 0));
+            finfo.sections = (finfo.blocks / maxsecsize) +
+                    (finfo.blocks % maxsecsize ? 1 : 0);
+            finfo.secsize_small = finfo.blocks / finfo.sections;
+            finfo.secsize_big = finfo.secsize_small +
+                    (finfo.blocks % finfo.sections ? 1 : 0);
+            finfo.big_sections =
+                    finfo.blocks - (finfo.secsize_small * finfo.sections);
+        } else {
+            finfo.blocks = 0;
+            finfo.sections = 0;
+            finfo.secsize_small = 0;
+            finfo.secsize_big = 0;
+            finfo.big_sections = 0;
+        }
 
         finfo.naklist = calloc(finfo.blocks, 1);
         finfo.deststate = calloc(destcount ? destcount : MAXDEST,
@@ -191,6 +250,7 @@ int send_file(const char *basedir, const char *filename,
         if (rval) {
             rval = transfer_phase(&finfo);
         }
+        free(finfo.deststate);
 #endif
     } else if (S_ISDIR(statbuf.st_mode)) {
         // read directory and do recursive send
@@ -224,7 +284,8 @@ int send_file(const char *basedir, const char *filename,
             }
             if (strcmp(ffinfo.name, ".") && strcmp(ffinfo.name, "..")) {
                 emptydir = 0;
-                if (!send_file(basedir, path, destpath, group_id, group_inst)) {
+                if (!send_file(basedir, path, destpath,
+                               group_id, group_inst, 0, 0)) {
                     rval = 0;
                     break;
                 }
@@ -260,7 +321,8 @@ int send_file(const char *basedir, const char *filename,
             }
             if (strcmp(de->d_name, ".") && strcmp(de->d_name, "..")) {
                 emptydir = 0;
-                if (!send_file(basedir, path, destpath, group_id, group_inst)) {
+                if (!send_file(basedir, path, destpath,
+                               group_id, group_inst, 0, 0)) {
                     rval = 0;
                     break;
                 }
@@ -294,6 +356,7 @@ int send_file(const char *basedir, const char *filename,
             if (rval) {
                 rval = transfer_phase(&finfo);
             }
+            free(finfo.deststate);
         }
     } else {
         log0(0, 0, "Skipping special file %s", filename);
@@ -403,7 +466,7 @@ errexit:
  */
 int send_files()
 {
-    int i, j, rval, len, found_base;
+    int i, j, rval, len, found_base, delete;
     struct finfo_t group_info;
     char *dir, *base;
     time_t t;
@@ -417,7 +480,7 @@ int send_files()
 #endif
 
     t = time(NULL);
-    if (!showtime) fprintf(applog, "\n");
+    if (!showtime) slog0("");
     log0(0, 0, "%s", VERSIONSTR);
     if (!showtime) clog0(0, 0, "Starting at %s", ctime(&t));
     if (privkey.key) {
@@ -476,7 +539,21 @@ int send_files()
     if (rval) {
         rval = 0;
         for (i = 0; i < filecount; i++) {
-            split_path(filelist[i], &dir, &base);
+            if (!strcmp(filelist[i], "@FREESPACE")) {
+                rval = send_file(".", ".", ".",
+                        group_info.group_id, group_info.group_inst, 0, 1);
+                if (!rval) {
+                    break;
+                }
+                continue;
+            }
+            if (!strncmp(filelist[i], "@DELETE:", 8)) {
+                split_path(&filelist[i][8], &dir, &base);
+                delete = 1;
+            } else {
+                split_path(filelist[i], &dir, &base);
+                delete = 0;
+            }
             if (basedircount > 0) {
                 for (found_base = 0, j = 0; j < basedircount; j++) {
                     if (!ncmp(basedir[j],filelist[i], strlen(basedir[j]))) {
@@ -516,15 +593,15 @@ int send_files()
                         free(base);
                         continue;
                     }
-                    rval = send_file(dir, base, path,
-                            group_info.group_id, group_info.group_inst);
+                    rval = send_file(dir, base, path, group_info.group_id,
+                                     group_info.group_inst, delete, 0);
                 } else {
-                    rval = send_file(dir, base, destfname,
-                            group_info.group_id, group_info.group_inst);
+                    rval = send_file(dir, base, destfname, group_info.group_id,
+                                     group_info.group_inst, delete, 0);
                 }
             } else {
-                rval = send_file(dir, base, l_destfname,
-                        group_info.group_id, group_info.group_inst);
+                rval = send_file(dir, base, l_destfname, group_info.group_id,
+                                 group_info.group_inst, delete, 0);
             }
             free(dir);
             free(base);

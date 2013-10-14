@@ -120,18 +120,11 @@ void getiflist(struct iflist *list, int *len)
 void getiflist(struct iflist *list, int *len)
 {
     struct ifaddrs *ifa, *ifa_tmp;
-    struct ifreq ifr_tmp;
-    int count, s;
-
-    if ((s = socket(AF_INET,SOCK_DGRAM, 0)) == -1) {
-        syserror(0, 0, "Error creating socket for interface info");
-        *len = 0;
-        return;
-    }
+    int count;
+    unsigned ifidx;
 
     if (getifaddrs(&ifa) == -1) {
         syserror(0, 0, "getifaddrs failed");
-        close(s);
         *len = 0;
         return;
     }
@@ -139,9 +132,7 @@ void getiflist(struct iflist *list, int *len)
     count = *len;
     *len = 0;
     while (ifa_tmp && (*len < count)) {
-        strncpy(ifr_tmp.ifr_name, ifa_tmp->ifa_name, sizeof(ifr_tmp.ifr_name));
-        ifr_tmp.ifr_name[sizeof(ifr_tmp.ifr_name)-1] = '\x0';
-        if (ioctl(s, SIOCGIFINDEX, &ifr_tmp) == -1) {
+        if ((ifidx = if_nametoindex(ifa_tmp->ifa_name)) == 0) {
             syserror(0, 0, "Error getting interface index for interface %s",
                      ifa_tmp->ifa_name);
             continue;
@@ -156,18 +147,12 @@ void getiflist(struct iflist *list, int *len)
                     sizeof(struct sockaddr_storage));
             list[*len].isloopback = (ifa_tmp->ifa_flags & IFF_LOOPBACK) != 0;
             list[*len].ismulti = (ifa_tmp->ifa_flags & IFF_MULTICAST) != 0;
-#ifdef ifr_ifindex
-            list[*len].ifidx = ifr_tmp.ifr_ifindex;
-#else
-            list[*len].ifidx = ifr_tmp.ifr_index;
-#endif
-
+            list[*len].ifidx = ifidx;
             (*len)++;
         }
         ifa_tmp = ifa_tmp->ifa_next;
     }
     freeifaddrs(ifa);
-    close(s);
 }
 
 #else
@@ -508,7 +493,7 @@ static int rolling = 0;
 /**
  * Initialize the log file.
  */
-void init_log(int __debug)
+void init_log(int _debug)
 {
     use_log_mux = 0;
     if (init_log_mux) {
@@ -518,7 +503,7 @@ void init_log(int __debug)
         }
     }
 
-    if (strcmp(logfile, "") && !__debug) {
+    if (strcmp(logfile, "") && !_debug) {
         int fd;
         stat_struct statbuf;
 

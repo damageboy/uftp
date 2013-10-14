@@ -176,7 +176,8 @@ int send_multiple(const struct finfo_t *finfo, unsigned char *packet,
         } else if (destlist[i].status == state) {
             idlist[dests++] = destlist[i].id;
         }
-        if ((dests >= maxdest) || ((i == destcount - 1) && (dests > 0))) {
+        if ((dests >= maxdest) ||
+                ((i == destcount - 1) && ((dests > 0) || (message == DONE)))) {
             header->seq = htons(send_seq++);
             payloadlen = hsize + (dests * sizeof(uint32_t));
             if (message == ANNOUNCE) {

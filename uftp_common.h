@@ -57,7 +57,7 @@ extern int log_level, init_log_mux, use_log_mux, max_log_count;
 extern f_offset_t log_size, max_log_size;
 extern mux_t log_mux;
 
-void init_log(int __debug);
+void init_log(int _debug);
 void close_log();
 void roll_log();
 void logfunc(uint32_t group_id, uint16_t file_id, int level, int _showtime,

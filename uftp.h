@@ -148,7 +148,7 @@ typedef pthread_t thread_t;
 
 #endif // if WINDOWS
 
-#define VERSIONSTR "UFTP version 4.1.2  Copyright (C) 2001-2013  Dennis A. Bush"
+#define VERSIONSTR "UFTP version 4.1.3  Copyright (C) 2001-2013  Dennis A. Bush"
 #define UFTP_VER_NUM 0x40
 
 #define ANNOUNCE      1
@@ -169,7 +169,7 @@ typedef pthread_t thread_t;
 #define KEY_REQ      16
 #define PROXY_KEY    17
 #define ENCRYPTED    18
-#define ABORT        19
+#define ABORT        19 
 #define CONG_CTRL    20
 #define CC_ACK       21
 
@@ -453,7 +453,7 @@ struct fileseg_h {
     uint16_t file_id;
     uint16_t section;
     uint16_t sec_block;
-};  // sizeof = 8
+};  // sizeof = 8 
 
 // Append to FILESEG
 struct tfmcc_data_info_he {
@@ -486,7 +486,7 @@ struct status_h {
     uint16_t file_id;
     uint16_t section;
     uint16_t reserved;
-};  // sizeof = 8
+};  // sizeof = 8 
 
 // Append to STATUS or CC_ACK
 struct tfmcc_ack_info_he {
@@ -499,7 +499,7 @@ struct tfmcc_ack_info_he {
     uint32_t client_id;
     uint32_t tstamp_sec;
     uint32_t tstamp_usec;
-};  // sizeof = 20
+};  // sizeof = 20 
 
 // Append to STATUS
 struct pgmcc_nak_info_he {

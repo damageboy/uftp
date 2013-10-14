@@ -44,7 +44,7 @@ void send_cong_ctrl(const struct finfo_t *finfo, double l_grtt,
 void handle_complete(const unsigned char *message, unsigned meslen,
                      struct finfo_t *finfo, int hostidx);
 void handle_status(const unsigned char *message, unsigned meslen,
-                   struct finfo_t *finfo, int hostidx, int *status_position);
+                   struct finfo_t *finfo, int hostidx, int *got_naks);
 void handle_cc_ack(const unsigned char *message, unsigned meslen,
                    struct finfo_t *finfo, int hostidx);
 

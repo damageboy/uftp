@@ -258,6 +258,7 @@ int setup_dest_file(struct group_list_t *group)
             early_complete(group, COMP_STAT_REJECTED, 0);
             return 0;
         }
+
     }
     len = snprintf(group->fileinfo.temppath, sizeof(group->fileinfo.temppath),
                    "%s.~uftp-%08X-%04X", group->fileinfo.filepath,

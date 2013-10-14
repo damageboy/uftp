@@ -206,7 +206,7 @@ int announce_phase(struct finfo_t *finfo)
         log1(0, 0, "  sending as: %s", finfo->destfname);
         switch (finfo->ftype) {
         case FTYPE_REG:
-            log2(0, 0, "Bytes: %s  Blocks: %d  Sections: %d",
+            log2(0, 0, "Bytes: %s  Blocks: %d  Sections: %d", 
                        printll(finfo->size), finfo->blocks, finfo->sections);
             log3(0, 0, "small section size: %d, "
                 "big section size: %d, " "# big sections: %d",
@@ -218,12 +218,15 @@ int announce_phase(struct finfo_t *finfo)
         case FTYPE_LINK:
             log2(0, 0, "Symbolic link to %s", finfo->linkname);
             break;
+        case FTYPE_DELETE:
+            log2(0, 0, "Delete file/directory with this name");
+            break;
+        case FTYPE_FREESPACE:
+            log2(0, 0, "Free disk space query");
+            break;
         }
     } else {
         log2(0, 0, "Initializing group");
-        if (sync_mode) {
-            log0(0, 0, "- Connect -");
-        }
     }
 
     rval = 1;
@@ -250,6 +253,7 @@ int announce_phase(struct finfo_t *finfo)
             } else {
                 destlist[i].status = DEST_REGISTERED;
             }
+            destlist[i].freespace = -1;
         }
     }
 
@@ -261,6 +265,7 @@ int announce_phase(struct finfo_t *finfo)
     regdone = 0;
     grtt_set = !announce;
     while (attempt <= robust) {
+        if (user_abort) break;
         // On the initial pass, or when the timeout trips,
         // send any necessary messages.
         if (resend) {
@@ -322,7 +327,7 @@ int announce_phase(struct finfo_t *finfo)
             }
             if (gotall) {
                 // Break out right away if this is a file registration.
-                // For group registration, do one last wait, even if
+                // For group registration, do one last wait, even if 
                 // encryption is enabled since we can still send a
                 // REG_CONF for a client behind a proxy.
                 // Change the timeout to 1 * grtt
@@ -345,8 +350,8 @@ int announce_phase(struct finfo_t *finfo)
     }
     recalculate_grtt(1, 1);
     for (i = 0, gotone = 0, anyerror = 0; i < destcount; i++) {
-        gotone = gotone || (((destlist[i].status == DEST_ACTIVE) ||
-                             (destlist[i].status == DEST_DONE)) &&
+        gotone = gotone || (((destlist[i].status == DEST_ACTIVE) || 
+                             (destlist[i].status == DEST_DONE)) && 
                             (destlist[i].clientcnt == -1));
         if (destlist[i].status == DEST_REGISTERED) {
             if (announce) {
@@ -382,12 +387,12 @@ int announce_phase(struct finfo_t *finfo)
     if (open) {
         send_regconf(finfo, attempt, regconf);
     }
-    if ((finfo->file_id == 0) && sync_mode) {
+    if ((finfo->file_id == 0) && status_file) {
         for (i = 0; i < destcount; i++) {
             if (destlist[i].status == DEST_ACTIVE) {
-                log0(0, 0, "CONNECT;success;%s", destlist[i].name);
+                fprintf(status_file, "CONNECT;success;%s\n", destlist[i].name);
             } else {
-                log0(0, 0, "CONNECT;failed;%s", destlist[i].name);
+                fprintf(status_file, "CONNECT;failed;%s\n", destlist[i].name);
             }
         }
         log0(0, 0, "- Transfer -");
@@ -403,7 +408,7 @@ int announce_phase(struct finfo_t *finfo)
  */
 void handle_transfer_phase(const unsigned char *packet,unsigned char *decrypted,
                            int packetlen, const union sockaddr_u *receiver,
-                           struct finfo_t *finfo, int *status_position)
+                           struct finfo_t *finfo, int *got_naks)
 {
     struct uftp_h *header;
     const unsigned char *message;
@@ -450,8 +455,9 @@ void handle_transfer_phase(const unsigned char *packet,unsigned char *decrypted,
     } else {
         switch (destlist[hostidx].status) {
         case DEST_ACTIVE:
+        case DEST_ACTIVE_NAK:
             if (*func == STATUS) {
-                handle_status(message, meslen, finfo, hostidx, status_position);
+                handle_status(message, meslen, finfo, hostidx, got_naks);
             } else if (*func == COMPLETE) {
                 handle_complete(message, meslen, finfo, hostidx);
             } else if (*func == CC_ACK) {
@@ -504,7 +510,7 @@ int seek_block(int file, int block, f_offset_t *offset)
 {
     f_offset_t new_offset;
 
-    if ((new_offset = lseek_func(file,
+    if ((new_offset = lseek_func(file, 
             ((f_offset_t)block * blocksize) - *offset, SEEK_CUR)) == -1) {
         syserror(0, 0, "lseek failed for file");
         return 0;
@@ -512,7 +518,7 @@ int seek_block(int file, int block, f_offset_t *offset)
     if (new_offset != (f_offset_t)block * blocksize) {
         log0(0, 0, "block %d: offset is %s", block, printll(new_offset));
         log0(0, 0, "  should be %s", printll((f_offset_t)block * blocksize));
-        if ((new_offset = lseek_func(file,
+        if ((new_offset = lseek_func(file, 
                 ((f_offset_t)block * blocksize) - (new_offset), SEEK_CUR)) == -1) {
             syserror(0, 0, "lseek failed for file");
             return 0;
@@ -525,10 +531,6 @@ int seek_block(int file, int block, f_offset_t *offset)
 /*
     TODO: Have the server echo back any received NAKs, and have the
     clients suppress their own NAKs based on that.
-
-    Congestion control / RTT timing:
-
-    We should follow the NORM / TFMCC rules if we want to be RFCable
 
 */
 
@@ -544,13 +546,12 @@ struct cc_queue_item {
 
 #define CC_QUEUE_LEN 100
 static struct cc_queue_item cc_queue[CC_QUEUE_LEN];
-static int cc_queue_start, cc_queue_end;
+static int cc_queue_start, cc_queue_end, end_of_pass;
 
-static int file_done_flag, rewind_flag, rewind_pending_flag;
+static int file_done_flag, rewind_flag, rewind_pending_flag, max_time_timeout;
 
 int rate_change;
 uint32_t current_position;
-uint32_t rewind_to;
 uint16_t cc_seq;
 uint32_t cc_rate;
 double adv_grtt;
@@ -594,7 +595,7 @@ int put_cc_queue(unsigned char *item, int len)
         log1(0, 0, "cc_queue full");
         return 0;
     }
-
+    
     cc_queue[cc_queue_end].data = item;
     cc_queue[cc_queue_end++].len = len;
     if (cc_queue_end == CC_QUEUE_LEN) {
@@ -614,10 +615,10 @@ THREAD_FUNC transfer_send_thread(void *infop)
     struct tfmcc_data_info_he *tfmcc;
     int numbytes, attempt, l_file_done_flag, current_nak, cc_len, done_sent;
     double l_adv_grtt;
-    uint16_t l_cc_seq;
+    uint16_t l_cc_seq, pass, section, last_section;
     uint32_t l_cc_rate, block;
-    int l_packet_wait, l_rate_change;
-    struct timeval last_sent, current_sent, now;
+    int l_packet_wait, l_rate_change, max_time;
+    struct timeval last_sent, current_sent, now, start_time;
     int64_t overage, tdiff;
     f_offset_t offset, curr_offset;
     struct finfo_t *finfo;
@@ -653,11 +654,11 @@ THREAD_FUNC transfer_send_thread(void *infop)
     set_uftp_header(header, FILESEG, finfo->group_id, finfo->group_inst,
                     l_adv_grtt, destcount);
 
+    gettimeofday(&start_time, NULL);
     gettimeofday(&last_sent, NULL);
     overage = 0;
     offset = 0;
 
-    log2(0, 0, "Sending file");
     lseek_func(file, 0, SEEK_SET);
     fileseg->func = FILESEG;
     fileseg->file_id = htons(finfo->file_id);
@@ -672,6 +673,18 @@ THREAD_FUNC transfer_send_thread(void *infop)
     current_nak = 1;
     attempt = 1;
     l_file_done_flag = 0;
+    if ((cc_type == CC_NONE) && (rate != -1) && (txweight != 0)) {
+        max_time = (int)floor(((double)txweight / 100) *
+                ((double)finfo->size / rate));
+        log2(0, 0, "Maximum file transfer time: %d seconds", max_time);
+    } else {
+        max_time = 0;
+    }
+    pass = 1;
+    section = 0;
+    last_section = (uint16_t)-1;
+    log2(0, 0, "Sending file");
+    log2(0, 0, "Starting pass %u", pass);
     do {
         if (block < finfo->blocks) {
             if (current_nak) {
@@ -727,6 +740,11 @@ THREAD_FUNC transfer_send_thread(void *infop)
                     fileseg->section = htons(block / finfo->secsize_big);
                     fileseg->sec_block = htons(block % finfo->secsize_big);
                 }
+                section = ntohs(fileseg->section);
+                if (last_section != section) {
+                    log2(0, 0, "Sending section %u", section);
+                    last_section = section;
+                }
 
                 send_data(finfo, packet, numbytes, encpacket);
                 done_sent = 0;
@@ -736,8 +754,8 @@ THREAD_FUNC transfer_send_thread(void *infop)
             if (!done_sent ||
                     (diff_usec(now, last_sent) > (3 * l_adv_grtt * 1000000))) {
                 if (attempt < robust) {
-                    if (!send_done(finfo, attempt, finfo->sections - 1,
-                                   l_adv_grtt)) {
+                    if (!send_done(finfo, attempt, finfo->sections ?
+                                        finfo->sections - 1 : 0, l_adv_grtt)) {
                         log2(0, 0, "Error sending DONE");
                     }
                 }
@@ -754,15 +772,26 @@ THREAD_FUNC transfer_send_thread(void *infop)
             log0(0, 0, "Failed to lock mutex in transfer_send_thread");
             continue;
         }
+        if (max_time) {
+            gettimeofday(&now, NULL);
+            if (diff_sec(now, start_time) > max_time) {
+                log1(0, 0, "Maximum file transfer time exceeded");
+                max_time_timeout = 1;
+                file_done_flag = 1;
+            }
+        }
         if (block < finfo->blocks) {
             finfo->naklist[block] = 0;
             block++;
+        } else {
+            end_of_pass = 1;
         }
         if (rewind_flag) {
-            log3(0, 0, "rewind flag set, rewinding to %d", rewind_to);
-            block = rewind_to;
+            log2(0, 0, "Starting pass %u", ++pass);
+            block = 0;
             rewind_flag = 0;
-            rewind_to = 0;
+            end_of_pass = 0;
+            last_section = (uint16_t)-1;
         }
         if (block < finfo->blocks) {
             current_nak = finfo->naklist[block];
@@ -812,7 +841,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
     union sockaddr_u receiver;
     struct timeval now, timeout, rewind_time, fb_end, next_cc;
     struct timeval min_tstamp;
-    int l_file_done_flag, l_rewind_to, status_position, cc_len;
+    int l_file_done_flag, got_naks, cc_len;
     int alldone, found_error, i, len, rcv_status, found_timeout;
     int do_rewind, do_nextcc, do_halfrate;
     int64_t last_clr;
@@ -828,6 +857,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
     alldone = 0;
     rewind_time.tv_sec = 0;
     rewind_time.tv_usec = 0;
+    got_naks = 0;
     next_cc.tv_sec = 0;
     next_cc.tv_usec = 0;
     // Not mutexed, but should be OK when the thread first starts
@@ -849,7 +879,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
         do_halfrate = 0;
         gettimeofday(&now, NULL);
         if ((cc_type == CC_TFMCC) && (cmptimestamp(now, next_cc) > 0)) {
-            create_cc_list(&cc_body, &cc_len);
+            create_cc_list(&cc_body, &cc_len); 
             if (!put_cc_queue(cc_body, cc_len)) {
                 log1(0, 0, "Couldn't queue up CONG_CTRL: list full!");
                 free(cc_body);
@@ -884,12 +914,16 @@ void transfer_receive_thread(struct finfo_t *finfo)
             }
         }
         if (do_rewind) {
-            log3(0, 0, "Rewind timer tripped, setting rewind point %d",
-                        rewind_to);
+            log3(0, 0, "Rewind timer tripped");
             rewind_flag = 1;
-            rewind_to = l_rewind_to;
             rewind_time.tv_sec = 0;
             rewind_time.tv_usec = 0;
+            got_naks = 0;
+            for (i = 0; i < destcount; i++) {
+                if (destlist[i].status == DEST_ACTIVE_NAK) {
+                    destlist[i].status = DEST_ACTIVE;
+                }
+            }
         }
         if (do_halfrate) {
             rate /= 2;
@@ -912,7 +946,9 @@ void transfer_receive_thread(struct finfo_t *finfo)
             // TODO: Handle extended feedback round
             if (clr_drop) {
                 clr_drop = 0;
-                rate = new_rate;
+                if (new_rate) {
+                    rate = new_rate;
+                }
                 packet_wait = (int32_t)(1000000.0 * datapacketsize / rate);
                 rate_change = 1;
             }
@@ -973,25 +1009,12 @@ void transfer_receive_thread(struct finfo_t *finfo)
         } else if (rcv_status == 0) {
             // Timeouts get handled at the top of the loop
         } else if (validate_packet(packet, len, finfo)) {
-            status_position = -1;
             handle_transfer_phase(packet, decrypted, len, &receiver, finfo,
-                                  &status_position);
+                                  &got_naks);
 
             for (i = 0, alldone = 1; (i < destcount) && alldone; i++) {
                 alldone = alldone && ((destlist[i].status == DEST_DONE) ||
                         (client_error(i)) || (destlist[i].clientcnt != -1));
-            }
-            if (status_position >= 0) {
-                if (rewind_time.tv_sec == 0) {
-                    gettimeofday(&rewind_time, NULL);
-                    add_timeval_d(&rewind_time, 3 * l_adv_grtt);
-                    l_rewind_to = status_position;
-                    log3(0, 0, "preparing %d as rewind point", l_rewind_to);
-                }
-                if (status_position < l_rewind_to) {
-                    l_rewind_to = status_position;
-                    log3(0, 0, "preparing %d as rewind point", l_rewind_to);
-                }
             }
         }
 
@@ -999,8 +1022,12 @@ void transfer_receive_thread(struct finfo_t *finfo)
             log0(0, 0, "Failed to lock mutex in transfer_receive_thread");
             continue;
         }
-        if (alldone) {
+        if (alldone || user_abort) {
             file_done_flag = 1;
+        } else if (got_naks && end_of_pass && (rewind_time.tv_sec == 0)) {
+            gettimeofday(&rewind_time, NULL);
+            add_timeval_d(&rewind_time, 3 * l_adv_grtt);
+            log3(0, 0, "Starting rewind timer");
         }
         l_file_done_flag = file_done_flag;
         l_adv_grtt = adv_grtt;
@@ -1010,12 +1037,29 @@ void transfer_receive_thread(struct finfo_t *finfo)
             log0(0, 0, "Failed to unlock mutex in transfer_receive_thread");
             continue;
         }
+
     } while (!l_file_done_flag);
 
     found_error = 0;
-    if (!alldone) {
+    if (user_abort || max_time_timeout) {
+        log0(0, 0, "Aboring all clients");
+        if (user_abort) {
+            send_abort(finfo, "Server quit, aborting all",
+                       &receive_dest, 0, (keytype != KEY_NONE), 0);
+        } else if (max_time_timeout) {
+            send_abort(finfo, "Max file transfer time exceeded",
+                       &receive_dest, 0, (keytype != KEY_NONE), 0);
+        }
         for (i = 0; i < destcount; i++) {
-            if (destlist[i].status == DEST_ACTIVE) {
+            if ((destlist[i].status == DEST_ACTIVE) ||
+                    (destlist[i].status == DEST_ACTIVE_NAK)) {
+                destlist[i].status = DEST_ABORT;
+            }
+        }
+    } else if (!alldone) {
+        for (i = 0; i < destcount; i++) {
+            if ((destlist[i].status == DEST_ACTIVE) ||
+                    (destlist[i].status == DEST_ACTIVE_NAK)) {
                 log1(0, 0, "No response from %s", destlist[i].name);
                 destlist[i].status = DEST_LOST;
                 if (quit_on_error && !found_error) {
@@ -1059,6 +1103,8 @@ int transfer_phase(struct finfo_t *finfo)
         return 1;
     }
 
+    // TODO: if not a regular file, error any clients that didn't
+    // respond to the FILEINFO with a COMPLETE
     if (finfo->ftype == FTYPE_REG) {
         snprintf(path, sizeof(path), "%s%c%s", finfo->basedir, PATH_SEP,
                                                finfo->filename);
@@ -1073,17 +1119,19 @@ int transfer_phase(struct finfo_t *finfo)
         for (i = 0; i < destcount; i++) {
             if (!client_error(i)) {
                 destlist[i].status = DEST_ACTIVE;
+                destlist[i].max_nak_exceed = 0;
             }
         }
     }
 
     gettimeofday(&start_time, NULL);
+    max_time_timeout = 0;
     file_done_flag = 0;
     rewind_flag = 0;
-    rewind_to = 0;
     cc_queue_start = 0;
     cc_queue_end = 0;
     rate_change = 0;
+    end_of_pass = 0;
     if (cc_type == CC_TFMCC) {
         // Initialize rate to 1 packet per GRTT
         rate = (int32_t)(((double)datapacketsize / grtt));
@@ -1115,6 +1163,7 @@ int transfer_phase(struct finfo_t *finfo)
         }
         return 1;
     }
+    use_log_mux = 1;
 
     if (start_thread(tid, transfer_send_thread, finfo) != 0) {
         syserror(0, 0, "Failed to create sender thread");
@@ -1130,6 +1179,7 @@ int transfer_phase(struct finfo_t *finfo)
     } else  {
         destroy_thread(tid);
     }
+    use_log_mux = 0;
 
     if (finfo->ftype == FTYPE_REG) {
         close(file);
@@ -1137,6 +1187,9 @@ int transfer_phase(struct finfo_t *finfo)
     mux_destroy(mux_main);
     print_status(finfo, start_time);
 
+    if (user_abort) {
+        return 0;
+    }
     for (i = 0; i < destcount; i++) {
         if (quit_on_error) {
             // Check to see that all finished
@@ -1224,7 +1277,7 @@ void handle_completion_phase(const unsigned char *packet,
 void completion_phase(struct finfo_t *finfo)
 {
     unsigned char *packet, *decrypted;
-    struct timeval timeout, next_send, now;
+    struct timeval timeout, next_send, now, start_time;
     union sockaddr_u receiver;
     int resend, attempt, last_pass, alldone;
     int rcv_status, len, i;
@@ -1245,12 +1298,14 @@ void completion_phase(struct finfo_t *finfo)
     }
 
     log2(0, 0, "Finishing group");
+    gettimeofday(&start_time, NULL);
     gettimeofday(&next_send, NULL);
     add_timeval_d(&next_send, 3 * grtt);
     resend = 1;
     attempt = 1;
     last_pass = 0;
     while (attempt <= robust) {
+        if (user_abort) break;
         if (resend) {
             if (!send_doneconf(finfo, attempt)) {
                 continue;
@@ -1299,18 +1354,20 @@ void completion_phase(struct finfo_t *finfo)
             }
             last_pass = 1;
             send_doneconf(finfo, attempt + 1);
-        }
+        } 
     }
     for (i = 0; i < destcount; i++) {
-      if (destlist[i].status == DEST_ACTIVE) {
-        log1(0, 0, "Couldn't get COMPLETE for group from %s",
-          destlist[i].name);
-        destlist[i].status = DEST_LOST;
-      }
+        if (destlist[i].status == DEST_ACTIVE) {
+            log1(0, 0, "Couldn't get COMPLETE for group from %s",
+                       destlist[i].name);
+            destlist[i].status = DEST_LOST;
+        }
     }
 
     send_doneconf(finfo, attempt + 1);
+    print_status(finfo, start_time);
 
     free(packet);
     free(decrypted);
 }
+
