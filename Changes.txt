@@ -1,4 +1,9 @@
-Version 4.3 - 5/23/2014
+Version 4.3.1 - 7/3/2014
+  Have clients send an ABORT for all active sessions on shutdown
+  Fixed #ifs that enable dual mode sockets
+  Removed -O0 from BSD section of makefile
+
+Version 4.3 - 5/27/2014
   Added support for ECN (Explicit Congestion Notification) in the TFMCC
     implementation in the server and client.  Proxy support is forthcoming.
     See the man pages for known supported systems.

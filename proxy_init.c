@@ -390,8 +390,8 @@ void create_sockets(void)
         sockerror(0, 0, "Error creating socket for listener");
         exit(ERR_SOCKET);
     }
-#if (defined WINDOWS && _WIN32_WINNT >= _WIN32_WINNT_LONGHORN) &&\
-        (!defined NO_DUAL)
+#if (defined WINDOWS && _WIN32_WINNT >= _WIN32_WINNT_LONGHORN) ||\
+        (!defined WINDOWS && !defined NO_DUAL)
     if (family == AF_INET6) {
         int v6flag = 0;
         if (setsockopt(listener, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6flag,
