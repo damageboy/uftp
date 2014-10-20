@@ -652,8 +652,8 @@ int flush_disk_cache(struct group_list_t *group)
     if (seek_rval != offset) {
         log2(group->group_id,group->file_id,"offset is %s", printll(seek_rval));
         log2(group->group_id,group->file_id, "  should be %s", printll(offset));
-        if ((seek_rval = lseek_func(group->fileinfo.fd,
-                seek_rval - group->fileinfo.curr_offset, SEEK_CUR)) == -1) {
+        if ((seek_rval = lseek_func(group->fileinfo.fd, offset,
+                                    SEEK_SET)) == -1) {
             syserror(group->group_id, group->file_id, "lseek failed for file");
             return 0;
         }

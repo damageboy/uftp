@@ -1,3 +1,28 @@
+Version 4.5.1 - 9/14/2014
+  On the rare occasion a seek call made by the client errors or returns a
+    file offset that was unexpected, a second call to seek is made to set the
+    destination file offset to the proper place.  However, this second seek
+    was jumping to the wrong place in the file.  This has been fixed, and
+    a similar fix was made on the server as well.
+  Allow the -s (status file) option on the server to take a special value of
+    @LOG, which allows status info to be mixed with the regular logging output.
+    This behavior is consistent with older versions that did this when sync
+    mode was enabled.
+
+Version 4.5 - 8/26/2014
+  Added disk caching on the client, greatly improving high speed throughput.
+    The cache size is controlled via the -c option.
+  Changed logging levels on several log statements so that effectively
+    level 0 is "error" and level 1 is "warning".  The default log level of 2
+    will continue to contain semi-detailed logging.
+  Increased client timeout for REG_CONF and DONE_CONF to 4*robust*grtt.
+    This helps to prevent client from timing out too early.
+  When the server receives a REGISTER or FILEINFO_ACK from a client and
+    calculates its round trip time, enforce a lower limit of 0.01 seconds.
+    This prevent client from timing out too quickly.
+  Occurrences of SIGPIPE while writing to a log could result in an infinite
+    loop.  SIGPIPE is now ignored, relying on normal error handling instead.
+
 Version 4.4 - 7/22/2014
   Added max rate option to TFMCC implementation
   Added -U option to server to specify the server's UID

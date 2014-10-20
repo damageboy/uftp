@@ -520,7 +520,9 @@ void initialize(void)
     }
 #endif
 
-    if (strcmp(statusfilename, "")) {
+    if (!strcmp(statusfilename, "@LOG")) {
+        status_file = applog;
+    } else if (strcmp(statusfilename, "")) {
         if ((status_file = fopen(statusfilename, "at")) == NULL) {
             perror("Can't open status file");
             exit(ERR_PARAM);

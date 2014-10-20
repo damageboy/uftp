@@ -410,7 +410,9 @@ OPTIONS
        -S status_file
 	      Prints easily parsable  status  information  to  a  file.	  This
 	      information  was previously only available in sync mode (-z) and
-	      was mixed with the normal logging output.
+	      was mixed with the normal logging output.	 Setting  this	option
+	      to  @LOG	results in status info being mixed with normal logging
+	      output.
 
 	      The following is printed for each client after all  have	regis‐
 	      tered:
@@ -465,7 +467,7 @@ OPTIONS
 	      ues, of the Group Round Trip Time (GRTT) used in timing calcula‐
 	      tions.  The GRTT changes dynamically based on the network condi‐
 	      tions.   This  option is useful if the initial connection period
-	      is to short or long, if receivers are getting  bogged  down  and
+	      is too short or long, if receivers are getting bogged  down  and
 	      cannot  respond to the server quick enough before timing out, or
 	      if receivers are getting flagged with too high  of  an  RTT  and
 	      take  too	 long  to recover to a resonable value.	  Valid values
@@ -616,4 +618,4 @@ NOTES
 
 
 
-UFTP 4.5			26 August 2014			       uftp(1)
+UFTP 4.5.1		       14 September 2014		       uftp(1)

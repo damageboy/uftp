@@ -1,4 +1,4 @@
-.TH uftp 1 "26 August 2014" "UFTP 4.5"
+.TH uftp 1 "14 September 2014" "UFTP 4.5.1"
 .SH NAME
 uftp - Encrypted UDP based ftp with multicast - server
 .SH SYNOPSIS
@@ -192,7 +192,7 @@ Specifies one or more "base" directories for files.  Normally, for any file/dire
 For example, without -E, if you pass /path/to/file to send, the transmitted filename is file.  If you pass in -E /path, the transmitted file name is to/file.
 .TP
 .B \-S status_file
-Prints easily parsable status information to a file.  This information was previously only available in sync mode (-z) and was mixed with the normal logging output.
+Prints easily parsable status information to a file.  This information was previously only available in sync mode (-z) and was mixed with the normal logging output.  Setting this option to @LOG results in status info being mixed with normal logging output.
 
 The following is printed for each client after all have registered:
 
@@ -225,7 +225,7 @@ Also, the following line is printed verbatim prior to the STATS lines for ease o
 HSTATS;target;copy;overwrite;skip;totalKB;time;speedKB/s
 .TP
 .B \-r init_grtt[:min_grtt:max_grtt]
-Specifies the initial value, and optionally the min and max values, of the Group Round Trip Time (GRTT) used in timing calculations.  The GRTT changes dynamically based on the network conditions.  This option is useful if the initial connection period is to short or long, if receivers are getting bogged down and cannot respond to the server quick enough before timing out, or if receivers are getting flagged with too high of an RTT and take too long to recover to a resonable value.   Valid values are 0.001 to 1000.  Defaults are 0.5 for init_grtt, 0.01 for min_grtt, and 15.0 for max_grtt.
+Specifies the initial value, and optionally the min and max values, of the Group Round Trip Time (GRTT) used in timing calculations.  The GRTT changes dynamically based on the network conditions.  This option is useful if the initial connection period is too short or long, if receivers are getting bogged down and cannot respond to the server quick enough before timing out, or if receivers are getting flagged with too high of an RTT and take too long to recover to a resonable value.   Valid values are 0.001 to 1000.  Defaults are 0.5 for init_grtt, 0.01 for min_grtt, and 15.0 for max_grtt.
 .TP
 .B \-s robust
 Specifies the robustness factor for message retransmission.  The server will resend particular messages up to robust times while waiting for client responses.  Valid values are 10-50.  Default is 20.

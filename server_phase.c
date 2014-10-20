@@ -212,9 +212,9 @@ int announce_phase(struct finfo_t *finfo)
     uint8_t tos;
 
     if (finfo->file_id) {
-        log1(finfo->group_id, finfo->file_id,
+        log2(finfo->group_id, finfo->file_id,
                 "File ID: %04X  Name: %s", finfo->file_id, finfo->filename);
-        log1(finfo->group_id, finfo->file_id,
+        log2(finfo->group_id, finfo->file_id,
                 "  sending as: %s", finfo->destfname);
         switch (finfo->ftype) {
         case FTYPE_REG:
@@ -406,7 +406,6 @@ int announce_phase(struct finfo_t *finfo)
                 fprintf(status_file, "CONNECT;failed;%s\n", destlist[i].name);
             }
         }
-        log0(finfo->group_id, finfo->file_id, "- Transfer -");
     }
     free(packet);
     free(decrypted);
@@ -515,9 +514,8 @@ int seek_block(const struct finfo_t *finfo, int file, int block,
                 "block %d: offset is %s", block, printll(new_offset));
         log0(finfo->group_id, finfo->file_id,
                 "  should be %s", printll((f_offset_t)block * blocksize));
-        if ((new_offset = lseek_func(file, 
-                ((f_offset_t)block * blocksize) - (new_offset),
-                SEEK_CUR)) == -1) {
+        if ((new_offset = lseek_func(file, ((f_offset_t)block * blocksize),
+                                     SEEK_SET)) == -1) {
             syserror(finfo->group_id, finfo->file_id, "lseek failed for file");
             return 0;
         }
@@ -754,7 +752,7 @@ THREAD_FUNC transfer_send_thread(void *infop)
                 if (attempt < robust) {
                     if (!send_done(finfo, attempt, finfo->sections ?
                                         finfo->sections - 1 : 0, l_adv_grtt)) {
-                        log2(finfo->group_id, finfo->file_id,
+                        log0(finfo->group_id, finfo->file_id,
                                 "Error sending DONE");
                     }
                 }

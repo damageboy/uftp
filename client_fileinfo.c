@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -211,7 +211,7 @@ int setup_dest_file(struct group_list_t *group)
 
     if (isfullpath(group->fileinfo.name)) {
         if (strcmp(tempdir, "")) {
-            log0(group->group_id, group->file_id,
+            log1(group->group_id, group->file_id,
                     "Rejecting file with absolute pathname: "
                     "temp directory is in use");
             early_complete(group, COMP_STAT_REJECTED, 0);
@@ -220,7 +220,7 @@ int setup_dest_file(struct group_list_t *group)
         for (found_dest_dir = 0, i = 0; i < destdircnt; i++) {
             if (!ncmp(group->fileinfo.name, destdir[i], strlen(destdir[i]))) {
                 if (!cmp(group->fileinfo.name, destdir[i])) {
-                    log0(group->group_id, group->file_id,
+                    log1(group->group_id, group->file_id,
                             "Rejecting file with absolute pathname: "
                             "can't have the same name as a dest directory");
                     early_complete(group, COMP_STAT_REJECTED, 0);
@@ -232,7 +232,7 @@ int setup_dest_file(struct group_list_t *group)
             }
         }
         if (!found_dest_dir) {
-            log0(group->group_id, group->file_id,
+            log1(group->group_id, group->file_id,
                     "Rejecting file with absolute pathname: "
                     "doesn't match any dest directory");
             early_complete(group, COMP_STAT_REJECTED, 0);
@@ -253,7 +253,7 @@ int setup_dest_file(struct group_list_t *group)
                     PATH_SEP, group->fileinfo.name);
         }
         if (len >= sizeof(group->fileinfo.filepath)) {
-            log0(group->group_id, group->file_id,
+            log1(group->group_id, group->file_id,
                     "Rejecting file: max pathname length exceeded");
             early_complete(group, COMP_STAT_REJECTED, 0);
             return 0;
@@ -264,7 +264,7 @@ int setup_dest_file(struct group_list_t *group)
                    "%s.~uftp-%08X-%04X", group->fileinfo.filepath,
                    group->group_id, group->file_id);
     if (len >= sizeof(group->fileinfo.temppath)) {
-        log0(group->group_id, group->file_id,
+        log1(group->group_id, group->file_id,
                 "Rejecting file: max pathname length exceeded");
         early_complete(group, COMP_STAT_REJECTED, 0);
         return 0;
@@ -322,25 +322,14 @@ int handle_fileinfo_sync(struct group_list_t *group)
             skip = 0;
         }
         if (skip) {
-            if (log_level >= 1) {
-                log1(group->group_id, group->file_id, "skipping file, in sync");
-            } else {
-                log0(group->group_id, group->file_id,
-                        "Skip %s", group->fileinfo.name);
-            }
+            log2(group->group_id, group->file_id, "skipping file, in sync");
             early_complete(group, COMP_STAT_SKIPPED, 0);
             return 1;
         } else {
-            if (log_level >= 1) {
-                log1(group->group_id, group->file_id,
-                        "overwriting out of sync file");
-            } else {
-                log0(group->group_id, group->file_id,
-                        "Overwrite %s", group->fileinfo.name);
-            }
+            log2(group->group_id,group->file_id,"overwriting out of sync file");
             group->fileinfo.comp_status = COMP_STAT_OVERWRITE;
             if (group->sync_preview) {
-                log1(group->group_id, group->file_id,
+                log2(group->group_id, group->file_id,
                         "Sync preview mode, skipping receive");
                 early_complete(group, COMP_STAT_OVERWRITE, 0);
                 return 1;
@@ -350,14 +339,9 @@ int handle_fileinfo_sync(struct group_list_t *group)
             }
         }
     } else {
-        if (log_level >= 1) {
-            log1(group->group_id, group->file_id, "copying new file");
-        } else {
-            log0(group->group_id, group->file_id,
-                    "Copy %s", group->fileinfo.name);
-        }
+        log2(group->group_id, group->file_id, "copying new file");
         if (group->sync_preview) {
-            log1(group->group_id, group->file_id,
+            log2(group->group_id, group->file_id,
                     "Sync preview mode, skipping receive");
             early_complete(group, COMP_STAT_NORMAL, 0);
             return 1;
@@ -428,6 +412,11 @@ void handle_fileinfo_regular(struct group_list_t *group)
     group->fileinfo.last_block = -1;
     group->fileinfo.last_section = 0;
     group->fileinfo.curr_offset = 0;
+    group->fileinfo.cache_start = 0;
+    group->fileinfo.cache_end = 0;
+    group->fileinfo.cache_len = 0;
+    group->fileinfo.cache = safe_calloc(cache_len, 1);
+    group->fileinfo.cache_status = safe_calloc(cache_len / group->blocksize, 1);
     group->phase = PHASE_RECEIVING;
     send_fileinfo_ack(group, group->fileinfo.restart);
     set_timeout(group, 0);
@@ -501,13 +490,11 @@ void handle_fileinfo(struct group_list_t *group, const unsigned char *message,
         return;
     }
 
-    if (!group->sync_mode || (log_level >= 1)) {
-        log0(group->group_id, group->file_id,
-             "Name of file to receive: %s", group->fileinfo.name);
-    }
+    log2(group->group_id, group->file_id,
+         "Name of file to receive: %s", group->fileinfo.name);
     switch (group->fileinfo.ftype) {
     case FTYPE_REG:
-        log1(group->group_id, group->file_id,
+        log2(group->group_id, group->file_id,
                 "Bytes: %s, Blocks: %d, Sections: %d",
                 printll(group->fileinfo.size),
                 group->fileinfo.blocks, group->fileinfo.sections);
@@ -517,17 +504,17 @@ void handle_fileinfo(struct group_list_t *group, const unsigned char *message,
                 group->fileinfo.big_sections);
         break;
     case FTYPE_DIR:
-        log1(group->group_id, group->file_id, "Empty directory");
+        log2(group->group_id, group->file_id, "Empty directory");
         break;
     case FTYPE_LINK:
-        log1(group->group_id, group->file_id,
+        log2(group->group_id, group->file_id,
                 "Symbolic link to %s", group->fileinfo.linkname);
         break;
     case FTYPE_DELETE:
-        log1(group->group_id, group->file_id, "Deleting file/directory");
+        log2(group->group_id, group->file_id, "Deleting file/directory");
         break;
     case FTYPE_FREESPACE:
-        log1(group->group_id, group->file_id, "Get free space for path");
+        log2(group->group_id, group->file_id, "Get free space for path");
         break;
     default:
         log1(group->group_id, group->file_id,
