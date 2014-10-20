@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -246,13 +246,15 @@ void mainloop(void)
             if (proxy_type == SERVER_PROXY) {
                 // Server proxies don't do anything outside of an ANNOUNCE.
                 // Just send it on through.
-                new_grtt = unquantize_grtt(header->grtt);
-                if (fabs(new_grtt - group->grtt) > 0.001) {
-                    group->grtt = new_grtt;
-                    set_timeout(group, 0, 1);
+                if (!memcmp(&src, &group->up_addr, sizeof(src))) {
+                    new_grtt = unquantize_grtt(header->grtt);
+                    if (fabs(new_grtt - group->grtt) > 0.001) {
+                        group->grtt = new_grtt;
+                        set_timeout(group, 0, 1);
+                    }
+                    group->gsize = unquantize_gsize(header->gsize);
+                    log4(group->group_id, 0, "grtt: %.3f", group->grtt);
                 }
-                group->gsize = unquantize_gsize(header->gsize);
-                log4(group->group_id, 0, "grtt: %.3f", group->grtt);
                 forward_message(group, &src, buf, packetlen);
                 continue;
             }

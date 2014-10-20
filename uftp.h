@@ -150,7 +150,7 @@ typedef pthread_t thread_t;
 
 #endif // if WINDOWS
 
-#define VERSIONSTR "UFTP version 4.1.4  Copyright (C) 2001-2013  Dennis A. Bush"
+#define VERSIONSTR "UFTP version 4.1.5  Copyright (C) 2001-2014  Dennis A. Bush"
 #define UFTP_VER_NUM 0x40
 
 #define ANNOUNCE      1

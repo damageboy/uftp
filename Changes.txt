@@ -1,3 +1,8 @@
+Version 4.1.5 - 3/1/2014
+  Fixed casting bug in server TFMCC operations when calculating client rate.
+  Fixed server proxy bug where group round trip time was being read from
+    client messages when it should only be read from server messages.
+
 Version 4.1.4 - 12/5/2013
   During a restart session, a bug caused the full file to be resent on the
     first pass, and client wouldn't send back NAKs for the first session.

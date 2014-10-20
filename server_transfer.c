@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -391,7 +391,8 @@ void handle_tfmcc_ack_info(const struct finfo_t *finfo,
                 "Got clr CC response for round %d", ntohs(tfmcc->cc_seq));
         rate_1grtt = (int)(datapacketsize / grtt);
         if (!flag_ss && !flag_rtt) {
-            client_rate *= (int)(adv_grtt / destlist[hostidx].rtt);
+            client_rate = (unsigned)((double)client_rate *
+                    (adv_grtt / destlist[hostidx].rtt));
         }
         if ((client_rate > (unsigned)rate + rate_1grtt) && !slowstart) {
             rate += rate_1grtt;
@@ -407,7 +408,8 @@ void handle_tfmcc_ack_info(const struct finfo_t *finfo,
             cc_rate = (int)(client_rate * 0.9);
         }
         if (!flag_ss && !flag_rtt) {
-            client_rate *= (int)(adv_grtt / destlist[hostidx].rtt);
+            client_rate = (unsigned)((double)client_rate *
+                    (adv_grtt / destlist[hostidx].rtt));
         }
         if ((client_rate < (unsigned)rate) || (clr == -1)) {
             log3(finfo->group_id, finfo->file_id,
@@ -432,6 +434,7 @@ void handle_tfmcc_ack_info(const struct finfo_t *finfo,
     if (l_adv_grtt > adv_grtt) {
         adv_grtt = l_adv_grtt;
     }
+    log4(finfo->group_id, finfo->file_id, "rate = %d", rate);
 }
 
 /**
