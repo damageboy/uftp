@@ -1,3 +1,8 @@
+Version 4.4 - 7/22/2014
+  Added max rate option to TFMCC implementation
+  Added -U option to server to specify the server's UID
+  Removed stale UFTP3 congestion control code
+
 Version 4.3.1 - 7/3/2014
   Have clients send an ABORT for all active sessions on shutdown
   Fixed #ifs that enable dual mode sockets

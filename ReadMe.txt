@@ -17,7 +17,7 @@ of receivers.
 --== Building ==--
 
 UNIX-like systems require GNU make and a C compiler such as GCC or
-equivalent.  Windows systems require Visual Studio Express 2008 or later.
+equivalent.  Windows systems require Visual Studio Express 2010 or later.
 
 Non-Windows systems require OpenSSL to be installed if encryption support is
 enabled.  On Linux, Solaris, and BSD systems (including MacOSX), this should

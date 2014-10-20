@@ -241,13 +241,15 @@ void create_sockets(void)
             exit(ERR_SOCKET);
         }
     }
-    if (out_if.su.ss.ss_family == AF_INET6) {
-        server_id = out_if.su.sin6.sin6_addr.s6_addr[12] << 24;
-        server_id |= out_if.su.sin6.sin6_addr.s6_addr[13] << 16;
-        server_id |= out_if.su.sin6.sin6_addr.s6_addr[14] << 8;
-        server_id |= out_if.su.sin6.sin6_addr.s6_addr[15];
-    } else {
-        server_id = ntohl(out_if.su.sin.sin_addr.s_addr);
+    if (!server_id) {
+        if (out_if.su.ss.ss_family == AF_INET6) {
+            server_id = out_if.su.sin6.sin6_addr.s6_addr[12] << 24;
+            server_id |= out_if.su.sin6.sin6_addr.s6_addr[13] << 16;
+            server_id |= out_if.su.sin6.sin6_addr.s6_addr[14] << 8;
+            server_id |= out_if.su.sin6.sin6_addr.s6_addr[15];
+        } else {
+            server_id = out_if.su.sin.sin_addr.s_addr;
+        }
     }
 
     if (listen_dest.ss.ss_family != receive_dest.ss.ss_family) {

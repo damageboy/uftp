@@ -13,7 +13,7 @@ SYNOPSIS
 	   [ -k key_file ] [ -K key_length | curve ] [ -l ] [ -T ]
 	   [ -b block_size ] [ -t ttl ] [ -Q dscp ] [ -z | -Z ]
 	   [ -I interface ] [ -p port ] [ -u source_port ]
-	   [ -j proxylist_file ] [ -q ] [ -f ] [ -y ]
+	   [ -j proxylist_file ] [ -q ] [ -f ] [ -y ] [ -U UID ]
 	   [ -x log_level ] [ -W txweight ]
 	   [ -H host[,host...] | -H @hostlist_file
 	   | -F restart_file ] [ -X exclude_file ]
@@ -289,6 +289,12 @@ OPTIONS
 	      ifying this option stores keys in the system key container.   On
 	      non-Windows systems, this option has no effect.
 
+       -U UID The unique ID for this server, specified as an 8 digit hexadeci‐
+	      mal number (0xnnnnnnnn).	The default value is based on  the  IP
+	      address  of  the	outgoing multicast address as specified by -I.
+	      If this address is IPv4, the UID is the address.	If it is IPv6,
+	      the UID is the last 4 bytes of the address.
+
        -x log_level
 	      Specifies	 current  logging level.  Valid values are 0-5, with 0
 	      being the least verbose and 5 being the most  verbose.   Default
@@ -356,8 +362,10 @@ OPTIONS
 	      ported values are "none" and "tfmcc".  Specifiying "none"	 means
 	      data will be sent at a fixed rate as specified by the -R option.
 	      Specifying "tfmcc" will use the TCP Friendly  Multicast  Conges‐
-	      tion  Control scheme as specified in RFC 4654.  Default value is
-	      "none".
+	      tion  Control  scheme as specified in RFC 4654.  Normally, TFMCC
+	      will limit the rate based strictly on loss,  however  a  maximum
+	      rate  in	Kbps  may  optionally  be  specified for TFMCC mode as
+	      "tfmcc:max_rate".	 Default value is "none".
 
 	      TFMCC will make use  of  the  Explicit  Congestion  Notification
 	      (ECN) bits in the IP header on systems that support it natively.
@@ -608,4 +616,4 @@ NOTES
 
 
 
-UFTP 4.3			  27 May 2014			       uftp(1)
+UFTP 4.4			 22 July 2014			       uftp(1)

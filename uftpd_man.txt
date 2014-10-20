@@ -36,11 +36,11 @@ OPTIONS
        -p port
 	      The UDP port number to listen on.	 Default is 1044.
 
-       -U UID The unique ID for this client.  Specified either as an  8	 digit
-	      hexadecimal  number (0xnnnnnnnn).	 The default value is based on
-	      the IP address of the first listed multicast  capable  interface
-	      on the system.  If this address is IPv4, the UID is the address.
-	      If it is IPv6, the UID is the last 4 bytes of the address.
+       -U UID The unique ID for this client, specified as an 8 digit hexadeci‐
+	      mal  number  (0xnnnnnnnn).  The default value is based on the IP
+	      address of the first listed multicast capable interface  on  the
+	      system.  If this address is IPv4, the UID is the address.	 If it
+	      is IPv6, the UID is the last 4 bytes of the address.
 
        -B buf_size
 	      The size in bytes of the UDP receive buffer to use.  Valid  val‐
@@ -404,4 +404,4 @@ NOTES
 
 
 
-UFTP 4.3			  27 May 2014			      uftpd(1)
+UFTP 4.4			 22 July 2014			      uftpd(1)

@@ -67,7 +67,7 @@ int sync_mode, sync_preview, dest_is_dir, cc_type, user_abort;
 unsigned int ttl;
 char port[PORTNAME_LEN], srcport[PORTNAME_LEN];
 char pub_multi[INET6_ADDRSTRLEN], priv_multi[INET6_ADDRSTRLEN]; 
-char keyfile[MAXPATHNAME], cc_config[MAXPATHNAME];
+char keyfile[MAXPATHNAME];
 char filelist[MAXFILES][MAXPATHNAME], exclude[MAXEXCLUDE][MAXPATHNAME];
 char basedir[MAXDIR][MAXDIRNAME], destfname[MAXPATHNAME];
 char statusfilename[MAXPATHNAME];
@@ -75,8 +75,7 @@ FILE *status_file;
 struct iflist ifl[MAX_INTERFACES];
 int keytype, hashtype, sigtype, keyextype, newkeylen, sys_keys;
 int blocksize, datapacketsize;
-int ifl_len, destcount, filecount, excludecount, basedircount, cc_count;
-struct cc_config_t cc_list[MAXCC];
+int ifl_len, destcount, filecount, excludecount, basedircount;
 struct iflist out_if;
 struct destinfo_t destlist[MAXDEST];
 
@@ -146,7 +145,6 @@ void set_defaults(void)
     memset(filelist, 0, sizeof(filelist));
     memset(exclude, 0, sizeof(exclude));
     memset(destfname, 0, sizeof(destfname));
-    memset(cc_config, 0, sizeof(cc_config));
     destcount = 0;
     strncpy(port, DEF_PORT, sizeof(port)-1);
     port[sizeof(port)-1] = '\x0';
@@ -164,6 +162,7 @@ void set_defaults(void)
     client_auth = 0;
     quit_on_error = 0;
     save_fail = 0;
+    server_id = 0;
     files_sent = 0;
     restart_groupid = 0;
     restart_groupinst = 0;
@@ -192,7 +191,6 @@ void set_defaults(void)
     sys_keys = 0;
     sync_mode = 0;
     sync_preview = 0;
-    cc_count = 0;
     dest_is_dir = 0;
     grtt = DEF_GRTT;
     min_grtt = DEF_MIN_GRTT;
@@ -271,126 +269,6 @@ void read_restart_file(const char *restart_name)
 }
 
 /**
- * Reads in the congestion control config file.
- * Each line contains a percentage (0-100) followed by a scaling factor
- * or the string "max" followed by the maximum transmission rate in Kbps
- * Sample:
- * max;10000
- * 0;1.3
- * 5;1.1
- * 10;0.9
- * 25;0.7
- * 50;0.4
- *
- * Returns 1 on success, 0 on fail.
- */
-int read_cc_config(const char *filename)
-{
-    FILE *cc_file;
-    char line[100], *p;
-    int last_percentage, percentage;
-    double scaling_factor;
-    struct cc_config_t tmp_cc_list[MAXCC];
-    int tmp_cc_count, tmp_max_rate;
-
-    if ((cc_file = fopen(filename, "rt")) == NULL) {
-        log0(0, 0, "Couldn't open congestion control file %s: %s\n",
-                cc_config, strerror(errno));
-        return 0;
-    }
-    tmp_cc_count = 0;
-    tmp_max_rate = 0;
-    last_percentage = 0;
-    while (fgets(line, sizeof(line), cc_file)) {
-        while ((strlen(line) > 0) && ((line[strlen(line)-1] == '\r') ||
-               (line[strlen(line)-1] == '\n'))) {
-            line[strlen(line)-1] = '\x0';
-        }
-        if (strlen(line) == 0) continue;
-        p = strtok(line, ";");
-        if (p == NULL) {
-            log0(0, 0, "Error reading congestion control entry\n");
-            fclose(cc_file);
-            return 0;
-        }
-        if (!strcmp(p, "max")) {
-            if (tmp_max_rate) {
-                log0(0, 0, "Cannot have multiple entries for max rate\n");
-                fclose(cc_file);
-                return 0;
-            }
-            p = strtok(NULL, ";");
-            if (p == NULL) {
-                log0(0, 0, "Error reading congestion control entry\n");
-                fclose(cc_file);
-                return 0;
-            }
-            // Change from Kbps to B/S
-            tmp_max_rate = strtol(p, NULL, 10) * 1024 / 8;
-            if (tmp_max_rate <= 0) {
-                log0(0, 0, "Invalid max rate in congestion control\n");
-                fclose(cc_file);
-                return 0;
-            }
-            continue;
-        }
-        percentage = strtol(p, NULL, 10);
-        if ((percentage < 0) || percentage > 100) {
-            log0(0, 0, "Invalid percentage in congestion control entry\n");
-            fclose(cc_file);
-            return 0;
-        }
-        if (percentage < last_percentage) {
-            log0(0, 0, "Congestion control entries must be in ascending "
-                       "order by percentage\n");
-            fclose(cc_file);
-            return 0;
-        }
-        p = strtok(NULL, ";");
-        if (p == NULL) {
-            log0(0, 0, "Error reading congestion control entry\n");
-            fclose(cc_file);
-            return 0;
-        }
-        errno = 0;
-        scaling_factor = strtod(p, NULL);
-        if (errno) {
-            log0(0, 0, "Error reading congestion control entry: %s\n",
-                    strerror(errno)); 
-            fclose(cc_file);
-            return 0;
-        }
-        if (scaling_factor <= 0) {
-            log0(0, 0, "Invalid scaling factor in congestion control entry\n");
-            fclose(cc_file);
-            return 0;
-        }
-        last_percentage = percentage;
-        tmp_cc_list[tmp_cc_count].percentage = percentage;
-        tmp_cc_list[tmp_cc_count].scaling_factor = scaling_factor;
-        tmp_cc_count++;
-    }
-    fclose(cc_file);
-
-    // Make sure we have a top end entry, make scaling same as last specified
-    tmp_cc_list[tmp_cc_count].percentage = 100;
-    tmp_cc_list[tmp_cc_count].scaling_factor =
-            tmp_cc_list[tmp_cc_count - 1].scaling_factor;
-    tmp_cc_count++;
-
-    // Config successfully read in, copy to real list
-    for (cc_count = 0; cc_count < tmp_cc_count; cc_count++) {
-        cc_list[cc_count] = tmp_cc_list[cc_count];
-    }
-    if (tmp_max_rate) {
-        max_rate = tmp_max_rate;
-    } else if (!max_rate) {
-        max_rate = rate;
-    }
-    return 1;
-}
-
-/**
  * Gets the symmetric cypher constant for the given cypher name
  * Returns -1 if the name is invalid
  */
@@ -450,7 +328,7 @@ void process_args(int argc, char *argv[])
     struct addrinfo ai_hints, *ai_rval;
     FILE *destfile, *excludefile, *listfile;
     const char opts[] = "x:R:L:B:g:n:m:Y:h:w:e:ck:K:lTb:t:Q:"
-                        "zZI:p:u:j:qfyH:F:X:M:P:C:D:oE:S:r:s:i:W:N:";
+                        "zZI:p:u:j:qfyU:H:F:X:M:P:C:D:oE:S:r:s:i:W:N:";
 
     const struct option long_opts[] = {
         { "rate", required_argument, NULL, 'R' },
@@ -490,6 +368,7 @@ void process_args(int argc, char *argv[])
         { "grtt", required_argument, NULL, 'r' },
         { "robust", required_argument, NULL, 's' },
         { "file-list", required_argument, NULL, 'i' },
+		{ "uid", required_argument, NULL, 'U' },
         { "help", required_argument, NULL, '?' }
     };
 
@@ -517,10 +396,6 @@ void process_args(int argc, char *argv[])
             }
             if (rate != -1) {
                 rate = rate * 1024 / 8;
-            }
-            if ((rate == -1) && (cc_count > 0)) {
-                fprintf(stderr,"Can't specify -R -1 with -C\n");
-                exit(ERR_PARAM);
             }
             break;
         case 'L':
@@ -735,6 +610,15 @@ void process_args(int argc, char *argv[])
         case 'y':
             sys_keys = 1;
             break;
+        case 'U':
+            errno = 0;
+            server_id = strtoul(optarg, NULL, 16);
+            if (errno) {
+                perror("Invalid UID\n");
+                exit(ERR_PARAM);
+            }
+            server_id = htonl(server_id);
+            break;
         case 'H':
             if (read_restart) {
                 fprintf(stderr,"Can't specify both -H and -F\n");
@@ -828,25 +712,17 @@ void process_args(int argc, char *argv[])
             }
             if (!strcmp(p, "none")) {
                 cc_type = CC_NONE;
-            } else if (!strcmp(p, "uftp3")) {
-                if (rate == -1) {
-                    fprintf(stderr,"Can't specify -C uftp3 with -R -1\n");
-                    exit(ERR_PARAM);
-                }
-                cc_type = CC_UFTP3;
-                p = strtok(NULL, ":");
-                if (!p) {
-                    fprintf(stderr, "Error reading CC config file\n");
-                    exit(ERR_PARAM);
-                }
-                strncpy(cc_config, p, sizeof(cc_config)-1);
-                cc_config[sizeof(cc_config)-1] = '\x0';
-                if (!read_cc_config(cc_config)) {
-                    fprintf(stderr,"Error loading congestion control config\n");
-                    exit(ERR_PARAM);
-                }
             } else if (!strcmp(p, "tfmcc")) {
                 cc_type = CC_TFMCC;
+                p = strtok(NULL, ":");
+                if (p) {
+                    max_rate = atoi(p);
+                    if (max_rate <= 0) {
+                        fprintf(stderr,"Invalid max rate\n");
+                        exit(ERR_PARAM);
+                    }
+                    max_rate = max_rate * 1024 / 8;
+                }
             } else {
                 // PGMCC not currently supported
                 fprintf(stderr, "Invalid congestion control type\n");
@@ -1020,10 +896,6 @@ void process_args(int argc, char *argv[])
                 exit(ERR_PARAM);
             }
         }
-    }
-
-    if (!max_rate) {
-        max_rate = rate;
     }
 
     if (filecount != 0) {

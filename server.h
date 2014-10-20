@@ -156,14 +156,6 @@ struct server_restart_host_t {
 };
 
 /**
- * Congestion control configuration entrie.
- */
-struct cc_config_t {
-    double scaling_factor;          /// The given scaling factor
-    int percentage;                 /// NAK percentage for the scaling factor
-};
-
-/**
  * Global command line values and sockets
  */
 extern SOCKET sock;
@@ -175,7 +167,7 @@ extern int sync_mode, sync_preview, dest_is_dir, cc_type, user_abort;
 extern unsigned int ttl;
 extern char port[PORTNAME_LEN], srcport[PORTNAME_LEN];
 extern char pub_multi[INET6_ADDRSTRLEN], priv_multi[INET6_ADDRSTRLEN];
-extern char keyfile[MAXPATHNAME], cc_config[MAXPATHNAME];
+extern char keyfile[MAXPATHNAME];
 extern char filelist[MAXFILES][MAXPATHNAME], exclude[MAXEXCLUDE][MAXPATHNAME];
 extern char basedir[MAXDIR][MAXDIRNAME], destfname[MAXPATHNAME];
 extern char statusfilename[MAXPATHNAME];
@@ -183,8 +175,7 @@ extern FILE *status_file;
 extern struct iflist ifl[MAX_INTERFACES];
 extern int keytype, hashtype, sigtype, keyextype, newkeylen, sys_keys;
 extern int blocksize, datapacketsize;
-extern int ifl_len, destcount, filecount, excludecount, basedircount, cc_count;
-extern struct cc_config_t cc_list[MAXCC];
+extern int ifl_len, destcount, filecount, excludecount, basedircount;
 extern struct iflist out_if;
 extern struct destinfo_t destlist[MAXDEST];
 

@@ -79,6 +79,7 @@
    -Z, --sync-preview                                sync preview mode; same as sync mode\n\
                                                      but no files actually transmitted\n\
    -I, --interface=IFACE                             interface to send data from\n\
+   -U, --uid=UID                                     The unique ID for this client, as 0xnnnnnnnn\n\
    -p, --dest-port=PORT                              UDP port # to send to\n\
    -g, --src-port=PORT                               UDP source port # to attempt to bind to\n\
    -j, --proxy-list=FILE                             specifies a file containing a list of proxies\n\

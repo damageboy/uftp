@@ -497,28 +497,6 @@ void handle_transfer_phase(unsigned char *packet,unsigned char *decrypted,
 }
 
 /**
- * Adjust the sending rate based on percentage of NAKs received to blocks sent
- * TODO: this has to change to accomodate lost percentage as received from CC
- */
-void adjust_rate(int naks, int blocks)
-{
-    int percentage, i;
-
-    percentage = naks * 100 / blocks;
-    for (i = 0; i < cc_count; i++) {
-        if (cc_list[i].percentage >= percentage) {
-            rate = (int)(rate * cc_list[i].scaling_factor);
-            if (rate > max_rate) rate = max_rate;
-            packet_wait = (int32_t)(1000000.0 * datapacketsize / rate);
-            log2(0, 0, "Updated rate: %d Kbps (%d KB/s)",
-                       rate * 8 / 1024, rate / 1024);
-            log2(0, 0, "Wait between packets: %d us", packet_wait);
-            break;
-        }
-    }
-}
-
-/**
  * Seeks to a particular block in a file
  * Returns 1 on success, 0 on error
  */

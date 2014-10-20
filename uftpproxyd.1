@@ -1,4 +1,4 @@
-.TH uftpproxyd 1 "27 May 2014" "UFTP 4.3"
+.TH uftpproxyd 1 "22 July 2014" "UFTP 4.4"
 .SH NAME
 uftpproxyd - Encrypted UDP based ftp with multicast - proxy daemon
 .SH SYNOPSIS
@@ -247,7 +247,7 @@ On all other systems, this is the "nice" value.  Valid values are from -20 to 19
 The interface to send the data from.  Can be specified either by interface name, by hostname, or by IP.  If not specified, the default system interface is used.  Applies only to client proxies.
 .TP
 .B \-U UID
-The unique ID for this proxy.  May be specified either as a 6 digit hexadecimal number (0xnnnnnn) or as an IP address of the form 0.n.n.n.
+The unique ID for this proxy, specified as an 8 digit hexadecimal number (0xnnnnnnnn).  The default value is based on the IP address of the first listed multicast capable interface on the system.  If this address is IPv4, the UID is the address.  If it is IPv6, the UID is the last 4 bytes of the address.
 .TP
 .B \-q dest_port
 The port number of the downstream proxy (for server proxies) or clients (for client proxies).

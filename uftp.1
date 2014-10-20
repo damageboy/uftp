@@ -1,4 +1,4 @@
-.TH uftp 1 "27 May 2014" "UFTP 4.3"
+.TH uftp 1 "22 July 2014" "UFTP 4.4"
 .SH NAME
 uftp - Encrypted UDP based ftp with multicast - server
 .SH SYNOPSIS
@@ -9,7 +9,7 @@ uftp [ -R txrate ] [ -L logfile ] [ -B udp_buf_size ]
     [ -k key_file ] [ -K key_length | curve ] [ -l ] [ -T ]
     [ -b block_size ] [ -t ttl ] [ -Q dscp ] [ -z | -Z ]
     [ -I interface ] [ -p port ] [ -u source_port ]
-    [ -j proxylist_file ] [ -q ] [ -f ] [ -y ]
+    [ -j proxylist_file ] [ -q ] [ -f ] [ -y ] [ -U UID ]
     [ -x log_level ] [ -W txweight ]
     [ -H host[,host...] | -H @hostlist_file
     | -F restart_file ] [ -X exclude_file ]
@@ -146,6 +146,9 @@ Restartable flag.  If specified, and at least one client fails to receive all fi
 .B \-y
 For Windows systems using CryptoAPI or CNG, private keys are normally stored in the key container of the running user.  Specifying this option stores keys in the system key container.  On non-Windows systems, this option has no effect.
 .TP
+.B \-U UID
+The unique ID for this server, specified as an 8 digit hexadecimal number (0xnnnnnnnn).  The default value is based on the IP address of the outgoing multicast address as specified by -I.  If this address is IPv4, the UID is the address.  If it is IPv6, the UID is the last 4 bytes of the address.
+.TP
 .B \-x log_level
 Specifies current logging level.  Valid values are 0-5, with 0 being the least verbose and 5 being the most verbose.  Default is 2, which is consistent with logging prior to version 3.5.
 .TP
@@ -171,7 +174,7 @@ The private multicast address that the data is transferred to.  One or more part
 Specifies the maximum percentage of NAKs that a client can report for a particular section.  This option works with the -m option, which specifies the number of times a client may exceed this limit before getting dropped.  This allows the server to keep a very slow client from stalling the session for others.  Valid values are 0-100.  Default is 100.
 .TP
 .B \-C cc_type
-Specifies the congestion control mode to use.  Currently supported values are "none" and "tfmcc".  Specifiying "none" means data will be sent at a fixed rate as specified by the -R option.  Specifying "tfmcc" will use the TCP Friendly Multicast Congestion Control scheme as specified in RFC 4654.  Default value is "none".
+Specifies the congestion control mode to use.  Currently supported values are "none" and "tfmcc".  Specifiying "none" means data will be sent at a fixed rate as specified by the -R option.  Specifying "tfmcc" will use the TCP Friendly Multicast Congestion Control scheme as specified in RFC 4654.  Normally, TFMCC will limit the rate based strictly on loss, however a maximum rate in Kbps may optionally be specified for TFMCC mode as "tfmcc:max_rate".  Default value is "none".
 
 TFMCC will make use of the Explicit Congestion Notification (ECN) bits in the IP header on systems that support it natively.  Know supported systems are Linux, FreeBSD, Windows XP (sender only), Windows Vista and later (receiver only), and Solaris (sender only).
 .TP

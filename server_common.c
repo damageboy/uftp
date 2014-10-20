@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -57,7 +57,7 @@ void set_uftp_header(struct uftp_h *header, int func, uint32_t group_id,
 {
     header->version = UFTP_VER_NUM;
     header->func = func;
-    header->src_id = htonl(server_id);
+    header->src_id = server_id;
     header->group_id = htonl(group_id);
     header->group_inst = group_inst;
     header->grtt = quantize_grtt(l_grtt);

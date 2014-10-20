@@ -403,6 +403,10 @@ void handle_tfmcc_ack_info(const struct finfo_t *finfo,
         } else {
             rate = client_rate;
         }
+        if ((max_rate > 0) && (rate > max_rate)) {
+            rate = max_rate;
+            slowstart = 0;
+        }
         packet_wait = (int32_t)(1000000.0 * datapacketsize / rate);
         last_clr_time = now;
     } else {
@@ -420,6 +424,10 @@ void handle_tfmcc_ack_info(const struct finfo_t *finfo,
                     "Selected new clr %s", destlist[hostidx].name);
             if (!clr_drop) {
                 rate = client_rate;
+                if ((max_rate > 0) && (rate > max_rate)) {
+                    rate = max_rate;
+                    slowstart = 0;
+                }
                 packet_wait = (int32_t)(1000000.0 * datapacketsize / rate);
                 rate_change = 1;
             } else if (client_rate < (unsigned)rate) {
