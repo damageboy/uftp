@@ -527,6 +527,14 @@ OPTIONS
 	      Windows client will silently refuse to create them.  If -F or -i
 	      is specified, any files listed will be ignored.
 
+	      There  are also special metafile names that can send commands to
+	      the clients.   The  @DELETE:{filename}  metafile	instructs  the
+	      client  to delete the given filename.  The usual rules regarding
+	      which of	the  client's  destination  directories	 to  use  also
+	      applies  here.  The @FREESPACE metafile will cause the client to
+	      report back the amount of free disk space in the primary	desti‐
+	      nation directory.
+
 EXAMPLES
        Starting with the default options:
 
@@ -603,15 +611,45 @@ EXAMPLES
 
 	    uftp -Y aes256-cbc -h sha1 -k key_file_or_container file_to_send
 
+EXIT STATUS
+       The following exit values are returned:
+
+       0      The file transfer session finished  with	at  least  one	client
+	      receiving at least one file.
+
+       1      An invalid command line parameter was specified.
+
+       2      An error occurred while attempting to initialize network connec‐
+	      tions.
+
+       3      An error occurred while reading or generating cryptographic  key
+	      data.
+
+       4      An error occurred while opening or rolling the log file.
+
+       5      A memory allocation error occurred.
+
+       6      The server was interrupted by the user.
+
+       7      No client responded to the ANNOUNCE message.
+
+       8      No client responded to a FILEINFO message.
+
+       9      All  client  either dropped out of the session or aborted.  Also
+	      returned if one client drops out or aborts when -q is specified.
+
+       10     The session completed, but none  of  the	specified  files  were
+	      received by any client.
+
 SEE ALSO
        uftpd(1), uftpproxyd(1), uftp_keymgt(1)
 
 NOTES
-       The  latest  version  of	 UFTP  can  be	found  at   http://uftp-multi‐
-       cast.sourceforge.net.   UFTP  is	 covered  by  the  GNU	General Public
-       License.	 Commercial licenses and support  are  available  from	Dennis
+       The   latest  version  of  UFTP	can  be	 found	at  http://uftp-multi‐
+       cast.sourceforge.net.  UFTP  is	covered	 by  the  GNU  General	Public
+       License.	  Commercial  licenses	and  support are available from Dennis
        Bush (bush@tcnj.edu).
 
 
 
-UFTP 4.1			 30 July 2013			       uftp(1)
+UFTP 4.2			  12 May 2014			       uftp(1)

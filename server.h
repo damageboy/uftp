@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -170,7 +170,7 @@ extern SOCKET sock;
 extern union sockaddr_u listen_dest, receive_dest;
 extern int max_rate, rate, rcvbuf, packet_wait, txweight, max_nak_pct;
 extern int client_auth, quit_on_error, dscp, follow_links, max_nak_cnt;
-extern int save_fail, restart_groupid, restart_groupinst;
+extern int save_fail, restart_groupid, restart_groupinst, files_sent;
 extern int sync_mode, sync_preview, dest_is_dir, cc_type, user_abort;
 extern unsigned int ttl;
 extern char port[PORTNAME_LEN], srcport[PORTNAME_LEN];

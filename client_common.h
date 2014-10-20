@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@ void read_restart_file(struct group_list_t *group);
 void run_postreceive_multi(struct group_list_t *group, char *const *files,
                            int count);
 void run_postreceive(struct group_list_t *group, char *file);
+int other_mcast_users(struct group_list_t *group);
 void file_cleanup(struct group_list_t *group, int abort);
 void set_uftp_header(struct uftp_h *header, int func,
                      struct group_list_t *group);

@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -133,7 +133,7 @@ void crypto_init(int set_sys_key)
     }
     if ((!found_aes) && (GetLastError() != ERROR_NO_MORE_ITEMS)) {
         mserror("CryptEnumProviderTypes failed");
-        exit(1);
+        exit(ERR_CRYPTO);
     }
     prov_type = (found_aes ? PROV_RSA_AES : PROV_RSA_FULL);
 #else
@@ -148,7 +148,7 @@ void crypto_init(int set_sys_key)
     if (!CryptAcquireContext(&base_prov, NULL, NULL, prov_type,
             CRYPT_VERIFYCONTEXT | machine_keyset)) {
         mserror("CryptAcquireContext failed");
-        exit(1);
+        exit(ERR_CRYPTO);
     }
 
     for (i = 0; i < MAXLIST; i++) {

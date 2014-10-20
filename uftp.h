@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -150,7 +150,7 @@ typedef pthread_t thread_t;
 
 #endif // if WINDOWS
 
-#define VERSIONSTR "UFTP version 4.1.5  Copyright (C) 2001-2014  Dennis A. Bush"
+#define VERSIONSTR "UFTP version 4.2  Copyright (C) 2001-2014  Dennis A. Bush"
 #define UFTP_VER_NUM 0x40
 
 #define ANNOUNCE      1
@@ -308,6 +308,18 @@ typedef pthread_t thread_t;
 #define CCM_IV_LEN 12   // Length of IV for ciphers in CCM mode
 #define GCM_TAG_LEN 16  // Length of tag for ciphers in GCM mode
 #define CCM_TAG_LEN 16  // Length of tag for ciphers in CCM mode
+
+#define ERR_NONE        0   // Normal exit code
+#define ERR_PARAM       1   // One or more command line parameters invalid
+#define ERR_SOCKET      2   // Error initializing sockets
+#define ERR_CRYPTO      3   // Error initializing cryptographic keys
+#define ERR_LOGGING     4   // Error while opening log file
+#define ERR_ALLOC       5   // Memory allocation failure
+#define ERR_INTERRUPTED 6   // Interrupted by the user or an unexpected signal
+#define ERR_NO_REGISTER 7   // No client responsed to an ANNOUCE with a REGISTER
+#define ERR_NO_FILEINFO 8   // No client responsed to a FILEINFO
+#define ERR_DROPPED     9   // All clients were lost or aborted
+#define ERR_NO_FILES    10  // No files were sent
 
 struct uftp_h {
     uint8_t version;

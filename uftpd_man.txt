@@ -373,15 +373,35 @@ EXAMPLES
 	    uftpd -B 2097152
 
 
+EXIT STATUS
+       The following exit values are returned:
+
+       0      The  client  started  successfully  and  is running in the back‐
+	      ground.
+
+       1      An invalid command line parameter was specified.
+
+       2      An error occurred while attempting to initialize network connec‐
+	      tions.
+
+       3      An  error occurred while reading or generating cryptographic key
+	      data.
+
+       4      An error occurred while opening or rolling the log file.
+
+       5      A memory allocation error occurred.
+
+       6      The client was interrupted by the user.
+
 SEE ALSO
        uftp(1), uftpproxyd(1), uftp_keymgt(1)
 
 NOTES
-       The   latest  version  of  UFTP	can  be	 found	at  http://uftp-multi‐
-       cast.sourceforge.net.  UFTP  is	covered	 by  the  GNU  General	Public
-       License.	  Commercial  licenses	and  support are available from Dennis
+       The  latest  version  of	 UFTP  can  be	found  at   http://uftp-multi‐
+       cast.sourceforge.net.   UFTP  is	 covered  by  the  GNU	General Public
+       License.	 Commercial licenses and support  are  available  from	Dennis
        Bush (bush@tcnj.edu).
 
 
 
-UFTP 4.1			 30 July 2013			      uftpd(1)
+UFTP 4.2			  12 May 2014			      uftpd(1)

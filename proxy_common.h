@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 #ifndef _PROXY_COMMON_H
 #define _PROXY_COMMON_H
 
+int other_mcast_users(struct pr_group_list_t *group);
 struct pr_group_list_t *find_group(uint32_t group_id, uint8_t group_inst);
 int find_client(struct pr_group_list_t *group, uint32_t addr);
 void group_cleanup(struct pr_group_list_t *group);

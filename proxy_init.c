@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -104,7 +104,7 @@ void cleanup(void)
 void gotsig(int sig)
 {
     log0(0, 0, "Exiting on signal %d", sig);
-    exit(0);
+    exit(ERR_INTERRUPTED);
 }
 
 /**
@@ -141,7 +141,7 @@ BOOL WINAPI winsig(DWORD event)
         log0(0, 0, "GOT unknown event", event);
         break;
     }
-    exit(0);
+    exit(ERR_INTERRUPTED);
 }
 #endif
 
@@ -155,7 +155,7 @@ void pre_initialize(void)
 
     if (WSAStartup(2, &data)) {
         fprintf(stderr, "Error in WSAStartup: %d\n", WSAGetLastError());
-        exit(1);
+        exit(ERR_SOCKET);
     }
 #endif
     applog = stderr;
@@ -179,7 +179,7 @@ void daemonize(void)
             // Write out the pid file, before we redirect STDERR to the log.
             if ((pidfh = fopen(pidfile, "w")) == NULL) {
                 syserror(0, 0, "Can't open pid file for writing");
-                exit(1);
+                exit(ERR_PARAM);
             }
             fprintf(pidfh, "%d\n", GetCurrentProcessId());
             fclose(pidfh);
@@ -200,10 +200,10 @@ void daemonize(void)
 
         if ((pid = fork()) == -1) {
             perror("Couldn't fork");
-            exit(1);
+            exit(ERR_ALLOC);
         } else if (pid > 0) {
             parent = 1;
-            exit(0);
+            exit(ERR_NONE);
         }
         setsid();
         for (fd = 0; fd < 30; fd++) {
@@ -223,7 +223,7 @@ void daemonize(void)
             // Write out the pid file, before we redirect STDERR to the log.
             if ((pidfh = fopen(pidfile, "w")) == NULL) {
                 perror("Can't open pid file for writing");
-                exit(1);
+                exit(ERR_PARAM);
             }
             fprintf(pidfh, "%d\n", getpid());
             fclose(pidfh);
@@ -265,7 +265,7 @@ void key_init(void)
     if ((keyfile_count == 0) && (keyinfo_count == 0)) {
         privkey[0].rsa = gen_RSA_key(0, RSA_EXP, NULL);
         if (!privkey[0].key) {
-            exit(1);
+            exit(ERR_CRYPTO);
         }
         privkey_type[0] = KEYBLOB_RSA;
         key_count = 1;
@@ -281,27 +281,27 @@ void key_init(void)
                 curve = get_curve(&keyinfo[i][3]);
                 if (curve == 0) {
                     log0(0, 0, "Invalid EC curve: %s", &keyinfo[i][3]);
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 privkey[key_count].ec = gen_EC_key(curve, 0, keyname);
                 privkey_type[key_count] = KEYBLOB_EC;
                 if (!privkey[key_count].key) {
-                    exit(1);
+                    exit(ERR_CRYPTO);
                 }
             } else if (!strncmp(keyinfo[i], "rsa:", 4)) {
                 size = atoi(&keyinfo[i][4]);
                 if ((size < 512) || (size > 2048)) {
                     log0(0, 0, "Invalid RSA key size: %s", &keyinfo[i][4]);
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 privkey[key_count].rsa = gen_RSA_key(size, RSA_EXP, keyname);
                 privkey_type[key_count] = KEYBLOB_RSA;
                 if (!privkey[key_count].key) {
-                    exit(1);
+                    exit(ERR_CRYPTO);
                 }
             } else {
                 log0(0, 0, "Invalid keyinfo entry: %s", keyinfo[i]);
-                exit(1);
+                exit(ERR_PARAM);
             }
             key_count++;
         }
@@ -310,7 +310,7 @@ void key_init(void)
             privkey[key_count] =
                     read_private_key(keyfile[i], &privkey_type[key_count]);
             if (privkey_type[key_count] == 0) {
-                exit(1);
+                exit(ERR_CRYPTO);
             }
             key_count++;
         }
@@ -319,7 +319,7 @@ void key_init(void)
         dhkey.ec = gen_EC_key(ecdh_curve, 1, NULL);
         if (!dhkey.key) {
             log0(0, 0, "Failed to generate DH key");
-            exit(1);
+            exit(ERR_CRYPTO);
         }
     }
 #endif
@@ -351,7 +351,7 @@ void create_sockets(void)
         }
         if (!found_if) {
             log0(0, 0, "ERROR: no network interface found for family");
-            exit(1);
+            exit(ERR_SOCKET);
         }
     }
     if (out_if.su.ss.ss_family == AF_INET6) {
@@ -384,7 +384,7 @@ void create_sockets(void)
 
     if ((listener = socket(family, SOCK_DGRAM, 0)) == INVALID_SOCKET) {
         sockerror(0, 0, "Error creating socket for listener");
-        exit(1);
+        exit(ERR_SOCKET);
     }
     memset(&ai_hints, 0, sizeof(ai_hints));
     ai_hints.ai_family = family;
@@ -393,12 +393,12 @@ void create_sockets(void)
     ai_hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
     if ((rval = getaddrinfo(NULL, portname, &ai_hints, &ai_rval)) != 0) {
         log0(0, 0, "Error getting bind address: %s", gai_strerror(rval));
-        exit(1);
+        exit(ERR_SOCKET);
     }
     if (bind(listener, ai_rval->ai_addr, ai_rval->ai_addrlen) == SOCKET_ERROR) {
         sockerror(0, 0, "Error binding socket for listener");
         closesocket(listener);
-        exit(1);
+        exit(ERR_SOCKET);
     }
     freeaddrinfo(ai_rval);
 
@@ -408,19 +408,19 @@ void create_sockets(void)
     if (ioctlsocket(listener, FIONBIO, &fdflag) == SOCKET_ERROR) {
         sockerror(0, 0, "Error setting non-blocking option");
         closesocket(listener);
-        exit(1);
+        exit(ERR_SOCKET);
     }
 #else
     if ((fdflag = fcntl(listener, F_GETFL)) == SOCKET_ERROR) {
         sockerror(0, 0, "Error getting socket descriptor flags");
         closesocket(listener);
-        exit(1);
+        exit(ERR_SOCKET);
     }
     fdflag |= O_NONBLOCK;
     if (fcntl(listener, F_SETFL, fdflag) == SOCKET_ERROR) {
         sockerror(0, 0, "Error setting non-blocking option");
         closesocket(listener);
-        exit(1);
+        exit(ERR_SOCKET);
     }
 #endif
 #endif  // BLOCKING
@@ -430,14 +430,14 @@ void create_sockets(void)
                        sizeof(dscp)) == SOCKET_ERROR) {
             sockerror(0, 0, "Error setting dscp");
             closesocket(listener);
-            exit(1);
+            exit(ERR_SOCKET);
         }
 #endif
         if (setsockopt(listener, IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
                        (char *)&ttl, sizeof(ttl)) == SOCKET_ERROR) {
             sockerror(0, 0, "Error setting ttl");
             closesocket(listener);
-            exit(1);
+            exit(ERR_SOCKET);
         }
 #ifdef IPV6_MTU_DISCOVER
         {
@@ -446,7 +446,7 @@ void create_sockets(void)
                            (char *)&mtuflag, sizeof(mtuflag)) == SOCKET_ERROR) {
                 sockerror(0, 0, "Error disabling MTU discovery");
                 closesocket(listener);
-                exit(1);
+                exit(ERR_SOCKET);
             }
         }
 #endif
@@ -454,7 +454,7 @@ void create_sockets(void)
                 (char *)&out_if.ifidx, sizeof(int)) == SOCKET_ERROR) {
             sockerror(0, 0, "Error setting outgoing interface");
             closesocket(listener);
-            exit(1);
+            exit(ERR_SOCKET);
         }
     } else {
         if (setsockopt(listener, IPPROTO_IP, IP_MULTICAST_IF,
@@ -462,7 +462,7 @@ void create_sockets(void)
                 sizeof(out_if.su.sin.sin_addr)) == SOCKET_ERROR) {
             sockerror(0, 0, "Error setting outgoing interface");
             closesocket(listener);
-            exit(1);
+            exit(ERR_SOCKET);
         }
     }
 #if (defined WINDOWS && _WIN32_WINNT < _WIN32_WINNT_LONGHORN) ||\
@@ -473,7 +473,7 @@ void create_sockets(void)
                        sizeof(dscp)) == SOCKET_ERROR) {
             sockerror(0, 0, "Error setting dscp");
             closesocket(listener);
-            exit(1);
+            exit(ERR_SOCKET);
         }
 #ifdef IP_MTU_DISCOVER
         {
@@ -482,7 +482,7 @@ void create_sockets(void)
                     (char *)&mtuflag, sizeof(mtuflag)) == SOCKET_ERROR) {
                 sockerror(0, 0, "Error disabling MTU discovery");
                 closesocket(listener);
-                exit(1);
+                exit(ERR_SOCKET);
             }
         }
 #endif
@@ -490,7 +490,7 @@ void create_sockets(void)
                        sizeof(ttl)) == SOCKET_ERROR) {
             sockerror(0, 0, "Error setting ttl");
             closesocket(listener);
-            exit(1);
+            exit(ERR_SOCKET);
         }
 #if (defined WINDOWS && _WIN32_WINNT < _WIN32_WINNT_LONGHORN) ||\
         (defined NO_DUAL)
@@ -500,12 +500,12 @@ void create_sockets(void)
         if (setsockopt(listener, SOL_SOCKET, SO_RCVBUF,
                        (char *)&rcvbuf, sizeof(rcvbuf)) == SOCKET_ERROR) {
             sockerror(0, 0, "Error setting receive buffer size");
-            exit(1);
+            exit(ERR_SOCKET);
         }
         if (setsockopt(listener, SOL_SOCKET, SO_SNDBUF,
                        (char *)&rcvbuf, sizeof(rcvbuf)) == SOCKET_ERROR) {
             sockerror(0, 0, "Error setting send buffer size");
-            exit(1);
+            exit(ERR_SOCKET);
         }
     } else {
         rcvbuf = DEF_RCVBUF;
@@ -515,7 +515,7 @@ void create_sockets(void)
             if (setsockopt(listener, SOL_SOCKET, SO_RCVBUF,
                            (char *)&rcvbuf, sizeof(rcvbuf)) == SOCKET_ERROR) {
                 sockerror(0, 0, "Error setting receive buffer size");
-                exit(1);
+                exit(ERR_SOCKET);
             }
         }
         rcvbuf = DEF_RCVBUF;
@@ -525,7 +525,7 @@ void create_sockets(void)
             if (setsockopt(listener, SOL_SOCKET, SO_SNDBUF,
                            (char *)&rcvbuf, sizeof(rcvbuf)) == SOCKET_ERROR) {
                 sockerror(0, 0, "Error setting send buffer size");
-                exit(1);
+                exit(ERR_SOCKET);
             }
         }
     }
@@ -533,7 +533,7 @@ void create_sockets(void)
     for (i = 0; i < pub_multi_count; i++) {
         if (!multicast_join(listener, 0, &pub_multi[i], m_interface,
                             interface_count, server_fp, server_fp_count)) {
-            exit(1);
+            exit(ERR_SOCKET);
         }
     }
 }
@@ -568,7 +568,7 @@ void initialize(void)
         if ((rval = getaddrinfo(hostname, NULL, &ai_hints, &ai_rval)) != 0) {
             fprintf(stderr, "Can't get address of hostname %s: %s\n",
                     hostname, gai_strerror(rval));
-            exit(1);
+            exit(ERR_PARAM);
         }
         memcpy(&m_interface[interface_count].su, ai_rval->ai_addr,
                 ai_rval->ai_addrlen);
@@ -599,7 +599,7 @@ void initialize(void)
                 &ai_hints, &ai_rval)) != 0) {
             fprintf(stderr, "Can't get address of default public address: %s\n",
                     gai_strerror(rval));
-            exit(1);
+            exit(ERR_PARAM);
         }
         memcpy(&pub_multi[0], ai_rval->ai_addr, ai_rval->ai_addrlen);
         freeaddrinfo(ai_rval);

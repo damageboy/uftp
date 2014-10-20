@@ -304,12 +304,16 @@ void handle_complete(const unsigned char *message, unsigned meslen,
     switch (complete->status) {
     case COMP_STAT_NORMAL:
         strncpy(status, "", sizeof(status));
+        files_sent = 1;
         break;
     case COMP_STAT_SKIPPED:
         strncpy(status, "(skipped)", sizeof(status));
+        // The remote file is up to date, so we consider it "sent"
+        files_sent = 1;
         break;
     case COMP_STAT_OVERWRITE:
         strncpy(status, "(overwritten)", sizeof(status));
+        files_sent = 1;
         break;
     case COMP_STAT_REJECTED:
         strncpy(status, "(rejected)", sizeof(status));

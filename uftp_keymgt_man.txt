@@ -1,4 +1,4 @@
-uftp_keymgt(1)							uftp_keymgt(1)
+uftp_keymgr(1)							uftp_keymgr(1)
 
 
 
@@ -89,6 +89,13 @@ OPTIONS
 	      ifying this option stores keys in the system key container.   On
 	      non-Windows systems, this option has no effect.
 
+EXIT STATUS
+       The following exit values are returned:
+
+       0      The command completed successfully.
+
+       1      An invalid command line parameter was specified.
+
 SEE ALSO
        uftp(1), uftpd(1), uftpproxyd(1)
 
@@ -100,4 +107,4 @@ NOTES
 
 
 
-UFTP 4.1			 30 July 2013			uftp_keymgt(1)
+UFTP 4.2			  12 May 2014			uftp_keymgr(1)

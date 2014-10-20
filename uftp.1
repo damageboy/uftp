@@ -1,4 +1,4 @@
-.TH uftp 1 "30 July 2013" "UFTP 4.1"
+.TH uftp 1 "12 May 2014" "UFTP 4.2"
 .SH NAME
 uftp - Encrypted UDP based ftp with multicast - server
 .SH SYNOPSIS
@@ -357,6 +357,42 @@ To do the above with a previously generated RSA key stored in key_file_or_contai
 .RS 5
 uftp -Y aes256-cbc -h sha1 -k key_file_or_container file_to_send
 .RE
+.SH EXIT STATUS
+.P
+The following exit values are returned:
+.TP
+0
+The file transfer session finished with at least one client receiving at least one file.
+.TP
+1
+An invalid command line parameter was specified.
+.TP
+2
+An error occurred while attempting to initialize network connections.
+.TP
+3
+An error occurred while reading or generating cryptographic key data.
+.TP
+4
+An error occurred while opening or rolling the log file.
+.TP
+5
+A memory allocation error occurred.
+.TP
+6
+The server was interrupted by the user.
+.TP
+7
+No client responded to the ANNOUNCE message.
+.TP
+8
+No client responded to a FILEINFO message.
+.TP
+9
+All client either dropped out of the session or aborted.  Also returned if one client drops out or aborts when -q is specified.
+.TP
+10
+The session completed, but none of the specified files were received by any client.
 .SH SEE ALSO
 uftpd(1), uftpproxyd(1), uftp_keymgt(1)
 .SH NOTES

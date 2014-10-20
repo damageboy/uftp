@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -937,16 +937,19 @@ void handle_announce(union sockaddr_u *src, unsigned char *packet,
                 send_abort(group, "Invalid source specific multicast address");
                 return;
             }
-            if (!multicast_join(listener, group->group_id, &group->multi,
-                    m_interface, interface_count, server_keys, server_count)) {
-                send_abort(group, "Error joining multicast group");
-                return;
-            }
-            if (has_proxy) {
+            if (!other_mcast_users(group)) {
                 if (!multicast_join(listener, group->group_id, &group->multi,
-                        m_interface, interface_count, &proxy_info, 1)) {
+                        m_interface, interface_count,
+                        server_keys, server_count)) {
                     send_abort(group, "Error joining multicast group");
                     return;
+                }
+                if (has_proxy) {
+                    if (!multicast_join(listener,group->group_id, &group->multi,
+                            m_interface, interface_count, &proxy_info, 1)) {
+                        send_abort(group, "Error joining multicast group");
+                        return;
+                    }
                 }
             }
         } else {
@@ -956,10 +959,12 @@ void handle_announce(union sockaddr_u *src, unsigned char *packet,
                 send_abort(group, "Invalid multicast address");
                 return;
             }
-            if (!multicast_join(listener, group->group_id,
-                    &group->multi, m_interface, interface_count, NULL, 0)) {
-                send_abort(group, "Error joining multicast group");
-                return;
+            if (!other_mcast_users(group)) {
+                if (!multicast_join(listener, group->group_id,
+                        &group->multi, m_interface, interface_count, NULL, 0)) {
+                    send_abort(group, "Error joining multicast group");
+                    return;
+                }
             }
         }
         group->multi_join = 1;

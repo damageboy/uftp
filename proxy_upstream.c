@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -532,10 +532,13 @@ void handle_announce(struct pr_group_list_t *group,
                     return;
                 }
             }
-            if (!multicast_join(listener, group->group_id, &group->privatemcast,
-                    m_interface, interface_count, server_fp, server_fp_count)) {
-                send_upstream_abort(group, 0, "Error joining multicast group");
-                return;
+            if (!other_mcast_users(group)) {
+                if (!multicast_join(listener, group->group_id,
+                        &group->privatemcast, m_interface, interface_count,
+                        server_fp, server_fp_count)) {
+                    send_upstream_abort(group,0,"Error joining multicast group");
+                    return;
+                }
             }
             group->multi_join = 1;
         }

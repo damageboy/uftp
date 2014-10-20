@@ -62,7 +62,7 @@ SOCKET sock;
 union sockaddr_u listen_dest, receive_dest;
 int max_rate, rate, rcvbuf, packet_wait, txweight, max_nak_pct;
 int client_auth, quit_on_error, dscp, follow_links, max_nak_cnt;
-int save_fail, restart_groupid, restart_groupinst; 
+int save_fail, restart_groupid, restart_groupinst, files_sent; 
 int sync_mode, sync_preview, dest_is_dir, cc_type, user_abort;
 unsigned int ttl;
 char port[PORTNAME_LEN], srcport[PORTNAME_LEN];
@@ -107,7 +107,7 @@ void add_dest_by_name(const char *destname, const char *fingerprint, int proxy)
 
     if (destcount == MAXDEST) {
         fprintf(stderr,"Exceeded maximum destination count\n");
-        exit(1);
+        exit(ERR_PARAM);
     }
 
     // Check if the client is specified by an IPv4 name/address
@@ -119,7 +119,7 @@ void add_dest_by_name(const char *destname, const char *fingerprint, int proxy)
         uid = strtoul(destname, NULL, 16);
         if ((uid == 0xffffffff) || (uid == 0)) {
             fprintf(stderr, "Invalid UID %s\n", destname);
-            exit(1);
+            exit(ERR_PARAM);
         }
         destlist[destcount].id = htonl(uid);
     } else {
@@ -164,6 +164,7 @@ void set_defaults(void)
     client_auth = 0;
     quit_on_error = 0;
     save_fail = 0;
+    files_sent = 0;
     restart_groupid = 0;
     restart_groupinst = 0;
     keytype = DEF_KEYTYPE;
@@ -219,13 +220,13 @@ void read_restart_file(const char *restart_name)
 
     if ((fd = open(restart_name, OPENREAD)) == -1) {
         syserror(0, 0, "Failed to open restart file");
-        exit(1);
+        exit(ERR_PARAM);
     }
 
     if (file_read(fd, &header, sizeof(header), 0) == -1) {
         log0(0, 0, "Failed to read header from restart file");
         close(fd);
-        exit(1);
+        exit(ERR_PARAM);
     }
     restart_groupid = header.group_id;
     restart_groupinst = header.group_inst;
@@ -233,18 +234,18 @@ void read_restart_file(const char *restart_name)
     if (restart_groupinst == 0xff) {
         log0(0, 0, "Maximum number of restarts reached");
         close(fd);
-        exit(1);
+        exit(ERR_PARAM);
     }
     if ((header.filecount > MAXFILES) || (header.filecount <= 0)) {
         log0(0, 0, "Too many files listed in restart file");
         close(fd);
-        exit(1);
+        exit(ERR_PARAM);
     }
     for (i = 0; i < header.filecount; i++) {
         if (file_read(fd, filelist[i], sizeof(filelist[i]), 0) == -1) {
             log0(0, 0, "Failed to read filename from restart file");
             close(fd);
-            exit(1);
+            exit(ERR_PARAM);
         }
     }
     filecount = header.filecount;
@@ -253,7 +254,7 @@ void read_restart_file(const char *restart_name)
         if (rval == -1) {
             log0(0, 0, "Failed to read host from restart file");
             close(fd);
-            exit(1);
+            exit(ERR_PARAM);
         }
         memcpy(destlist[destcount].name, host.name, sizeof(host.name));
         destlist[destcount].id = host.id;
@@ -497,8 +498,6 @@ void process_args(int argc, char *argv[])
     memset(keylenstr, 0, sizeof(keylenstr));
     read_restart = 0;
 
-    ;
-
     // read lettered arguments
     while ((c = getopt_long(argc, argv, opts, long_opts, &longidx)) != EOF) {
         switch (c) {
@@ -506,7 +505,7 @@ void process_args(int argc, char *argv[])
             log_level = atoi(optarg);
             if (log_level < 0) {
                 fprintf(stderr,"Invalid log level\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'R':
@@ -514,14 +513,14 @@ void process_args(int argc, char *argv[])
             rate = atoi(optarg);
             if ((rate <= 0) && (rate != -1)) {
                 fprintf(stderr,"Invalid rate\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             if (rate != -1) {
                 rate = rate * 1024 / 8;
             }
             if ((rate == -1) && (cc_count > 0)) {
                 fprintf(stderr,"Can't specify -R -1 with -C\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'L':
@@ -532,14 +531,14 @@ void process_args(int argc, char *argv[])
             rcvbuf = atoi(optarg);
             if ((rcvbuf < 65536) || (rcvbuf > 104857600)) {
                 fprintf(stderr, "Invalid receive buffer size\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'g':
             max_log_size = atoi(optarg);
             if ((max_log_size < 1) || (max_log_size > 1024)) {
                 fprintf(stderr, "Invalid max log size\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             max_log_size *= 1000000;
             break;
@@ -547,34 +546,34 @@ void process_args(int argc, char *argv[])
             max_log_count = atoi(optarg);
             if ((max_log_count < 1) || (max_log_count > 1000)) {
                 fprintf(stderr, "Invalid max log count\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'm':
             max_nak_cnt = atoi(optarg);
             if ((max_nak_cnt < 1) || (max_nak_cnt > 1000)) {
                 fprintf(stderr, "Invalid max nak count\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'Y':
             if ((keytype = get_keytype(optarg)) == -1) {
                 fprintf(stderr, "Invalid keytype\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             if (keytype != KEY_NONE && !cipher_supported(keytype)) {
                 fprintf(stderr, "Keytype not supported\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'h':
             if ((hashtype = get_hashtype(optarg)) == -1) {
                 fprintf(stderr, "Invalid hashtype\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             if (!hash_supported(hashtype)) {
                 fprintf(stderr, "Hashtype not supported\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'w':
@@ -584,14 +583,14 @@ void process_args(int argc, char *argv[])
                 sigtype = SIG_KEYEX;
             } else {
                 fprintf(stderr, "Invalid sigtype\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'e':
             p = strtok(optarg, ":");
             if (!p) {
                 fprintf(stderr, "Error reading keyextype\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             if (!strcmp(p, "rsa")) {
                 keyextype = KEYEX_RSA;
@@ -601,7 +600,7 @@ void process_args(int argc, char *argv[])
                 keyextype = KEYEX_ECDH_ECDSA;
             } else {
                 fprintf(stderr, "Invalid keyextype\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             if ((keyextype == KEYEX_ECDH_RSA) ||
                     (keyextype == KEYEX_ECDH_ECDSA)) {
@@ -610,7 +609,7 @@ void process_args(int argc, char *argv[])
                     ecdh_curve = get_curve(p);
                     if (ecdh_curve == 0) {
                         fprintf(stderr, "Invalid curve\n");
-                        exit(1);
+                        exit(ERR_PARAM);
                     }
                 } else {
                     ecdh_curve = DEF_CURVE;
@@ -638,14 +637,14 @@ void process_args(int argc, char *argv[])
             blocksize = atoi(optarg); 
             if ((blocksize < 512) || (blocksize > (MAXMTU - 200))) {
                 fprintf(stderr, "Invalid blocksize\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 't':
             tmpval = atoi(optarg);
             if ((tmpval <= 0) || (tmpval > 255)) {
                 fprintf(stderr, "Invalid ttl\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             ttl = (char)tmpval;
             break;
@@ -653,7 +652,7 @@ void process_args(int argc, char *argv[])
             tmpval = strtol(optarg, NULL, 0);
             if ((tmpval < 0) || (tmpval > 63)) {
                 fprintf(stderr, "Invalid dscp\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             dscp = (tmpval & 0xFF) << 2; 
             break;
@@ -670,13 +669,13 @@ void process_args(int argc, char *argv[])
             if ((rval = getaddrinfo(optarg, NULL, &ai_hints, &ai_rval)) != 0) {
                 fprintf(stderr, "Invalid name/address %s: %s\n",
                         optarg, gai_strerror(rval));
-                exit(1);
+                exit(ERR_PARAM);
             }
             // Just use the first addrinfo entry
             if ((listidx = getifbyaddr((union sockaddr_u *)ai_rval->ai_addr,
                     ifl, ifl_len)) == -1) {
                 fprintf(stderr, "Interface %s not found", optarg);
-                exit(1);
+                exit(ERR_PARAM);
             }
             out_if = ifl[listidx];
             freeaddrinfo(ai_rval);
@@ -699,12 +698,12 @@ void process_args(int argc, char *argv[])
         case 'j':
             if (read_restart) {
                 fprintf(stderr,"Can't specify both -j and -F\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             if ((destfile = fopen(optarg, "rt")) == NULL) {
                 fprintf(stderr,"Couldn't open proxy list %s: %s\n",
                         optarg, strerror(errno));
-                exit(1);
+                exit(ERR_PARAM);
             }
             while (fgets(line, sizeof(line), destfile)) {
                 while ((strlen(line) > 0) && ((line[strlen(line)-1] == '\r') ||
@@ -716,14 +715,14 @@ void process_args(int argc, char *argv[])
                 if (destname[0] == '#') continue;
                 if (strlen(destname) >= DESTNAME_LEN) {
                     fprintf(stderr, "Proxylist: name too long\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 fingerprint = strtok(NULL, " \t");
                 add_dest_by_name(destname, fingerprint, 1);
             }
             if (!feof(destfile) && ferror(destfile)) {
                 perror("Failed to read from proxylist file");
-                exit(1);
+                exit(ERR_PARAM);
             }
             fclose(destfile);
             break;
@@ -739,14 +738,14 @@ void process_args(int argc, char *argv[])
         case 'H':
             if (read_restart) {
                 fprintf(stderr,"Can't specify both -H and -F\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             if (optarg[0] == '@') {
                 dest = &optarg[1];
                 if ((destfile = fopen(dest, "rt")) == NULL) {
                     fprintf(stderr,"Couldn't open destination list %s: %s\n",
                             dest, strerror(errno));
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 while (fgets(line, sizeof(line), destfile)) {
                     while ((strlen(line) > 0) &&
@@ -759,14 +758,14 @@ void process_args(int argc, char *argv[])
                     if (destname[0] == '#') continue;
                     if (strlen(destname) >= DESTNAME_LEN) {
                         fprintf(stderr, "Hostlist: name too long\n");
-                        exit(1);
+                        exit(ERR_PARAM);
                     }
                     fingerprint = strtok(NULL, " \t");
                     add_dest_by_name(destname, fingerprint, 0);
                 }
                 if (!feof(destfile) && ferror(destfile)) {
                     perror("Failed to read from hostlist file");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 fclose(destfile);
             } else {
@@ -780,7 +779,7 @@ void process_args(int argc, char *argv[])
         case 'F':
             if (destcount != 0) {
                 fprintf(stderr,"Can't specify both -H and -F\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             read_restart = 1;
             save_fail = 1;
@@ -790,7 +789,7 @@ void process_args(int argc, char *argv[])
             if ((excludefile = fopen(optarg, "rt")) == NULL) {
                 fprintf(stderr,"Couldn't open exclude list %s: %s\n",
                         optarg, strerror(errno));
-                exit(1);
+                exit(ERR_PARAM);
             }
             while (fgets(filename, sizeof(filename), excludefile)) {
                 while ((strlen(filename) > 0) &&
@@ -801,7 +800,7 @@ void process_args(int argc, char *argv[])
                 if (strlen(filename) == 0) continue;
                 if (excludecount == MAXEXCLUDE) {
                     fprintf(stderr,"Exceeded maximum exclude file count\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 strncpy(exclude[excludecount], filename, sizeof(exclude[0]));
                 exclude[excludecount][sizeof(exclude[0])-1] = '\x0';
@@ -809,7 +808,7 @@ void process_args(int argc, char *argv[])
             }
             if (!feof(excludefile) && ferror(excludefile)) {
                 perror("Failed to read from exclude file");
-                exit(1);
+                exit(ERR_PARAM);
             }
             fclose(excludefile);
             break;
@@ -825,33 +824,33 @@ void process_args(int argc, char *argv[])
             p = strtok(optarg, ":");
             if (!p) {
                 fprintf(stderr, "Error reading cc_type\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             if (!strcmp(p, "none")) {
                 cc_type = CC_NONE;
             } else if (!strcmp(p, "uftp3")) {
                 if (rate == -1) {
                     fprintf(stderr,"Can't specify -C uftp3 with -R -1\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 cc_type = CC_UFTP3;
                 p = strtok(NULL, ":");
                 if (!p) {
                     fprintf(stderr, "Error reading CC config file\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 strncpy(cc_config, p, sizeof(cc_config)-1);
                 cc_config[sizeof(cc_config)-1] = '\x0';
                 if (!read_cc_config(cc_config)) {
                     fprintf(stderr,"Error loading congestion control config\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
             } else if (!strcmp(p, "tfmcc")) {
                 cc_type = CC_TFMCC;
             } else {
                 // PGMCC not currently supported
                 fprintf(stderr, "Invalid congestion control type\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'D':
@@ -882,16 +881,16 @@ void process_args(int argc, char *argv[])
             p = strtok(optarg, ":");
             if (!p) {
                 fprintf(stderr, "Error reading cc_type\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             errno = 0;
             grtt = atof(p);
             if (errno) {
                 perror("Invalid grtt");
-                exit(1);
+                exit(ERR_PARAM);
             } else if ((grtt < CLIENT_RTT_MIN) || (grtt > 1000)) {
                 fprintf(stderr, "Invalid grtt\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             p = strtok(NULL, ":");
             if (p) {
@@ -899,31 +898,31 @@ void process_args(int argc, char *argv[])
                 min_grtt = atof(p);
                 if (errno) {
                     perror("Invalid min_grtt");
-                    exit(1);
+                    exit(ERR_PARAM);
                 } else if ((min_grtt < CLIENT_RTT_MIN) || (min_grtt > 1000)) {
                     fprintf(stderr, "Invalid min_grtt\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 p = strtok(NULL, ":");
                 if (!p) {
                     fprintf(stderr, "Missing max_grtt\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 errno = 0;
                 max_grtt = atof(p);
                 if (errno) {
                     perror("Invalid max_grtt");
-                    exit(1);
+                    exit(ERR_PARAM);
                 } else if ((max_grtt < CLIENT_RTT_MIN) || (max_grtt > 1000)) {
                     fprintf(stderr, "Invalid max_grtt\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 if (min_grtt > max_grtt) {
                     fprintf(stderr, "Invalid min_grtt/max_grtt\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 } else if ((grtt > max_grtt) || (grtt < min_grtt)) {
                     fprintf(stderr, "Invalid grtt\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
             }
             break;
@@ -931,25 +930,25 @@ void process_args(int argc, char *argv[])
             robust = atoi(optarg);
             if ((robust < 10) || (robust > 50)) {
                 fprintf(stderr,"Invalid robustness factor\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'i':
             if (filecount != 0) {
                 fprintf(stderr,"Can't specify both -i and -F\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             if (strcmp(optarg, "-") == 0) {
                 listfile = stdin;
             } else if ((listfile = fopen(optarg, "rt")) == NULL) {
                 fprintf(stderr,"Couldn't open file list %s: %s\n",
                         optarg, strerror(errno));
-                exit(1);
+                exit(ERR_PARAM);
             }
             while (fgets(filename, sizeof(filename), listfile)) {
                 if (filecount == MAXFILES) {
                     fprintf(stderr, "Exceeded maximum file count\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 while ((strlen(filename) > 0) &&
                        ((filename[strlen(filename)-1] == '\r') ||
@@ -963,7 +962,7 @@ void process_args(int argc, char *argv[])
             }
             if (!feof(listfile) && ferror(listfile)) {
                 perror("Failed to read from file list");
-                exit(1);
+                exit(ERR_PARAM);
             }
             fclose(listfile);
             break;
@@ -971,32 +970,32 @@ void process_args(int argc, char *argv[])
             txweight = atoi(optarg);
             if ((txweight < 110) || (txweight > 10000)) {
                 fprintf(stderr, "Invalid txweight\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'N':
             max_nak_pct = atoi(optarg);
             if ((max_nak_pct < 0) || (max_nak_pct > 100)) {
                 fprintf(stderr, "Invalid max_nak_pct\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case '?':
             fprintf(stderr, USAGE);
-            exit(1);
+            exit(ERR_PARAM);
         }
     }
     argc -= optind;
     argv += optind;
     if ((argc == 0) && (filecount == 0)) {
         fprintf(stderr, USAGE);
-        exit(1);
+        exit(ERR_PARAM);
     }
 
     if (save_fail && sync_mode) {
         fprintf(stderr, "Error: Cannot use restart mode "
                         "and sync mode together\n");
-        exit(1);
+        exit(ERR_PARAM);
     }
 
     if (keytype == KEY_NONE) {
@@ -1012,13 +1011,13 @@ void process_args(int argc, char *argv[])
             ecdsa_curve = get_curve(keylenstr);
             if (ecdsa_curve == 0) {
                 fprintf(stderr, "Invalid curve\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
         } else if ((keyextype == KEYEX_RSA) || (keyextype == KEYEX_ECDH_RSA)) {
             newkeylen = atoi(keylenstr);
             if ((newkeylen < 512) || (newkeylen > 2048)) {
                 fprintf(stderr, "Invalid new key length\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
         }
     }
@@ -1038,7 +1037,7 @@ void process_args(int argc, char *argv[])
     for (i = 0; i < argc; i++) {
         if (filecount == MAXFILES) {
             fprintf(stderr, "Exceeded maximum file count\n");
-            exit(1);
+            exit(ERR_PARAM);
         }
         strncpy(filelist[filecount], argv[i], sizeof(filelist[0])-1);
         filelist[filecount][sizeof(filelist[0])-1] = '\x0';

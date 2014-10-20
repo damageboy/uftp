@@ -1,4 +1,4 @@
-.TH uftpproxyd 1 "30 July 2013" "UFTP 4.1"
+.TH uftpproxyd 1 "12 May 2014" "UFTP 4.2"
 .SH NAME
 uftpproxyd - Encrypted UDP based ftp with multicast - proxy daemon
 .SH SYNOPSIS
@@ -350,6 +350,30 @@ For server proxies, lists one or more interfaces to listen to multicast traffic 
 .TP
 .B \-M pub_multicast_addr[,pub_multicast_addr...]
 The list of public multicast addresses to listen on.  Used only by server proxies.  Default is 230.4.4.1
+.SH EXIT STATUS
+.P
+The following exit values are returned:
+.TP
+0
+The proxy started successfully and is running in the background.
+.TP
+1
+An invalid command line parameter was specified.
+.TP
+2
+An error occurred while attempting to initialize network connections.
+.TP
+3
+An error occurred while reading or generating cryptographic key data.
+.TP
+4
+An error occurred while opening or rolling the log file.
+.TP
+5
+A memory allocation error occurred.
+.TP
+6
+The proxy was interrupted by the user.
 .SH SEE ALSO
 uftp(1), uftpd(1), uftp_keymgt(1)
 .SH NOTES

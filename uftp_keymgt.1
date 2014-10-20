@@ -1,4 +1,4 @@
-.TH uftp_keymgt 1 "30 July 2013" "UFTP 4.1"
+.TH uftp_keymgr 1 "12 May 2014" "UFTP 4.2"
 .SH NAME
 uftp_keymgt - Encrypted UDP based ftp with multicast - key management utility
 .SH SYNOPSIS
@@ -45,6 +45,15 @@ Specifies the Windows key container to delete.
 .TP
 .B \-m
 For Windows systems using CryptoAPI or CNG, private keys are normally stored in the key container of the running user.  Specifying this option stores keys in the system key container.  On non-Windows systems, this option has no effect.
+.SH EXIT STATUS
+.P
+The following exit values are returned:
+.TP
+0
+The command completed successfully.
+.TP
+1
+An invalid command line parameter was specified.
 .SH SEE ALSO
 uftp(1), uftpd(1), uftpproxyd(1)
 .SH NOTES

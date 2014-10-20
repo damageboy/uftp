@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -93,7 +93,7 @@ void add_server_by_name(const char *server, const char *ip,
     server_uid = strtoul(server, NULL, 16);
     if ((server_uid == 0xffffffff) || (server_uid == 0)) {
         fprintf(stderr, "Invalid server UID %s\n", server);
-        exit(1);
+        exit(ERR_PARAM);
     }
 
     memset(&ai_hints, 0, sizeof(ai_hints));
@@ -104,7 +104,7 @@ void add_server_by_name(const char *server, const char *ip,
     if ((rval = getaddrinfo(ip, NULL, &ai_hints, &ai_rval)) != 0) {
         fprintf(stderr, "Invalid server name/address %s: %s\n",
                 ip, gai_strerror(rval));
-        exit(1);
+        exit(ERR_PARAM);
     }
 
     server_keys[server_count].uid = htonl(server_uid);
@@ -182,7 +182,7 @@ void process_args(int argc, char *argv[])
             log_level = atoi(optarg);
             if (log_level < 0) {
                 fprintf(stderr, "Invalid log level\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'L':
@@ -214,12 +214,12 @@ void process_args(int argc, char *argv[])
                         &ai_hints, &ai_rval)) != 0) {
                     fprintf(stderr, "Invalid name/address %s: %s\n",
                             p, gai_strerror(rval));
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 if ((listidx = getifbyaddr((union sockaddr_u *)ai_rval->ai_addr,
                         ifl, ifl_len)) == -1) {
                     fprintf(stderr, "Interface %s not found\n", p);
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 m_interface[interface_count++] = ifl[listidx];
                 freeaddrinfo(ai_rval);
@@ -232,7 +232,7 @@ void process_args(int argc, char *argv[])
             port = atoi(portname);
             if (port == 0) {
                 fprintf(stderr, "Invalid port\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 't':
@@ -272,7 +272,7 @@ void process_args(int argc, char *argv[])
                         &ai_hints, &ai_rval)) != 0) {
                     fprintf(stderr, "Invalid multicast address %s: %s\n",
                             p, gai_strerror(rval));
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 memcpy(&pub_multi[pub_multi_count], ai_rval->ai_addr,
                         ai_rval->ai_addrlen);
@@ -285,14 +285,14 @@ void process_args(int argc, char *argv[])
             rcvbuf = atoi(optarg);
             if ((rcvbuf < 65536) || (rcvbuf > 104857600)) {
                 fprintf(stderr, "Invalid buffer size\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'Q':
             tmpval = strtol(optarg, NULL, 0);
             if ((tmpval < 0) || (tmpval > 63)) {
                 fprintf(stderr, "Invalid dscp\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             dscp = (tmpval & 0xFF) << 2;
             break;
@@ -304,7 +304,7 @@ void process_args(int argc, char *argv[])
             uid = strtoul(optarg, NULL, 16);
             if (errno) {
                 perror("Invalid UID\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             uid = htonl(uid);
             break;
@@ -312,7 +312,7 @@ void process_args(int argc, char *argv[])
             if ((serverfile = fopen(optarg, "r")) == NULL) {
                 fprintf(stderr, "Couldn't open server list %s: %s\n",
                         optarg, strerror(errno));
-                exit(1);
+                exit(ERR_PARAM);
             }
             while (fgets(line, sizeof(line), serverfile)) {
                 while ((strlen(line) != 0) && ((line[strlen(line)-1] == '\r') ||
@@ -337,13 +337,13 @@ void process_args(int argc, char *argv[])
                 }
                 if (strlen(servername) >= DESTNAME_LEN) {
                     fprintf(stderr, "Server list: name too long\n");
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 add_server_by_name(servername, ipstr, fingerprint);
             }
             if (!feof(serverfile) && ferror(serverfile)) {
                 perror("Failed to read from server list file");
-                exit(1);
+                exit(ERR_PARAM);
             }
             fclose(serverfile);
             break;
@@ -353,7 +353,7 @@ void process_args(int argc, char *argv[])
             servername = strtok(line, "/");
             if (!servername) {
                 fprintf(stderr, "Invalid host name\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             fingerprint = strtok(NULL, "/");
             memset(&ai_hints, 0, sizeof(ai_hints));
@@ -365,7 +365,7 @@ void process_args(int argc, char *argv[])
                     &ai_hints, &ai_rval)) != 0) {
                 fprintf(stderr, "Invalid proxy address %s: %s\n",
                         servername, gai_strerror(rval));
-                exit(1);
+                exit(ERR_PARAM);
             }
             memcpy(&proxy_info.addr, ai_rval->ai_addr, ai_rval->ai_addrlen);
             proxy_info.has_fingerprint =
@@ -398,7 +398,7 @@ void process_args(int argc, char *argv[])
             priority = atoi(optarg);
             if (!valid_priority(priority)) {
                 fprintf(stderr, "Invalid priority value\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'i':
@@ -408,7 +408,7 @@ void process_args(int argc, char *argv[])
             max_log_size = atoi(optarg);
             if ((max_log_size < 1) || (max_log_size > 1024)) {
                 fprintf(stderr, "Invalid max log size\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             max_log_size *= 1000000;
             break;
@@ -416,7 +416,7 @@ void process_args(int argc, char *argv[])
             max_log_count = atoi(optarg);
             if ((max_log_count < 1) || (max_log_count > 1000)) {
                 fprintf(stderr, "Invalid max log count\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case 'H':
@@ -440,7 +440,7 @@ void process_args(int argc, char *argv[])
                         &ai_hints, &ai_rval)) != 0) {
                     fprintf(stderr, "Invalid heartbeat address %s: %s\n",
                             p, gai_strerror(rval));
-                    exit(1);
+                    exit(ERR_PARAM);
                 }
                 memcpy(&hb_hosts[hbhost_count], ai_rval->ai_addr,
                         ai_rval->ai_addrlen);
@@ -464,12 +464,12 @@ void process_args(int argc, char *argv[])
             hb_interval = atoi(optarg);
             if ((hb_interval <= 0) || (hb_interval > 3600)) {
                 fprintf(stderr, "Invalid hearbeat interval\n");
-                exit(1);
+                exit(ERR_PARAM);
             }
             break;
         case '?':
             fprintf(stderr, USAGE);
-            exit(1);
+            exit(ERR_PARAM);
         }
     }
     if (server_count) {
@@ -482,19 +482,19 @@ void process_args(int argc, char *argv[])
                 }
                 fprintf(stderr, "Invalid source specific "
                         "multicast address: %s\n", pubname);
-                exit(1);
+                exit(ERR_PARAM);
             }
         }
         if (pub_multi_count == 0) {
             fprintf(stderr, "Default multicast address %s invalid "
                     "for source specific multicast\n", DEF_PUB_MULTI);
-            exit(1);
+            exit(ERR_PARAM);
         }
     }
     if ((keyfile_count != 0) && (keyinfo_count != 0) &&
             (keyfile_count != keyinfo_count)) {
         fprintf(stderr, "Must list same number of items for -k and -K\n");
-        exit(1);
+        exit(ERR_PARAM);
     }
     if (has_proxy) {
         if (proxy_info.addr.ss.ss_family == AF_INET6) {
@@ -511,11 +511,11 @@ void process_args(int argc, char *argv[])
     if ((backupcnt > 0) && (backupcnt != destdircnt)) {
         fprintf(stderr, "Must specify same number of backup directories "
                         "as destination directories\n");
-        exit(1);
+        exit(ERR_PARAM);
     }
     if (tempfile && (strcmp(tempdir, ""))) {
         fprintf(stderr, "Cannot specify both -t and -T\n");
-        exit(1);
+        exit(ERR_PARAM);
     }
 }
 

@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -263,7 +263,7 @@ void move_files(struct group_list_t *group)
                 filelist[filecount] = strdup(destpath);
                 if (filelist[filecount] == NULL) {
                     syserror(0, 0, "strdup failed!");
-                    exit(1);
+                    exit(ERR_ALLOC);
                 }
                 filecount++;
             }
@@ -310,7 +310,7 @@ void move_files(struct group_list_t *group)
                 filelist[filecount] = strdup(destpath);
                 if (filelist[filecount] == NULL) {
                     syserror(0, 0, "strdup failed!");
-                    exit(1);
+                    exit(ERR_ALLOC);
                 }
                 filecount++;
             }

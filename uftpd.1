@@ -1,4 +1,4 @@
-.TH uftpd 1 "30 July 2013" "UFTP 4.1"
+.TH uftpd 1 "12 May 2014" "UFTP 4.2"
 .SH NAME
 uftpd - Encrypted UDP based ftp with multicast - client daemon
 .SH SYNOPSIS
@@ -207,6 +207,30 @@ If incoming packets aren\(aqt being read quickly enough, and you want to increas
 uftpd -B 2097152
 .RE
 
+.SH EXIT STATUS
+.P
+The following exit values are returned:
+.TP
+0
+The client started successfully and is running in the background.
+.TP
+1
+An invalid command line parameter was specified.
+.TP
+2
+An error occurred while attempting to initialize network connections.
+.TP
+3
+An error occurred while reading or generating cryptographic key data.
+.TP
+4
+An error occurred while opening or rolling the log file.
+.TP
+5
+A memory allocation error occurred.
+.TP
+6
+The client was interrupted by the user.
 .SH SEE ALSO
 uftp(1), uftpproxyd(1), uftp_keymgt(1)
 .SH NOTES

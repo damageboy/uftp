@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -493,7 +493,7 @@ void init_log(int _debug)
     if (init_log_mux) {
         if (mux_create(log_mux)) {
             perror("Failed to create log mutex");
-            exit(1);
+            exit(ERR_LOGGING);
         }
     }
 
@@ -508,7 +508,7 @@ void init_log(int _debug)
         }
         if ((fd = open(logfile, O_WRONLY | O_APPEND | O_CREAT, 0644)) == -1) {
             perror("Can't open log file");
-            exit(1); 
+            exit(ERR_LOGGING); 
         }
         dup2(fd, 2);
         close(fd);
@@ -570,22 +570,41 @@ void roll_log()
             if (unlink(oldname) == -1) {
                 syserror(0, 0, "Couldn't remove log %s", oldname);
             }
+        } else if (i == 0) {
+#ifdef WINDOWS
+            log2(0, 0, "Switching to new log");
+            close(2);
+            if (rename(oldname, newname) == -1) {
+                printf("Couldn't rename log %s to %s", oldname, newname);
+                exit(ERR_LOGGING);
+            }
+            if ((fd=open(logfile, O_WRONLY | O_APPEND | O_CREAT, 0644)) == -1) {
+                printf("Can't open log file");
+                exit(ERR_LOGGING); 
+            }
+            log_size = 0;
+            log2(0, 0, "Switch to new log complete");
+#else
+            if (rename(oldname, newname) == -1) {
+                syserror(0,0, "Couldn't rename log %s to %s", oldname, newname);
+            }
+            log2(0, 0, "Opening new log");
+            if ((fd=open(logfile, O_WRONLY | O_APPEND | O_CREAT, 0644)) == -1) {
+                syserror(0, 0, "Can't open log file");
+                exit(ERR_LOGGING); 
+            }
+            log2(0, 0, "Switching to new log");
+            dup2(fd, 2);
+            close(fd);
+            log_size = 0;
+            log2(0, 0, "Switch to new log complete");
+#endif
         } else {
             if (rename(oldname, newname) == -1) {
                 syserror(0,0, "Couldn't rename log %s to %s", oldname, newname);
             }
         }
     }
-    log2(0, 0, "Opening new log");
-    if ((fd=open(logfile, O_WRONLY | O_APPEND | O_CREAT, 0644)) == -1) {
-        syserror(0, 0, "Can't open log file");
-        exit(1); 
-    }
-    log2(0, 0, "Switching to new log");
-    dup2(fd, 2);
-    close(fd);
-    log_size = 0;
-    log2(0, 0, "Switch to new log complete");
     rolling = 0;
 }
 
@@ -709,7 +728,7 @@ void split_path(const char *path, char **dir, char **file)
         *file = strdup(filename);
         if (!*dir || (filename && !*file)) {
             syserror(0, 0, "strdup failed!");
-            exit(1);
+            exit(ERR_ALLOC);
         }
         (*dir)[strlen(*dir) - strlen(*file) - 1] = '\x0';
     }
@@ -721,13 +740,13 @@ void split_path(const char *path, char **dir, char **file)
     filec = strdup(path);
     if (!dirc || !filec) {
         syserror(0, 0, "strdup failed!");
-        exit(1);
+        exit(ERR_ALLOC);
     }
     *dir = strdup(dirname(dirc));
     *file = strdup(basename(filec));
     if (!*dir || !*file) {
         syserror(0, 0, "strdup failed!");
-        exit(1);
+        exit(ERR_ALLOC);
     }
     free(dirc);
     free(filec);
@@ -1745,7 +1764,7 @@ int getifbyname(const char *name, const struct iflist *list, int len)
     tmpname = strdup(name);
     if (tmpname == NULL) {
         syserror(0, 0, "strdup failed!");
-        exit(1);
+        exit(ERR_ALLOC);
     }
 
     p = strchr(tmpname, '/');
@@ -1934,7 +1953,7 @@ void *safe_malloc(size_t size)
     void *p = malloc(size);
     if (p == NULL) {
         syserror(0, 0, "malloc failed!");
-        exit(1);
+        exit(ERR_ALLOC);
     }
     return p;
 }
@@ -1948,7 +1967,7 @@ void *safe_calloc(size_t num, size_t size)
     void *p = calloc(num, size);
     if (p == NULL) {
         syserror(0, 0, "calloc failed!");
-        exit(1);
+        exit(ERR_ALLOC);
     }
     return p;
 }

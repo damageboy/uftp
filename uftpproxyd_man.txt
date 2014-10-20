@@ -529,6 +529,25 @@ OPTIONS
 	      The list of public multicast addresses to listen on.  Used  only
 	      by server proxies.  Default is 230.4.4.1
 
+EXIT STATUS
+       The following exit values are returned:
+
+       0      The proxy started successfully and is running in the background.
+
+       1      An invalid command line parameter was specified.
+
+       2      An error occurred while attempting to initialize network connec‐
+	      tions.
+
+       3      An error occurred while reading or generating cryptographic  key
+	      data.
+
+       4      An error occurred while opening or rolling the log file.
+
+       5      A memory allocation error occurred.
+
+       6      The proxy was interrupted by the user.
+
 SEE ALSO
        uftp(1), uftpd(1), uftp_keymgt(1)
 
@@ -540,4 +559,4 @@ NOTES
 
 
 
-UFTP 4.1			 30 July 2013			 uftpproxyd(1)
+UFTP 4.2			  12 May 2014			 uftpproxyd(1)
