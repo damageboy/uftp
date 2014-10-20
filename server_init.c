@@ -321,6 +321,9 @@ void create_sockets(void)
         closesocket(sock);
         exit(ERR_SOCKET);
     }
+    if (cc_type == CC_TFMCC) {
+        dscp |= 0x2;
+    }
     if (listen_dest.ss.ss_family == AF_INET6) {
 #ifdef IPV6_MTU_DISCOVER
         {
@@ -388,7 +391,6 @@ void create_sockets(void)
     }
 
     // Make socket non-blocking
-#ifndef BLOCKING
 #ifdef WINDOWS
     fdflag = 1;
     if (ioctlsocket(sock, FIONBIO, &fdflag) == SOCKET_ERROR) {
@@ -409,7 +411,6 @@ void create_sockets(void)
         exit(ERR_SOCKET);
     }
 #endif
-#endif  // BLOCKING
 }
 
 /**

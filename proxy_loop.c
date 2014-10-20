@@ -157,7 +157,7 @@ void mainloop(void)
     char rxname[INET6_ADDRSTRLEN];
     int packetlen, rval, hostidx, i;
     unsigned int decryptlen, meslen;
-    uint8_t *func;
+    uint8_t *func, tos;
     union sockaddr_u src;
     struct timeval *tv;
     double new_grtt;
@@ -185,7 +185,7 @@ void mainloop(void)
             log5(0, 0, "timeout: %d.%06d", tv->tv_sec, tv->tv_usec);
         }
         if (read_packet(listener, &src, buf, &packetlen,
-                        MAXMTU, tv) <= 0) {
+                        MAXMTU, tv, &tos) <= 0) {
             continue;
         }
 

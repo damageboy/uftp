@@ -768,9 +768,15 @@ int read_announce(struct group_list_t *group, unsigned char *packet,
     privatemcast = publicmcast + iplen;
     if ((announce->flags & FLAG_IPV6) != 0) {
         group->multi.sin6.sin6_family = AF_INET6;
+#ifdef SOCKADDR_LEN
+        group->multi.sin6.sin6_len = sizeof(struct sockaddr_in6);
+#endif
         memcpy(&group->multi.sin6.sin6_addr.s6_addr, privatemcast, iplen);
     } else {
         group->multi.sin.sin_family = AF_INET;
+#ifdef SOCKADDR_LEN
+        group->multi.sin.sin_len = sizeof(struct sockaddr_in);
+#endif
         memcpy(&group->multi.sin.sin_addr.s_addr, privatemcast, iplen);
     }
     group->fileinfo.fd = -1;

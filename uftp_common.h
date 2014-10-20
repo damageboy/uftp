@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -160,7 +160,8 @@ int would_block_err(void);
 int nb_sendto(SOCKET s, const void *msg, int len, int flags,
               const struct sockaddr *to, int tolen);
 int read_packet(SOCKET sock, union sockaddr_u *sa, unsigned char *buffer,
-                int *len, int bsize, const struct timeval *timeout);
+                int *len, int bsize, const struct timeval *timeout,
+                uint8_t *tos);
 void build_iv(uint8_t *iv, const uint8_t *salt, int ivlen, uint64_t ivctr,
               uint32_t src_id);
 void printhex(const char *name, const unsigned char *data, int len);

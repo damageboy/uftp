@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -197,7 +197,8 @@ int handle_announce_phase(unsigned char *packet, unsigned char *decrypted,
  * Group & no encryption: ->ANNOUNCE <-REGISTER ->REG_CONF
  * Files within a group: ->FILEINFO <-FILEINFO_ACK
  * If client_key == 1, REGISTER is followed by CLIENT_KEY
- * Returns 1 if at least one client responded, 0 if none responded
+ * Returns ERR_NONE if at least one client responsed,
+ * or either ERR_ANNOUNCE or ERR_FILEINFO if none responded
  */
 int announce_phase(struct finfo_t *finfo)
 {
@@ -208,6 +209,7 @@ int announce_phase(struct finfo_t *finfo)
     struct timeval timeout, next_send, now;
     union sockaddr_u receiver;
     int grtt_set;
+    uint8_t tos;
 
     if (finfo->file_id) {
         log1(finfo->group_id, finfo->file_id,
@@ -242,7 +244,7 @@ int announce_phase(struct finfo_t *finfo)
         log2(finfo->group_id, finfo->file_id, "Initializing group");
     }
 
-    rval = 1;
+    rval = ERR_NONE;
     packet = safe_calloc(MAXMTU, 1);
     decrypted = safe_calloc(MAXMTU, 1);
     announce = (finfo->file_id == 0);
@@ -300,7 +302,7 @@ int announce_phase(struct finfo_t *finfo)
             timeout = diff_timeval(next_send, now);
         }
         if ((rcv_status = read_packet(sock, &receiver, packet, &len,
-                                      MAXMTU, &timeout)) == -1) {
+                                      MAXMTU, &timeout, &tos)) == -1) {
             continue;
         } else if (rcv_status == 0) {
             attempt++;
@@ -387,11 +389,11 @@ int announce_phase(struct finfo_t *finfo)
                 destlist[i].status = DEST_ABORT;
             }
         }
-        rval = 0;
+        rval = (announce ? ERR_NO_REGISTER : ERR_NO_FILEINFO);
     }
     if (!gotone) {
         log0(finfo->group_id, finfo->file_id, "Announce timed out");
-        rval = 0;
+        rval = (announce ? ERR_NO_REGISTER : ERR_NO_FILEINFO);
     }
     if (open_group) {
         send_regconf(finfo, attempt, regconf);
@@ -868,6 +870,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
     int do_rewind, do_nextcc, do_halfrate;
     int64_t last_clr;
     double l_adv_grtt;
+    uint8_t tos;
 
     packet = safe_calloc(MAXMTU, 1);
     decrypted = safe_calloc(MAXMTU, 1);
@@ -1025,7 +1028,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
         }
 
         if ((rcv_status = read_packet(sock, &receiver, packet, &len,
-                                      MAXMTU, &timeout)) == -1) {
+                                      MAXMTU, &timeout, &tos)) == -1) {
             continue;
         } else if (rcv_status == 0) {
             // Timeouts get handled at the top of the loop
@@ -1104,6 +1107,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
  * Performs the Transfer phase for a particular file.
  * It sits in a loop to do all reads, and it starts a thread to do all writes
  * Returns 1 if at least one client finished, 0 if all are dropped or aborted
+ * Returns ERR_NONE if at least one client responsed, ERR_DROPPED otherwise
  */
 int transfer_phase(struct finfo_t *finfo)
 {
@@ -1124,7 +1128,7 @@ int transfer_phase(struct finfo_t *finfo)
     if (alldone) {
         gettimeofday(&start_time, NULL);
         print_status(finfo, start_time);
-        return 1;
+        return ERR_NONE;
     }
 
     // TODO: if not a regular file, error any clients that didn't
@@ -1135,7 +1139,7 @@ int transfer_phase(struct finfo_t *finfo)
         // Open the file now so we don't start the sending thread if it fails
         if ((file = open(path, OPENREAD, 0)) == -1) {
             syserror(finfo->group_id, finfo->file_id, "Error opening file");
-            return 1;
+            return ERR_DROPPED;
         }
     } else {
         // At end of group, all non-errored client are DEST_DONE from the
@@ -1189,7 +1193,7 @@ int transfer_phase(struct finfo_t *finfo)
         if (finfo->ftype == FTYPE_REG) {
             close(file);
         }
-        return 1;
+        return ERR_DROPPED;
     }
     use_log_mux = 1;
 
@@ -1200,7 +1204,7 @@ int transfer_phase(struct finfo_t *finfo)
             close(file);
         }
         mux_destroy(mux_main);
-        return 1;
+        return ERR_DROPPED;
     }
     transfer_receive_thread(finfo);
     if (join_thread(tid) != 0) {
@@ -1217,26 +1221,26 @@ int transfer_phase(struct finfo_t *finfo)
     print_status(finfo, start_time);
 
     if (user_abort) {
-        return 0;
+        return ERR_INTERRUPTED;
     }
     for (i = 0; i < destcount; i++) {
         if (quit_on_error) {
             // Check to see that all finished
             if ((destlist[i].status != DEST_DONE) &&
                     (destlist[i].clientcnt == -1)) {
-                return 0;
+                return ERR_DROPPED;
             }
         } else {
             // Check to see if at least one finished
             if (destlist[i].status == DEST_DONE) {
-                return 1;
+                return ERR_NONE;
             }
         }
     }
     if (quit_on_error) {
-        return 1;
+        return ERR_NONE;
     } else {
-        return 0;
+        return ERR_DROPPED;
     }
 }
 
@@ -1314,6 +1318,7 @@ void completion_phase(struct finfo_t *finfo)
     union sockaddr_u receiver;
     int resend, attempt, last_pass, alldone;
     int rcv_status, len, i;
+    uint8_t tos;
 
     packet = safe_calloc(MAXMTU, 1);
     decrypted = safe_calloc(MAXMTU, 1);
@@ -1352,7 +1357,7 @@ void completion_phase(struct finfo_t *finfo)
             timeout = diff_timeval(next_send, now);
         }
         if ((rcv_status = read_packet(sock, &receiver, packet, &len,
-                                      MAXMTU, &timeout)) == -1) {
+                                      MAXMTU, &timeout, &tos)) == -1) {
             continue;
         } else if (rcv_status == 0) {
             attempt++;

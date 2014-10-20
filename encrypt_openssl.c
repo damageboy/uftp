@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -873,9 +873,12 @@ int verify_ECDSA_sig(EC_key_t ec, int hashtype,
  */
 static void *KDF(const void *in, size_t inlen, void *out, size_t *outlen)
 {
-    if (!hash(HASH_SHA1, in, inlen, out, outlen)) {
+    unsigned int outlen_i;
+    if (!hash(HASH_SHA1, in, inlen, out, &outlen_i)) {
+        *outlen = outlen_i;
         return NULL;
     } else {
+        *outlen = outlen_i;
         return out;
     }
 }

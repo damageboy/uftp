@@ -45,6 +45,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
+#include <Mswsock.h>
 
 #include "uftp.h"
 #include "uftp_common.h"
@@ -971,40 +972,72 @@ int nb_sendto(SOCKET s, const void *msg, int len, int flags,
  * Returns 1 on success, 0 on timeout, -1 on fail.
  */
 int read_packet(SOCKET sock, union sockaddr_u *su, unsigned char *buffer,
-                int *len, int bsize, const struct timeval *timeout)
+                int *len, int bsize, const struct timeval *timeout,
+                uint8_t *tos)
 {
     fd_set fdin;
     struct timeval tv;
     int rval;
+#ifdef WINDOWS
+    GUID WSARecvMsg_GUID = WSAID_WSARECVMSG;
+    static LPFN_WSARECVMSG WSARecvMsg;
+    int nbytes;
+    WSAMSG mhdr;
+    WSABUF iov;
+    WSACMSGHDR *cmhdr;
+    char control[1000];
+#elif defined NO_RECVMSG
     socklen_t addr_len;
+#else
+    struct msghdr mhdr;
+    struct iovec iov;
+    struct cmsghdr *cmhdr;
+    char control[1000];
+#endif
 
-#ifdef BLOCKING
-    FD_ZERO(&fdin);
-    FD_SET(sock,&fdin);
-    if (timeout) tv = *timeout;
-    if ((rval = select(FD_SETSIZE-1, &fdin, NULL, NULL,
-                       (timeout ? &tv : NULL))) == SOCKET_ERROR) {
-        sockerror(0, 0, "Select failed");
-        return -1;
-    }
-    if (rval == 0) {
-        return 0;
-    } else if (FD_ISSET(sock, &fdin)) {
-        addr_len = sizeof(union sockaddr_u);
-        if ((*len = recvfrom(sock, buffer, bsize, 0, (struct sockaddr *)su,
-                             &addr_len)) == SOCKET_ERROR) {
-            if (!conn_reset_err()) {
-                sockerror(0, 0, "Error receiving");
-            }
-            return -1;
-        }
-        return 1;
-    } else {
-        log0(0, 0, "Unknown select error");
-        return -1;
-    }
-#else  // BLOCKING
     while (1) {
+#ifdef WINDOWS
+        if (WSARecvMsg == NULL) {
+            rval = WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER,
+                    &WSARecvMsg_GUID, sizeof WSARecvMsg_GUID,
+                    &WSARecvMsg, sizeof WSARecvMsg, &nbytes, NULL, NULL);
+            if (rval == SOCKET_ERROR) {
+                sockerror(0, 0, "WSAIoctl for WSARecvMsg failed");
+                exit(ERR_SOCKET);
+            }
+        }
+        mhdr.name = (LPSOCKADDR)su;
+        mhdr.namelen = sizeof(union sockaddr_u);
+        mhdr.lpBuffers = &iov;
+        mhdr.dwBufferCount = 1;
+        mhdr.Control.buf = control;
+        mhdr.Control.len = sizeof(control);
+        mhdr.dwFlags = 0;
+        iov.buf = buffer;
+        iov.len = bsize;
+        if ((rval = WSARecvMsg(sock, &mhdr, len, NULL, NULL)) == SOCKET_ERROR) {
+            if (!would_block_err()) {
+                if (!conn_reset_err()) {
+                    sockerror(0, 0, "Error receiving");
+                }
+                return -1;
+            }
+        } else {
+            *tos = 0;
+            cmhdr = WSA_CMSG_FIRSTHDR(&mhdr);
+            while (cmhdr) {
+                if ((cmhdr->cmsg_level == IPPROTO_IP &&
+                        cmhdr->cmsg_type == IP_TCLASS) ||
+                        (cmhdr->cmsg_level == IPPROTO_IPV6 &&
+                         cmhdr->cmsg_type == IPV6_TCLASS)) {
+                    *tos = ((uint8_t *)WSA_CMSG_DATA(cmhdr))[0];
+                }
+                cmhdr = WSA_CMSG_NXTHDR(&mhdr, cmhdr);
+            }
+            log5(0, 0, "tos / traffic class byte = %02X", *tos);
+            return 1;
+        }
+#elif defined NO_RECVMSG
         addr_len = sizeof(union sockaddr_u);
         if ((*len = recvfrom(sock, buffer, bsize, 0, (struct sockaddr *)su,
                              &addr_len)) == SOCKET_ERROR) {
@@ -1017,6 +1050,59 @@ int read_packet(SOCKET sock, union sockaddr_u *su, unsigned char *buffer,
         } else {
             return 1;
         }
+#else
+        mhdr.msg_name = su;
+        mhdr.msg_namelen = sizeof(union sockaddr_u);
+        mhdr.msg_iov = &iov;
+        mhdr.msg_iovlen = 1;
+        mhdr.msg_control = &control;
+        mhdr.msg_controllen = sizeof(control);
+        iov.iov_base = buffer;
+        iov.iov_len = bsize;
+        if ((*len = recvmsg(sock, &mhdr, 0)) == SOCKET_ERROR) {
+            if (!would_block_err()) {
+                if (!conn_reset_err()) {
+                    sockerror(0, 0, "Error receiving");
+                }
+                return -1;
+            }
+        } else {
+            *tos = 0;
+            cmhdr = CMSG_FIRSTHDR(&mhdr);
+            while (cmhdr) {
+                int istos;
+#ifdef IP_RECVTOS
+#if defined IPV6_TCLASS && !defined WINDOWS
+                istos = ((cmhdr->cmsg_level == IPPROTO_IP &&
+                        (cmhdr->cmsg_type == IP_TOS ||
+                        cmhdr->cmsg_type == IP_RECVTOS)) ||
+                        (cmhdr->cmsg_level == IPPROTO_IPV6 &&
+                         cmhdr->cmsg_type == IPV6_TCLASS));
+#else
+                istos = (cmhdr->cmsg_level == IPPROTO_IP &&
+                        (cmhdr->cmsg_type == IP_TOS ||
+                        cmhdr->cmsg_type == IP_RECVTOS));
+#endif
+#else  // IP_RECVTOS
+#if defined IPV6_TCLASS && !defined WINDOWS
+                istos = ((cmhdr->cmsg_level == IPPROTO_IP &&
+                        cmhdr->cmsg_type == IP_TOS) ||
+                        (cmhdr->cmsg_level == IPPROTO_IPV6 &&
+                         cmhdr->cmsg_type == IPV6_TCLASS));
+#else
+                istos = (cmhdr->cmsg_level == IPPROTO_IP &&
+                        cmhdr->cmsg_type == IP_TOS);
+#endif
+#endif  // IP_RECVTOS
+                if (istos) {
+                    *tos = ((uint8_t *)CMSG_DATA(cmhdr))[0];
+                }
+                cmhdr = CMSG_NXTHDR(&mhdr, cmhdr);
+            }
+            log5(0, 0, "tos / traffic class byte = %02X", *tos);
+            return 1;
+        }
+#endif
 
         FD_ZERO(&fdin);
         FD_SET(sock,&fdin);
@@ -1033,7 +1119,6 @@ int read_packet(SOCKET sock, union sockaddr_u *su, unsigned char *buffer,
             return -1;
         }
     }
-#endif  // BLOCKING
 }
 
 /**
@@ -1513,8 +1598,7 @@ const char *print_key_fingerprint(const union key_t key, int keytype)
     return fpstr;
 }
 
-#if ((!defined WINDOWS) && (defined MCAST_JOIN_GROUP) &&\
-    (!defined NO_MCAST_JOIN))
+#if ((!defined WINDOWS) && (defined MCAST_JOIN_GROUP))
 
 /**
  * Join the specified multicast group on the specified list of interfaces.

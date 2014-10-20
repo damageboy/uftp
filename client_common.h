@@ -51,7 +51,8 @@ void handle_proxy_key(const union sockaddr_u *src,
 void clear_path(const char *path, struct group_list_t *group);
 void move_to_backup(struct group_list_t *group);
 int create_path_to_file(struct group_list_t *group, const char *filename);
-void update_loss_history(struct group_list_t *group, uint16_t txseq, int size);
+void update_loss_history(struct group_list_t *group, uint16_t txseq, int size,
+                         int ecn);
 double loss_event_rate(struct group_list_t *group);
 unsigned current_cc_rate(struct group_list_t *group);
 

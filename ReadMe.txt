@@ -97,6 +97,10 @@ Windows Vista and Windows 7 don't support this particular mechanism at all,
 and each has it's own way of doing it.  For now, this option does not work on
 these OSs.
 
+The TOS byte also contains the ECN bits, which are used by the TFMCC 
+congestion control scheme, so restrictions on the TOS byte also affect the
+sender support for ECN.
+
 --== Running under Windows ==--
 
 UFTP was originally written to run in a UNIX/Linux environment, so it doens't

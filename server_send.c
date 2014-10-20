@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ int file_excluded(const char *filename)
 /**
  * Performs the send for a particular file/directory.  If a directory is
  * specified, get the list of files and call recursively for each.
- * Returns 0 if a file was sent and none received it, 1 otherwise
+ * Returns non-zero if a file was sent and none received it, 0 otherwise
  */
 int send_file(const char *f_basedir, const char *filename,
               const char *n_destfname, uint32_t group_id, uint8_t group_inst,
@@ -93,7 +93,7 @@ int send_file(const char *f_basedir, const char *filename,
     if ((len >= sizeof(path)) || (len == -1)) {
         log1(group_id, 0, "Max pathname length exceeded: %s%c%s",
                     f_basedir, PATH_SEP, filename);
-        return 1;
+        return ERR_NONE;
     }
     if (!delete && !freespace) {
         if (follow_links) {
@@ -103,14 +103,14 @@ int send_file(const char *f_basedir, const char *filename,
         }
         if (rval == -1) {
             syserror(group_id, 0, "Error getting file status for %s", filename);
-            return 1;
+            return ERR_NONE;
         }
     }
     if (file_excluded(filename)) {
         log0(group_id, 0, "Skipping %s", filename);
-        return 1;
+        return ERR_NONE;
     }
-    rval = 1;
+    rval = ERR_NONE;
     if (freespace) {
         memset(&finfo, 0, sizeof(struct finfo_t));
         finfo.ftype = FTYPE_FREESPACE;
@@ -127,7 +127,7 @@ int send_file(const char *f_basedir, const char *filename,
                 sizeof(struct deststate_t));
 
         rval = announce_phase(&finfo);
-        if (rval) {
+        if (rval == ERR_NONE) {
             rval = transfer_phase(&finfo);
         }
         free(finfo.deststate);
@@ -147,14 +147,14 @@ int send_file(const char *f_basedir, const char *filename,
         finfo.deststate = safe_calloc(destcount ? destcount : MAXDEST,
                 sizeof(struct deststate_t));
         rval = announce_phase(&finfo);
-        if (rval) {
+        if (rval == ERR_NONE) {
             rval = transfer_phase(&finfo);
         }
         free(finfo.deststate);
     } else if (S_ISREG(statbuf.st_mode)) {
         if ((fd = open(path, OPENREAD, 0)) == -1) {
             syserror(group_id, 0, "Error reading file %s", filename);
-            return 1;
+            return ERR_NONE;
         }
         close(fd);
         memset(&finfo, 0, sizeof(struct finfo_t));
@@ -195,7 +195,7 @@ int send_file(const char *f_basedir, const char *filename,
                 sizeof(struct deststate_t));
         finfo.partial = 1;
         rval = announce_phase(&finfo);
-        if (rval) {
+        if (rval == ERR_NONE) {
             rval = transfer_phase(&finfo);
         }
         free(finfo.deststate);
@@ -207,13 +207,13 @@ int send_file(const char *f_basedir, const char *filename,
         memset(linkname, 0, sizeof(linkname));
         if (readlink(path, linkname, sizeof(linkname)-1) == -1) {
             syserror(group_id, 0, "Failed to read symbolic link %s", path);
-            return 1;
+            return ERR_NONE;
         }
         // Both the file name and the link have to fit into a fileinfo_h.name
         if (strlen(linkname) + strlen(filename) + 2 > MAXPATHNAME) {
             log0(group_id, 0, "Combined file name %s and link %s too long",
                         filename, linkname);
-            return 1;
+            return ERR_NONE;
         }
         memset(&finfo, 0, sizeof(struct finfo_t));
         finfo.ftype = FTYPE_LINK;
@@ -231,7 +231,7 @@ int send_file(const char *f_basedir, const char *filename,
                 sizeof(struct deststate_t));
         finfo.partial = 1;
         rval = announce_phase(&finfo);
-        if (rval) {
+        if (rval == ERR_NONE) {
             rval = transfer_phase(&finfo);
         }
         free(finfo.deststate);
@@ -248,7 +248,7 @@ int send_file(const char *f_basedir, const char *filename,
         if ((ffhandle = _findfirsti64(dirglob, &ffinfo)) == -1) {
             syserror(group_id, 0, "Failed to open directory %s%c%s", f_basedir,
                         PATH_SEP, filename);
-            return 1;
+            return ERR_NONE;
         }
         emptydir = 1;
         do {
@@ -268,9 +268,9 @@ int send_file(const char *f_basedir, const char *filename,
             }
             if (strcmp(ffinfo.name, ".") && strcmp(ffinfo.name, "..")) {
                 emptydir = 0;
-                if (!send_file(f_basedir, path, destpath,
-                               group_id, group_inst, 0, 0)) {
-                    rval = 0;
+                rval = send_file(f_basedir, path, destpath,
+                                 group_id, group_inst, 0, 0);
+                if (rval != ERR_NONE) {
                     break;
                 }
             }
@@ -285,7 +285,7 @@ int send_file(const char *f_basedir, const char *filename,
                  filename);
         if ((dir = opendir(dirname)) == NULL) {
             syserror(group_id, 0, "Failed to open directory %s", dirname);
-            return 1;
+            return ERR_NONE;
         }
         // errno needs to be set to 0 before calling readdir, otherwise
         // we'll report a false error when we exhaust the directory
@@ -306,9 +306,9 @@ int send_file(const char *f_basedir, const char *filename,
             }
             if (strcmp(de->d_name, ".") && strcmp(de->d_name, "..")) {
                 emptydir = 0;
-                if (!send_file(f_basedir, path, destpath,
-                               group_id, group_inst, 0, 0)) {
-                    rval = 0;
+                rval = send_file(f_basedir, path, destpath,
+                                 group_id, group_inst, 0, 0);
+                if (rval != ERR_NONE) {
                     break;
                 }
             }
@@ -334,7 +334,7 @@ int send_file(const char *f_basedir, const char *filename,
                     sizeof(struct deststate_t));
             finfo.partial = 1;
             rval = announce_phase(&finfo);
-            if (rval) {
+            if (rval == ERR_NONE) {
                 rval = transfer_phase(&finfo);
             }
             free(finfo.deststate);
@@ -519,13 +519,12 @@ int send_files(void)
                 "Group ID: %08X", mcast, group_info.group_id);
     }
     rval = announce_phase(&group_info);
-    if (rval) {
-        rval = 0;
+    if (rval == ERR_NONE) {
         for (i = 0; i < filecount; i++) {
             if (!strcmp(filelist[i], "@FREESPACE")) {
                 rval = send_file(".", ".", ".",
                         group_info.group_id, group_info.group_inst, 0, 1);
-                if (!rval) {
+                if (rval != ERR_NONE) {
                     break;
                 }
                 continue;
@@ -588,11 +587,14 @@ int send_files(void)
             }
             free(dir);
             free(base);
-            if (!rval) {
+            if (rval != ERR_NONE) {
                 break;
             }
         }
-        if (rval) {
+        if (rval == ERR_NONE) {
+            if (files_sent == 0) {
+                rval = ERR_NO_FILES;
+            }
             log1(group_info.group_id, 0, "-----------------------------");
             completion_phase(&group_info);
         }

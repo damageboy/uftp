@@ -1,7 +1,7 @@
 #
 #  UFTP - UDP based FTP with multicast
 #
-#  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+#  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
 #
 #  This program is free software: you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ MTFLAGS=
 
 # FreeBSD
 ifeq ("FreeBSD", "$(UNAME_S)")
-OPTIONS=-g -Wall -DHAS_GETIFADDRS -DNO_DUAL -DNO_MCAST_JOIN $(ENC_OPTS)
+OPTIONS=-g -O0 -Wall -DHAS_GETIFADDRS -DNO_DUAL -DSOCKADDR_LEN $(ENC_OPTS)
 endif
 
 # OSX, aka Darwin
@@ -61,7 +61,7 @@ endif
 # Sun
 ifeq ("SunOS", "$(UNAME_S)")
 CC = cc
-OPTIONS=-g -DBSD_COMP -DNO_DUAL $(ENC_OPTS)
+OPTIONS=-g -DBSD_COMP -DNO_DUAL -DNO_RECVMSG $(ENC_OPTS)
 LDLIBS=-lnsl -lsocket -lm $(CRYPT_LIB)
 CFLAGS=`getconf LFS_CFLAGS`
 OPENSSL=/usr/sfw

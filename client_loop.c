@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -215,8 +215,8 @@ void mainloop(void)
     unsigned char *buf, *decrypted, *message;
     char rxname[INET6_ADDRSTRLEN];
     unsigned int decryptlen, meslen;
-    int packetlen, rval, i;
-    uint8_t version, *func;
+    int packetlen, rval, i, ecn;
+    uint8_t version, *func, tos;
     uint16_t txseq;
     union sockaddr_u src;
     struct timeval *tv, rxtime;
@@ -245,7 +245,7 @@ void mainloop(void)
             log5(0, 0, "read timeout: %d.%06d", tv->tv_sec, tv->tv_usec);
         }
         if (read_packet(listener, &src, buf, &packetlen,
-                        MAXMTU, tv) <= 0) {
+                        MAXMTU, tv, &tos) <= 0) {
             continue;
         }
         gettimeofday(&rxtime, NULL);
@@ -278,7 +278,8 @@ void mainloop(void)
                 continue;
             }
             if (group->cc_type != CC_NONE) {
-                update_loss_history(group, txseq, packetlen);
+                ecn = ((tos & 0x3) == 3);
+                update_loss_history(group, txseq, packetlen, ecn);
             } else if ((int16_t)(txseq - group->max_txseq) > 0) {
                 group->max_txseq = txseq;
             }

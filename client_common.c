@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -976,6 +976,54 @@ end:
     return rval;
 }
 
+void new_loss_event(struct group_list_t *group, uint16_t txseq)
+{
+    uint32_t seq_long;
+    uint16_t count;
+    int bytes, avgbytes, rate, grtt_usec;
+
+    log4(group->group_id, 0, "Seq %d starts new loss event", txseq);
+    // Found a new loss event
+    if (txseq < group->max_txseq - MAXMISORDER) {
+        log5(group->group_id, 0, "wrap check, i=%u, maxseq=%u",
+                txseq, group->max_txseq);
+        seq_long = ((group->seq_wrap - 1) << 16) | txseq;
+    } else {
+        seq_long = (group->seq_wrap << 16) | txseq;
+    }
+    if (group->slowstart) {
+        group->slowstart = 0;
+        // Initialize loss history 
+        count = group->max_txseq;
+        bytes = 0;
+        grtt_usec = (int)(group->grtt * 1000000);
+        while ((count != group->start_txseq) &&
+                (diff_usec(group->loss_history[txseq].t,
+                   group->loss_history[count].t) < grtt_usec)) {
+            bytes += group->loss_history[count--].size;
+        }
+        rate = (int)(bytes / group->grtt);
+        log4(group->group_id, 0, "End slowstart, calculated rate = %d", rate);
+        avgbytes= bytes / ((int16_t)(group->max_txseq - count));
+        group->loss_events[0].len = (int)(0 + pow(
+                (rate * ((group->rtt != 0) ? group->rtt : group->grtt)) / 
+                (sqrt(1.5) * 8 * avgbytes), 2));
+        log4(group->group_id, 0, "Calculated prior "
+                "event len = %d (rtt=%f, avgbytes=%d)",
+                group->loss_events[0].len, group->rtt,avgbytes);
+    } else {
+        group->loss_events[0].len = seq_long - group->loss_events[0].start_seq;
+        log4(group->group_id, 0, "Prior event length = %d "
+                "(i=%u, start=%u)", group->loss_events[0].len,
+                seq_long, group->loss_events[0].start_seq);
+    }
+    memmove(&group->loss_events[1], &group->loss_events[0],
+            sizeof(struct loss_event_t) * 8);
+    group->loss_events[0].start_seq = seq_long;
+    group->loss_events[0].len = 0;
+    group->loss_events[0].t = group->loss_history[txseq].t;
+}
+
 /**
  * Updates the group's loss history
  *
@@ -984,13 +1032,12 @@ end:
  * more than MAXMISORDER sequence numbers old.  Works under the assumption
  * that no more than 32K packets in a row get lost.
  */
-void update_loss_history(struct group_list_t *group, uint16_t txseq, int size)
+void update_loss_history(struct group_list_t *group, uint16_t txseq, int size,
+                         int ecn)
 {
-    uint16_t i, count;
-    uint32_t i_long;
-    int tdiff, bytes, avgbytes, rate;
+    uint16_t i;
+    int tdiff, grtt_usec;
     struct timeval tvdiff;
-    int grtt_usec;
 
     group->loss_history[txseq].found = 1;
     gettimeofday(&group->loss_history[txseq].t, NULL);
@@ -1036,53 +1083,18 @@ void update_loss_history(struct group_list_t *group, uint16_t txseq, int size)
                         ((diff_usec(group->loss_history[i].t,
                                     group->loss_events[0].t) > grtt_usec) ||
                             group->slowstart)) {
-                    log4(group->group_id, 0, "Seq %d starts new loss event", i);
-                    // Found a new loss event
-                    if (i < group->max_txseq - MAXMISORDER) {
-                        log5(group->group_id, 0, "wrap check, i=%u, maxseq=%u",
-                                i, group->max_txseq);
-                        i_long = ((group->seq_wrap - 1) << 16) | i;
-                    } else {
-                        i_long = (group->seq_wrap << 16) | i;
-                    }
-                    if (group->slowstart) {
-                        group->slowstart = 0;
-                        // Initialize loss history 
-                        count = group->max_txseq;
-                        bytes = 0;
-                        while ((count != group->start_txseq) &&
-                                (diff_usec(group->loss_history[i].t,
-                                   group->loss_history[count].t) < grtt_usec)) {
-                            bytes += group->loss_history[count--].size;
-                        }
-                        rate = (int)(bytes / group->grtt);
-                        log4(group->group_id, 0, "End slowstart, calculated "
-                                "rate = %d", rate);
-                        avgbytes= bytes / ((int16_t)(group->max_txseq - count));
-                        group->loss_events[0].len = (group->rtt != 0)
-                                ? (int)(0 + pow((rate * group->rtt) /
-                                        (sqrt(1.5) * 8 * avgbytes), 2))
-                                : (int)(0 + pow((rate * group->grtt) /
-                                        (sqrt(1.5) * 8 * avgbytes), 2));
-                        log4(group->group_id, 0, "Calculated prior "
-                                "event len = %d (rtt=%f, avgbytes=%d)",
-                                group->loss_events[0].len, group->rtt,avgbytes);
-                    } else {
-                        group->loss_events[0].len =
-                                i_long - group->loss_events[0].start_seq;
-                        log4(group->group_id, 0, "Prior event length = %d "
-                                "(i=%u, start=%u)", group->loss_events[0].len,
-                                i_long, group->loss_events[0].start_seq);
-                    }
-                    memmove(&group->loss_events[1], &group->loss_events[0],
-                            sizeof(struct loss_event_t) * 8);
-                    group->loss_events[0].start_seq = i_long;
-                    group->loss_events[0].len = 0;
-                    group->loss_events[0].t = group->loss_history[i].t;
+                    new_loss_event(group, i);
                 }
             }
         }
         group->max_txseq = txseq;
+        if (ecn) {
+            log4(group->group_id, 0, "Seq %d marked by ECN", txseq);
+            if ((diff_usec(group->loss_history[txseq].t,
+                    group->loss_events[0].t) > grtt_usec) || group->slowstart) {
+                new_loss_event(group, txseq);
+            }
+        }
     }
     group->loss_events[0].len = ((group->seq_wrap << 16) | group->max_txseq) -
                                 group->loss_events[0].start_seq;

@@ -1,3 +1,11 @@
+Version 4.3 - 5/23/2014
+  Added support for ECN (Explicit Congestion Notification) in the TFMCC
+    implementation in the server and client.  Proxy support is forthcoming.
+    See the man pages for known supported systems.
+  Fixed warning in encrypt_openssl.c when compiling under FreeBSD x64.
+  Explicitly enable dual mode IPv4/IPv6 sockets when IPv6 is used on systems
+    that support it.
+
 Version 4.2 - 5/12/2014
   Added distinct exit codes for various error conditions
   In client and proxy, check if private address is already in use before joining

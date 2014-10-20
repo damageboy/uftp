@@ -359,55 +359,11 @@ OPTIONS
 	      tion  Control scheme as specified in RFC 4654.  Default value is
 	      "none".
 
-	      The following is a description of how congestion control	worked
-	      prior to version 4.0 and should be considered historical.
-
-	      Specifies	 a  congestion	control	 config	 file.	 Normally, the
-	      server always transmits at the speed specified by -R.  With this
-	      option,  the  speed can be adjusted each time the server makes a
-	      request for NAKs from the clients based  on  the	percentage  of
-	      NAKs  received to data packets sent. The file consists of one or
-	      more of the following lines:
-
-	      percentage;scaling_factor
-
-	      Where "percentage" is a whole number  from  0-100	 specifying  a
-	      percentage  of  NAKs,  and  scaling_factor is a positive decimal
-	      number that the current sending rate is multiplied  by  for  the
-	      given  percentage.  Entries must be listed in ascending order by
-	      percentage.  If there is no entry for "100", the scaling	factor
-	      for the last entry becomes the scaling factor for "100".
-
-	      When  the	 server	 collects NAKs from the clients, it calculates
-	      the NAK percentage, then searches the congestion control entries
-	      in  order	 for a percengage greater than or equal to the current
-	      NAK percentage, and adjusts the rate by the corresponding	 scal‐
-	      ing factor.
-
-	      There may also be a single line specifying the maximum transmis‐
-	      sion speed:
-
-	      max;speed
-
-	      Where "speed" is the transmission speed in Kbps.	If this	 entry
-	      is  not specified, the maximum speed is the initial speed speci‐
-	      fied by -R.
-
-	      The congestion control config file  is  reread  each  time  just
-	      before  adjusting	 the  rate.   This  allows  environments which
-	      externally monitor the network to adjust	the  configuration  on
-	      the  fly.	  In the event of a failure to read the file, the last
-	      configuration successfully read is used.
-
-	      Here is a sample cc_config file:
-
-	      max;10000
-	      0;1.3
-	      5;1.1
-	      10;0.9
-	      25;0.7
-	      50;0.5
-	      100;0.4
+	      TFMCC will make use  of  the  Explicit  Congestion  Notification
+	      (ECN) bits in the IP header on systems that support it natively.
+	      Know supported systems are Linux, FreeBSD,  Windows  XP  (sender
+	      only),  Windows  Vista  and  later  (receiver only), and Solaris
+	      (sender only).
 
        -o
 
@@ -652,4 +608,4 @@ NOTES
 
 
 
-UFTP 4.2			  12 May 2014			       uftp(1)
+UFTP 4.3			  27 May 2014			       uftp(1)
