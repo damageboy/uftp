@@ -770,12 +770,12 @@ int parse_fingerprint(unsigned char *fingerprint, const char *fingerprint_str)
     len = 0;
     p = strtok(tmp, ":");
     if (p == NULL) {
-        log0(0, 0, "Invalid fingerprint %s", fingerprint_str);
+        log1(0, 0, "Invalid fingerprint %s", fingerprint_str);
         return 0;
     }
     do {
         if (len >= HMAC_LEN) {
-            log0(0, 0, "Key fingerprint %s too long", fingerprint_str);
+            log1(0, 0, "Key fingerprint %s too long", fingerprint_str);
             free(tmp);
             return 0;
         }
@@ -787,7 +787,7 @@ int parse_fingerprint(unsigned char *fingerprint, const char *fingerprint_str)
             free(tmp);
             return 0;
         } else if ((num > 255) || (num < 0)) {
-            log0(0, 0, "Parse of host key fingerprint %s failed",
+            log1(0, 0, "Parse of host key fingerprint %s failed",
                         fingerprint_str);
             free(tmp);
             return 0;

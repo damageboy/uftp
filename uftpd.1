@@ -1,4 +1,4 @@
-.TH uftpd 1 "22 July 2014" "UFTP 4.4"
+.TH uftpd 1 "26 August 2014" "UFTP 4.5"
 .SH NAME
 uftpd - Encrypted UDP based ftp with multicast - client daemon
 .SH SYNOPSIS
@@ -7,7 +7,7 @@ uftpd [ -d ] [ -p port ] [ -B buf_size ]
     [ -T temp_dir ] [ -D dest_dir[,dest_dir... ]]
     [ -A backup_dir[,backup_dir... ]] [ -L logfile ]
     [ -P pidfile ] [ -S serverlist_file ] [ -R proxy[/fp] ]
-    [ -k keyfile[,keyfile...] ]
+    [ -c cache_size ] [ -k keyfile[,keyfile...] ]
     [ -K rsa:key_len | ec:curve[,rsa:key_len | ec:curve...]]
     [ -m ] [ -N priority ] [ -i ] [ -s postreceive_script ]
     [ -g max_log_size ] [ -n max_log_count ]
@@ -94,6 +94,9 @@ When expecting to receive from a server that is behind a proxy, the file should 
 .TP
 .B \-R proxy[/fingerprint]
 Specifies the name/IP of the response proxy that all responses are forwarded to.  If fingerprint is given, it specifies the proxy\(aqs public key fingerprint.  Upon startup, the client will query the proxy for its public key, retrying every 5 seconds until it gets a successful response.  The client cannot accept an encrypted file transfer from a server until it gets the proxy\(aqs key.
+.TP
+.B \-c cache_size
+Specifies the size in bytes of the cache used to hold received data packets before they are written to disk.  Proper tuning of this value can greatly increase efficiency at speeds in the gigabit range.  Valid values are 10240-20971520 (10KB-20MB).  Default is 1048576 (1MB).
 .TP
 .B \-k keyfile[,keyfile...]
 .TP

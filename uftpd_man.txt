@@ -11,7 +11,7 @@ SYNOPSIS
 	   [ -T temp_dir ] [ -D dest_dir[,dest_dir... ]]
 	   [ -A backup_dir[,backup_dir... ]] [ -L logfile ]
 	   [ -P pidfile ] [ -S serverlist_file ] [ -R proxy[/fp] ]
-	   [ -k keyfile[,keyfile...] ]
+	   [ -c cache_size ] [ -k keyfile[,keyfile...] ]
 	   [ -K rsa:key_len | ec:curve[,rsa:key_len | ec:curve...]]
 	   [ -m ] [ -N priority ] [ -i ] [ -s postreceive_script ]
 	   [ -g max_log_size ] [ -n max_log_count ]
@@ -166,6 +166,13 @@ OPTIONS
 	      until  it	 gets a successful response.  The client cannot accept
 	      an encrypted file transfer from  a  server  until	 it  gets  the
 	      proxy's key.
+
+       -c cache_size
+	      Specifies	 the  size in bytes of the cache used to hold received
+	      data packets before they are written to disk.  Proper tuning  of
+	      this  value  can	greatly	 increase  efficiency at speeds in the
+	      gigabit range.  Valid  values  are  10240-20971520  (10KB-20MB).
+	      Default is 1048576 (1MB).
 
        -k keyfile[,keyfile...]
 
@@ -404,4 +411,4 @@ NOTES
 
 
 
-UFTP 4.4			 22 July 2014			      uftpd(1)
+UFTP 4.5			26 August 2014			      uftpd(1)

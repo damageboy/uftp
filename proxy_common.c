@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -270,7 +270,7 @@ void send_pending(struct pr_group_list_t *group, int pendidx)
         send_complete(group, pendidx);
         break;
     default:
-        log2(group->group_id, 0, "Tried to send pending on invalid type %s",
+        log1(group->group_id, 0, "Tried to send pending on invalid type %s",
                 func_name(group->pending[pendidx].msg));
         return;
     }
@@ -360,7 +360,7 @@ void check_pending(struct pr_group_list_t *group, int hostidx,
                               (complete->status == pending->comp_status));
             break;
         default:
-            log2(group->group_id, 0, "Tried to check pending "
+            log1(group->group_id, 0, "Tried to check pending "
                     "on invalid type %s", func_name(*func));
             return;
         }
@@ -548,7 +548,7 @@ void forward_message(struct pr_group_list_t *group,
         if (proxy_type != SERVER_PROXY) {
             hostidx = find_client(group, header->src_id);
             if (hostidx == -1) {
-                log2(group->group_id, 0, "Couldn't find receiver in list");
+                log1(group->group_id, 0, "Couldn't find receiver in list");
                 return;
             }
             key = group->destinfo[hostidx].pubkey;
@@ -585,14 +585,14 @@ void forward_message(struct pr_group_list_t *group,
             if (header->func == ENCRYPTED) {
                 if (!verify_RSA_sig(key.rsa, group->hashtype, packet,
                                     meslen, sigcopy, siglen)) {
-                    log2(group->group_id, 0, "Signature verification failed");
+                    log1(group->group_id, 0, "Signature verification failed");
                     free(sigcopy);
                     return;
                 }
             }
             if (!create_RSA_sig(group->proxy_privkey.rsa, group->hashtype,
                                 packet, meslen, sigcopy, &siglen)) {
-                log2(group->group_id, 0, "Signature creation failed");
+                log0(group->group_id, 0, "Signature creation failed");
                 free(sigcopy);
                 return;
             }
@@ -600,14 +600,14 @@ void forward_message(struct pr_group_list_t *group,
             if (header->func == ENCRYPTED) {
                 if (!verify_ECDSA_sig(key.ec, group->hashtype, packet,
                                       meslen, sigcopy, siglen)) {
-                    log2(group->group_id, 0, "Signature verification failed");
+                    log1(group->group_id, 0, "Signature verification failed");
                     free(sigcopy);
                     return;
                 }
             }
             if (!create_ECDSA_sig(group->proxy_privkey.ec, group->hashtype,
                                   packet, meslen, sigcopy, &siglen)) {
-                log2(group->group_id, 0, "Signature creation failed");
+                log0(group->group_id, 0, "Signature creation failed");
                 free(sigcopy);
                 return;
             }
@@ -670,14 +670,14 @@ void handle_hb_request(const union sockaddr_u *src,
             // First check key fingerprint, then check signature
             if (keyblob[0] == KEYBLOB_RSA) {
                 if (!import_RSA_key(&key.rsa, keyblob, bloblen)) {
-                    log2(0, 0, "Failed to import public key from HB_REQ");
+                    log1(0, 0, "Failed to import public key from HB_REQ");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 } 
 
                 hash(HASH_SHA1, keyblob, bloblen, fingerprint, &fplen);
                 if (memcmp(down_fingerprint, fingerprint, fplen)) {
-                    log2(0, 0, "Failed to verify HB_REQ fingerprint");
+                    log1(0, 0, "Failed to verify HB_REQ fingerprint");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 }
@@ -685,20 +685,20 @@ void handle_hb_request(const union sockaddr_u *src,
                 if (!verify_RSA_sig(key.rsa, HASH_SHA1,
                         (unsigned char *)&hbreq->nonce,
                         sizeof(hbreq->nonce), sig, siglen)) {
-                    log2(0, 0, "Failed to verify HB_REQ signature");
+                    log1(0, 0, "Failed to verify HB_REQ signature");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 }
             } else {
                 if (!import_EC_key(&key.ec, keyblob, bloblen, 0)) {
-                    log2(0, 0, "Failed to import public key from HB_REQ");
+                    log1(0, 0, "Failed to import public key from HB_REQ");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 } 
 
                 hash(HASH_SHA1, keyblob, bloblen, fingerprint, &fplen);
                 if (memcmp(down_fingerprint, fingerprint, fplen)) {
-                    log2(0, 0, "Failed to verify HB_REQ fingerprint");
+                    log1(0, 0, "Failed to verify HB_REQ fingerprint");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 }
@@ -706,7 +706,7 @@ void handle_hb_request(const union sockaddr_u *src,
                 if (!verify_ECDSA_sig(key.ec, HASH_SHA1,
                         (unsigned char *)&hbreq->nonce,
                         sizeof(hbreq->nonce), sig, siglen)) {
-                    log2(0, 0, "Failed to verify HB_REQ signature");
+                    log1(0, 0, "Failed to verify HB_REQ signature");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 }
@@ -825,13 +825,13 @@ void send_proxy_key()
 
     if (privkey_type[0] == KEYBLOB_RSA) {
         if (!export_RSA_key(privkey[0].rsa, keyblob, &bloblen)) {
-            log2(0, 0, "Error exporting public key");
+            log0(0, 0, "Error exporting public key");
             free(packet);
             return;
         }
     } else {
         if (!export_EC_key(privkey[0].ec, keyblob, &bloblen)) {
-            log2(0, 0, "Error exporting public key");
+            log0(0, 0, "Error exporting public key");
             free(packet);
             return;
         }
@@ -839,7 +839,7 @@ void send_proxy_key()
     dhblob = keyblob + bloblen;
     if (dhkey.key) {
         if (!export_EC_key(dhkey.ec, dhblob, &dhlen)) {
-            log2(0, 0, "Error exporting public key");
+            log0(0, 0, "Error exporting public key");
             free(packet);
             return;
         }
@@ -850,14 +850,14 @@ void send_proxy_key()
     if (privkey_type[0] == KEYBLOB_RSA) {
         if (!create_RSA_sig(privkey[0].rsa, HASH_SHA1, (unsigned char *)&nonce,
                             sizeof(nonce), sig, &siglen)) {
-            log2(0, 0, "Error signing nonce");
+            log0(0, 0, "Error signing nonce");
             free(packet);
             return;
         }
     } else {
         if (!create_ECDSA_sig(privkey[0].ec, HASH_SHA1, (unsigned char *)&nonce,
                               sizeof(nonce), sig, &siglen)) {
-            log2(0, 0, "Error signing nonce");
+            log0(0, 0, "Error signing nonce");
             free(packet);
             return;
         }
@@ -978,13 +978,13 @@ void handle_abort(struct pr_group_list_t *group, const union sockaddr_u *src,
     upstream = (addr_equal(&group->up_addr, src));
     if (meslen < (abort_hdr->hlen * 4U) ||
             ((abort_hdr->hlen * 4U) < sizeof(struct abort_h))) {
-        log2(group->group_id,0, "Rejecting ABORT from %s: invalid message size",
+        log1(group->group_id,0, "Rejecting ABORT from %s: invalid message size",
                 upstream ? "server" : "client");
     }
 
     if (upstream) {
         if ((abort_hdr->host == 0) || abort_hdr->host == uid ) {
-            log2(group->group_id, 0,
+            log1(group->group_id, 0,
                     "Transfer aborted by server: %s", abort_hdr->message);
             current = ((abort_hdr->flags & FLAG_CURRENT_FILE) != 0);
             if (proxy_type != RESPONSE_PROXY) {
@@ -1001,10 +1001,10 @@ void handle_abort(struct pr_group_list_t *group, const union sockaddr_u *src,
         }
     } else {
         if ((hostidx = find_client(group, src_id)) != -1) {
-            log2(group->group_id, 0, "Transfer aborted by %s: %s",
+            log1(group->group_id, 0, "Transfer aborted by %s: %s",
                     group->destinfo[hostidx].name, abort_hdr->message);
         } else {
-            log2(group->group_id, 0, "Transfer aborted by %08X: %s",
+            log1(group->group_id, 0, "Transfer aborted by %08X: %s",
                     ntohl(src_id), abort_hdr->message);
         }
         send_upstream_abort(group, src_id, abort_hdr->message);

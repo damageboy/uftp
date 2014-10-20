@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -76,6 +76,11 @@ struct file_t {
     int restart;                /// True if restarting a prior session
     int comp_status;            /// Value for status field of COMPLETE
     int destdiridx;             /// Index of dest dir file is received in
+    char *cache;                /// Disk cache, consecutive packets
+    uint32_t cache_start;       /// First block in cache
+    uint32_t cache_end;         /// Last block in cache
+    int cache_len;              /// Length of cache in bytes
+    char *cache_status;         /// Receive status of cache entries
 };
 
 /**
@@ -182,7 +187,7 @@ extern char backupdir[MAXDIR][MAXDIRNAME];
 extern int debug, encrypted_only, dscp, destdircnt, tempfile, keyinfo_count;
 extern int interface_count, pub_multi_count, keyfile_count, rcvbuf, backupcnt;
 extern char postreceive[MAXPATHNAME], portname[PORTNAME_LEN];
-extern int port, move_individual;
+extern int port, move_individual, cache_len;
 extern uint32_t uid;
 extern union sockaddr_u hb_hosts[MAXLIST];
 extern struct iflist m_interface[MAX_INTERFACES];

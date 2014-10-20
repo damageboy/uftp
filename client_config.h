@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@
 #define DEF_BSD_RCVBUF  233016
 #define DEF_DSCP        0
 #define DEF_HB_INT      20
+#define DEF_CACHE       1048576
 
 #ifdef WINDOWS
 
@@ -60,7 +61,7 @@
 #define USAGE "uftpd [ -d ] [ -p port ] [ -B buf_size ]\n\
     [ -E ] [ -Q dscp ] [ -U UID ] [ -x log_level ] [ -t ] [ -T temp_dir ]\n\
     [ -D dest_dir [ dest_dir... ]] [ -A backup_dir [ backup_dir... ]]\n\
-    [ -s postreceive_script] [ -L logfile ] [] [ -P pidfile ]\n\
+    [ -c cache_size ] [ -s postreceive_script] [ -L logfile ] [ -P pidfile ]\n\
     [ -S serverlist_file ] [ -R proxy[/fp] ] [ -k keyfile[,keyfile...] ]\n\
     [ -K rsa:key_length | ec:curve[,rsa:key_length | ec:curve...]]\n\
     [ -m ] [ -N priority ] [ -i ] [ -g max_log_size ] [ -n max_log_count ]\n\

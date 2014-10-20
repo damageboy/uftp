@@ -140,7 +140,7 @@ BOOL WINAPI winsig(DWORD event)
         log0(0, 0, "Got CTRL_SHUTDOWN_EVENT");
         break;
     default:
-        log0(0, 0, "GOT unknown event", event);
+        log0(0, 0, "GOT unknown event %d", event);
         break;
     }
     user_abort = 1;
@@ -514,8 +514,8 @@ void initialize(void)
         act.sa_handler = gotsig;
         sigaction(SIGINT, &act, NULL);
         sigaction(SIGTERM, &act, NULL);
-        sigaction(SIGPIPE, &act, NULL);
         act.sa_handler = SIG_IGN;
+        sigaction(SIGPIPE, &act, NULL);
         sigaction(SIGCHLD, &act, NULL);
     }
 #endif

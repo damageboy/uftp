@@ -272,10 +272,10 @@ void handle_complete(const unsigned char *message, unsigned meslen,
             for (i = 0; i < clientcnt; i++) {
                 clientidx = find_client(idlist[i]);
                 if (clientidx == -1) {
-                    log2(finfo->group_id, finfo->file_id,
+                    log1(finfo->group_id, finfo->file_id,
                             "  For client %08X", ntohl(idlist[i]));
                 } else {
-                    log2(finfo->group_id, finfo->file_id,
+                    log1(finfo->group_id, finfo->file_id,
                             "  For client %s", destlist[clientidx].name);
                 }
             }
@@ -791,26 +791,41 @@ void print_status(const struct finfo_t *finfo, struct timeval start_time)
     }
 
     if (finfo->file_id == 0) {
-        log0(finfo->group_id, finfo->file_id, "Group complete");
+        log2(finfo->group_id, finfo->file_id, "Group complete");
         return;
     }
 
-    log0(finfo->group_id, finfo->file_id, "Transfer status:");
+    log2(finfo->group_id, finfo->file_id, "Transfer status:");
     for (done_time = start_time, i = 0; i < destcount; i++) {
         if (destlist[i].clientcnt >= 0) {
             continue;
         }
-        clog0(finfo->group_id, finfo->file_id,
+        clog2(finfo->group_id, finfo->file_id,
                 "Host: %-15s  Status: ", destlist[i].name);
         switch (destlist[i].status) {
         case DEST_MUTE:
-            slog0("Mute");
+            if (log_level >= 2) {
+                slog2("Mute");
+            } else {
+                log0(finfo->group_id, finfo->file_id,
+                        "%-15s Mute", destlist[i].name);
+            }
             break;
         case DEST_LOST:
-            slog0("Lost connection");
+            if (log_level >= 2) {
+                slog2("Lost connection");
+            } else {
+                log0(finfo->group_id, finfo->file_id,
+                        "%-15s Lost connection", destlist[i].name);
+            }
             break;
         case DEST_ABORT:
-            slog0("Aborted");
+            if (log_level >= 2) {
+                slog2("Aborted");
+            } else {
+                log0(finfo->group_id, finfo->file_id,
+                        "%-15s Aborted", destlist[i].name);
+            }
             break;
         case DEST_DONE:
             switch (destlist[i].comp_status) {
@@ -820,10 +835,10 @@ void print_status(const struct finfo_t *finfo, struct timeval start_time)
                 }
                 elapsed_time = diff_usec(finfo->deststate[i].time,
                                          start_time) / 1000000.0;
-                slog0("Completed   time: %7.3f seconds", elapsed_time);
+                slog2("Completed   time: %7.3f seconds", elapsed_time);
                 break;
             case COMP_STAT_SKIPPED:
-                slog0("Skipped");
+                slog2("Skipped");
                 break;
             case COMP_STAT_OVERWRITE:
                 if (diff_usec(finfo->deststate[i].time, done_time) > 0) {
@@ -831,31 +846,36 @@ void print_status(const struct finfo_t *finfo, struct timeval start_time)
                 }
                 elapsed_time = diff_usec(finfo->deststate[i].time,
                                          start_time) / 1000000.0;
-                slog0("Completed(overwritten)   time: %7.3f seconds",
+                slog2("Completed(overwritten)   time: %7.3f seconds",
                         elapsed_time);
                 break;
             case COMP_STAT_REJECTED:
-                slog0("Rejected");
+                slog2("Rejected");
                 break;
             default:
-                slog0("Unknown completion status: %d", destlist[i].comp_status);
+                slog2("Unknown completion status: %d", destlist[i].comp_status);
                 break;
             }
             if (destlist[i].freespace != -1) {
-                log0(finfo->group_id, finfo->file_id,
+                log2(finfo->group_id, finfo->file_id,
                         "  Free space on host: %s bytes",
                         printll(destlist[i].freespace));
             }
             break;
         default:
-            slog0("Unknown  code: %d", destlist[i].status);
+            if (log_level >= 2) {
+                slog2("Unknown code: %d", destlist[i].status);
+            } else {
+                log0(finfo->group_id, finfo->file_id, "%-15s Unknown code %d",
+                        destlist[i].name, destlist[i].status);
+            }
             break;
         }
     }
     elapsed_time = diff_usec(done_time, start_time) / 1000000.0;
-    log1(finfo->group_id, finfo->file_id,
+    log2(finfo->group_id, finfo->file_id,
             "Total elapsed time: %.3f seconds", elapsed_time);
-    log1(finfo->group_id, finfo->file_id, "Overall throughput: %.2f KB/s",
+    log2(finfo->group_id, finfo->file_id, "Overall throughput: %.2f KB/s",
                (elapsed_time != 0) ? (finfo->size / elapsed_time / 1024) : 0);
 }
 

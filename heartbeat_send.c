@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -69,7 +69,7 @@ void handle_hb_response(SOCKET s, const union sockaddr_u *src,
 
     if (meslen < (hbresp->hlen * 4U) ||
             ((hbresp->hlen * 4U) < sizeof(struct hb_resp_h))) {
-        log2(0, 0, "Rejecting HB_RESP: invalid message size");
+        log1(0, 0, "Rejecting HB_RESP: invalid message size");
         return;
     }
 

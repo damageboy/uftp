@@ -60,7 +60,7 @@ char backupdir[MAXDIR][MAXDIRNAME];
 int debug, encrypted_only, dscp, destdircnt, tempfile, keyinfo_count;
 int interface_count, pub_multi_count, keyfile_count, rcvbuf, backupcnt;
 char postreceive[MAXPATHNAME], portname[PORTNAME_LEN];
-int port, move_individual;
+int port, move_individual, cache_len;
 uint32_t uid;
 union sockaddr_u hb_hosts[MAXLIST];
 struct iflist m_interface[MAX_INTERFACES];
@@ -155,6 +155,7 @@ void set_defaults(void)
     move_individual = 0;
     max_log_size = 0;
     max_log_count = DEF_MAX_LOG_COUNT;
+    cache_len = DEF_CACHE;
 }
 
 /**
@@ -168,7 +169,7 @@ void process_args(int argc, char *argv[])
     char line[1000], *servername, *ipstr, *fingerprint;
     char *p, *p2, *hoststr, *portstr, pubname[INET6_ADDRSTRLEN];
     FILE *serverfile;
-    const char opts[] = "dx:L:P:s:I:p:tT:D:A:M:B:Q:EU:S:R:k:K:mN:ig:n:h:H:";
+    const char opts[] = "dx:L:P:s:c:I:p:tT:D:A:M:B:Q:EU:S:R:k:K:mN:ig:n:h:H:";
 
     set_defaults();
 
@@ -196,6 +197,13 @@ void process_args(int argc, char *argv[])
         case 's':
             strncpy(postreceive, optarg, sizeof(postreceive)-1);
             postreceive[sizeof(postreceive)-1] = '\x0';
+            break;
+        case 'c':
+            cache_len = atoi(optarg);
+            if ((cache_len < 10240) || (cache_len > 20971520)) {
+                fprintf(stderr, "Invalid cache size\n");
+                exit(ERR_PARAM);
+            }
             break;
         case 'I':
             p = strtok(optarg, ",");

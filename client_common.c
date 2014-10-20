@@ -121,7 +121,7 @@ void read_restart_file(struct group_list_t *group)
         }
     }
 
-    log1(group->group_id, 0, "Reading restart file");
+    log2(group->group_id, 0, "Reading restart file");
     snprintf(restart_name, sizeof(restart_name), "%s%c_group_%08X_restart",
              tempdir, PATH_SEP, group->group_id);
     if ((fd = open(restart_name, OPENREAD, 0644)) == -1) {
@@ -164,7 +164,7 @@ void read_restart_file(struct group_list_t *group)
     close(fd);
     unlink(restart_name);
     group->restartinfo = restart;
-    log1(group->group_id, 0, "Reading restart file done");
+    log3(group->group_id, 0, "Reading restart file done");
     return;
 
 err3:
@@ -191,7 +191,7 @@ void write_restart_file(struct group_list_t *group)
         return;
     }
 
-    log1(group->group_id, 0, "Writing restart file");
+    log2(group->group_id, 0, "Writing restart file");
     memset(&restart, 0, sizeof(restart));
     fileinfo = &group->fileinfo;
     if (group->phase != PHASE_MIDGROUP) {
@@ -467,6 +467,8 @@ void file_cleanup(struct group_list_t *group, int abort_session)
         free(group->loss_history);
         free(group->fileinfo.naklist);
         free(group->fileinfo.section_done);
+        free(group->fileinfo.cache);
+        free(group->fileinfo.cache_status);
         if (group->restartinfo) {
             free(group->restartinfo->naklist);
             free(group->restartinfo->section_done);
@@ -482,8 +484,12 @@ void file_cleanup(struct group_list_t *group, int abort_session)
         set_timeout(group, 0);
         free(group->fileinfo.naklist);
         free(group->fileinfo.section_done);
+        free(group->fileinfo.cache);
+        free(group->fileinfo.cache_status);
         group->fileinfo.naklist = NULL;
         group->fileinfo.section_done = NULL;
+        group->fileinfo.cache = NULL;
+        group->fileinfo.cache_status = NULL;
     }
 }
 
@@ -612,7 +618,7 @@ void handle_abort(struct group_list_t *group, const unsigned char *message,
     }
 
     if (found) {
-        log0(group->group_id, group->file_id,
+        log1(group->group_id, group->file_id,
                 "Transfer aborted by server: %s", abort_hdr->message);
         file_cleanup(group, 1);
     }
@@ -715,7 +721,7 @@ void handle_proxy_key(const union sockaddr_u *src,
         if (proxy_info.has_fingerprint) {
             hash(HASH_SHA1, keyblob, keylen, fingerprint, &fplen);
             if (memcmp(proxy_info.fingerprint, fingerprint, fplen)) {
-                log0(0, 0, "Failed to verify PROXY_KEY fingerprint");
+                log1(0, 0, "Failed to verify PROXY_KEY fingerprint");
                 free_RSA_key(proxy_pubkey.rsa);
                 return;
             }
@@ -723,7 +729,7 @@ void handle_proxy_key(const union sockaddr_u *src,
         if (!verify_RSA_sig(proxy_pubkey.rsa, HASH_SHA1,
                             (unsigned char *)&proxykey->nonce,
                             sizeof(proxykey->nonce), sig, siglen)) {
-            log0(0, 0, "Failed to verify PROXY_KEY signature");
+            log1(0, 0, "Failed to verify PROXY_KEY signature");
             free_RSA_key(proxy_pubkey.rsa);
             return;
         }
@@ -735,7 +741,7 @@ void handle_proxy_key(const union sockaddr_u *src,
         if (proxy_info.has_fingerprint) {
             hash(HASH_SHA1, keyblob, keylen, fingerprint, &fplen);
             if (memcmp(proxy_info.fingerprint, fingerprint, fplen)) {
-                log0(0, 0, "Failed to verify PROXY_KEY fingerprint");
+                log1(0, 0, "Failed to verify PROXY_KEY fingerprint");
                 free_RSA_key(proxy_pubkey.rsa);
                 return;
             }
@@ -743,7 +749,7 @@ void handle_proxy_key(const union sockaddr_u *src,
         if (!verify_ECDSA_sig(proxy_pubkey.ec, HASH_SHA1,
                               (unsigned char *)&proxykey->nonce,
                               sizeof(proxykey->nonce), sig, siglen)) {
-            log0(0, 0, "Failed to verify PROXY_KEY signature");
+            log1(0, 0, "Failed to verify PROXY_KEY signature");
             free_RSA_key(proxy_pubkey.rsa);
             return;
         }
@@ -895,7 +901,7 @@ void move_to_backup(struct group_list_t *group)
                 group->fileinfo.filepath, backup_file, GetLastError(), errbuf);
         clear_path(group->fileinfo.filepath, group);
     } else {
-        log1(group->group_id, group->file_id,
+        log2(group->group_id, group->file_id,
                 "Backed up existing file to %s", backup_file);
     }
 #else
@@ -905,7 +911,7 @@ void move_to_backup(struct group_list_t *group)
                  group->fileinfo.filepath, backup_file);
         clear_path(group->fileinfo.filepath, group);
     } else {
-        log1(group->group_id, group->file_id,
+        log2(group->group_id, group->file_id,
                 "Backed up existing file to %s", backup_file);
     }
 #endif

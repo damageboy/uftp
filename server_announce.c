@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -725,11 +725,14 @@ void handle_open_register(const unsigned char *message, unsigned meslen,
     tv1.tv_sec = ntohl(reg->tstamp_sec);
     tv1.tv_usec = ntohl(reg->tstamp_usec);
     destlist[hostidx].rtt = diff_usec(tv2, tv1) / 1000000.0;
+    if (destlist[hostidx].rtt < CLIENT_RTT_MIN) {
+        destlist[hostidx].rtt = CLIENT_RTT_MIN;
+    }
     destlist[hostidx].rtt_measured = 1;
     destlist[hostidx].registered = 1;
     destlist[hostidx].status =
             regconf ? DEST_ACTIVE : (client_auth ? DEST_MUTE : DEST_REGISTERED);
-    log1(finfo->group_id, finfo->file_id, "Received REGISTER from %s %s",
+    log2(finfo->group_id, finfo->file_id, "Received REGISTER from %s %s",
               (clientcnt > 0) ? "proxy" : "client", destlist[hostidx].name);
     if (clientcnt > 0) {
         idlist = (const uint32_t *)(message + (reg->hlen * 4));
@@ -779,7 +782,7 @@ void handle_register(const unsigned char *message, unsigned meslen,
         return;
     }    
     if (finfo->file_id != 0) {
-        log1(finfo->group_id, finfo->file_id,
+        log2(finfo->group_id, finfo->file_id,
                 "Received REGISTER+ from %s", destlist[hostidx].name);
         return;
     }
@@ -798,13 +801,16 @@ void handle_register(const unsigned char *message, unsigned meslen,
     tv1.tv_sec = ntohl(reg->tstamp_sec);
     tv1.tv_usec = ntohl(reg->tstamp_usec);
     destlist[hostidx].rtt = diff_usec(tv2, tv1) / 1000000.0;
+    if (destlist[hostidx].rtt < CLIENT_RTT_MIN) {
+        destlist[hostidx].rtt = CLIENT_RTT_MIN;
+    }
     destlist[hostidx].rtt_measured = 1;
     destlist[hostidx].registered = 1;
     if (regconf) {
         finfo->deststate[hostidx].conf_sent = 0;
     }
     isproxy = (destlist[hostidx].clientcnt != -1);
-    log1(finfo->group_id, finfo->file_id, "Received REGISTER%s from %s %s",
+    log2(finfo->group_id, finfo->file_id, "Received REGISTER%s from %s %s",
             (dupmsg && !isproxy) ? "+" : "",
             (isproxy) ? "proxy" : "client", destlist[hostidx].name);
     if (clientcnt > 0) {
@@ -1075,6 +1081,9 @@ void handle_fileinfo_ack(const unsigned char *message, unsigned meslen,
     tv1.tv_sec = ntohl(fileinfoack->tstamp_sec);
     tv1.tv_usec = ntohl(fileinfoack->tstamp_usec);
     destlist[hostidx].rtt = diff_usec(tv2, tv1) / 1000000.0;
+    if (destlist[hostidx].rtt < CLIENT_RTT_MIN) {
+        destlist[hostidx].rtt = CLIENT_RTT_MIN;
+    }
     destlist[hostidx].rtt_measured = 1;
     destlist[hostidx].rtt_sent = 0;
     isproxy = (destlist[hostidx].clientcnt != -1);

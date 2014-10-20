@@ -555,12 +555,12 @@ int read_announce_encryption(struct group_list_t *group,
     keys = (unsigned char *)encinfo + sizeof(struct enc_info_he);
     // Sanity check the selected encryption parameters
     if (!cipher_supported(encinfo->keytype)) {
-        log0(group->group_id, 0, "Keytype invalid or not supported here");
+        log1(group->group_id, 0, "Keytype invalid or not supported here");
         send_abort(group, "Keytype invalid or not supported here");
         return 0;
     }
     if (!hash_supported(encinfo->hashtype)) {
-        log0(group->group_id, 0, "Hashtype invalid or not supported here");
+        log1(group->group_id, 0, "Hashtype invalid or not supported here");
         send_abort(group, "Hashtype invalid or not supported here");
         return 0;
     }
@@ -569,13 +569,13 @@ int read_announce_encryption(struct group_list_t *group,
     if (((sigtype != SIG_HMAC) && (sigtype != SIG_KEYEX) &&
                 (sigtype != SIG_AUTHENC)) ||
             ((sigtype == SIG_AUTHENC) && (!is_auth_enc(encinfo->keytype)))) {
-        log0(group->group_id, 0, "Invalid sigtype specified");
+        log1(group->group_id, 0, "Invalid sigtype specified");
         send_abort(group, "Invalid sigtype specified");
         return 0;
     } 
     if ((keyextype != KEYEX_RSA) && (keyextype != KEYEX_ECDH_RSA) &&
             (keyextype != KEYEX_ECDH_ECDSA)) {
-        log0(group->group_id, 0, "Invalid keyextype specified");
+        log1(group->group_id, 0, "Invalid keyextype specified");
         send_abort(group, "Invalid keyextype specified");
         return 0;
     }
@@ -586,7 +586,7 @@ int read_announce_encryption(struct group_list_t *group,
     group->client_auth = ((encinfo->flags & FLAG_CLIENT_AUTH) != 0);
 
     if (!verify_server_fingerprint(keys, ntohs(encinfo->keylen), group)) {
-        log0(group->group_id, 0, "Failed to verify server key fingerprint");
+        log1(group->group_id, 0, "Failed to verify server key fingerprint");
         send_abort(group, "Failed to verify server key fingerprint");
         return 0;
     }
@@ -633,13 +633,13 @@ int read_announce_encryption(struct group_list_t *group,
         }
     }
     if (!group->client_privkey.key) {
-        log0(group->group_id, 0, "No client key compatible with server key");
+        log1(group->group_id, 0, "No client key compatible with server key");
         send_abort(group, "No client key compatible with server key");
         return 0;
     }
     if (has_proxy) {
         if (!proxy_pubkey.key) {
-            log0(group->group_id, 0,
+            log1(group->group_id, 0,
                     "Response proxy set but haven't gotten key yet");
             send_abort(group,"Response proxy set but haven't gotten key yet");
             return 0;
@@ -650,7 +650,7 @@ int read_announce_encryption(struct group_list_t *group,
                 !(((keytype == KEYBLOB_EC) && (proxy_pubkeytype==KEYBLOB_EC)) &&
                     (get_EC_curve(group->server_pubkey.ec) ==
                         get_EC_curve(proxy_pubkey.ec)))) {
-            log0(group->group_id, 0,
+            log1(group->group_id, 0,
                     "Response proxy key not compatible with server key");
             send_abort(group,
                     "Response proxy key not compatible with server key");
@@ -682,7 +682,7 @@ int read_announce_encryption(struct group_list_t *group,
             // We already checked if the proxy key exists, so no need to repeat
             if (get_EC_curve(group->server_dhkey.ec) !=
                     get_EC_curve(proxy_dhkey.ec)) {
-                log0(group->group_id, 0, "Response proxy ECDH key "
+                log1(group->group_id, 0, "Response proxy ECDH key "
                         "not compatible with server ECDH key");
                 send_abort(group, "Response proxy ECDH key "
                         "not compatible with server ECDH key");
@@ -697,7 +697,7 @@ int read_announce_encryption(struct group_list_t *group,
         if (keytype == KEYBLOB_RSA) {
             if (!verify_RSA_sig(group->server_pubkey.rsa, group->hashtype,
                                 packet, packetlen, sigcopy, siglen)) {
-                log0(group->group_id, 0, "Signature verification failed");
+                log1(group->group_id, 0, "Signature verification failed");
                 send_abort(group, "Signature verification failed");
                 free(sigcopy);
                 return 0;
@@ -705,7 +705,7 @@ int read_announce_encryption(struct group_list_t *group,
         } else {
             if (!verify_ECDSA_sig(group->server_pubkey.ec, group->hashtype,
                                   packet, packetlen, sigcopy, siglen)) {
-                log0(group->group_id, 0, "Signature verification failed");
+                log1(group->group_id, 0, "Signature verification failed");
                 send_abort(group, "Signature verification failed");
                 free(sigcopy);
                 return 0;
@@ -782,7 +782,7 @@ int read_announce(struct group_list_t *group, unsigned char *packet,
     group->fileinfo.fd = -1;
 
     if ((announce->hlen * 4U) < sizeof(struct announce_h) + (2U * iplen)) {
-        log0(group->group_id, 0, "Rejecting ANNOUNCE from %08X: "
+        log1(group->group_id, 0, "Rejecting ANNOUNCE from %08X: "
                           "invalid header size", ntohl(group->src_id));
         send_abort(group, "Invalid header size");
         return 0;
@@ -799,7 +799,7 @@ int read_announce(struct group_list_t *group, unsigned char *packet,
                     (extlen != (sizeof(struct enc_info_he) +
                                 ntohs(encinfo->keylen) + ntohs(encinfo->dhlen) +
                                 ntohs(encinfo->siglen)))) {
-                log0(group->group_id, 0, "Rejecting ANNOUNCE from %08X: "
+                log1(group->group_id, 0, "Rejecting ANNOUNCE from %08X: "
                         "invalid extension size", ntohl(group->src_id));
                 send_abort(group, "Invalid extension size");
                 return 0;
@@ -812,7 +812,7 @@ int read_announce(struct group_list_t *group, unsigned char *packet,
             return 0;
         }
     } else if (encrypted_only) {
-        log0(group->group_id, 0, "No unencrypted transfers allowed");
+        log1(group->group_id, 0, "No unencrypted transfers allowed");
         send_abort(group, "No unencrypted transfers allowed");
         return 0;
     } else {
@@ -823,10 +823,10 @@ int read_announce(struct group_list_t *group, unsigned char *packet,
         group->client_auth = 0;
     }
     gettimeofday(&group->expire_time, NULL);
-    if (group->robust * group->grtt < 1.0) {
+    if (4 * group->robust * group->grtt < 1.0) {
         add_timeval_d(&group->expire_time, 1.0);
     } else {
-        add_timeval_d(&group->expire_time, group->robust * group->grtt);
+        add_timeval_d(&group->expire_time, 4 * group->robust * group->grtt);
     }
     group->fileinfo.nak_time.tv_sec = 0;
     group->fileinfo.nak_time.tv_usec = 0;
@@ -884,7 +884,7 @@ void handle_announce(union sockaddr_u *src, unsigned char *packet,
 
     if ((packetlen < sizeof(struct uftp_h) + (announce->hlen * 4U)) ||
             ((announce->hlen * 4U) < sizeof(struct announce_h))) {
-        log0(ntohl(header->group_id), 0, "Rejecting ANNOUNCE from %08X: "
+        log1(ntohl(header->group_id), 0, "Rejecting ANNOUNCE from %08X: "
                 "invalid message size", ntohl(header->src_id));
         return;
     }
@@ -918,8 +918,8 @@ void handle_announce(union sockaddr_u *src, unsigned char *packet,
         log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
     }
 
-    log0(group->group_id,0, "Received request from %08X", ntohl(group->src_id));
-    log1(group->group_id, 0, "Using private multicast address %s", privname);
+    log2(group->group_id,0, "Received request from %08X", ntohl(group->src_id));
+    log2(group->group_id, 0, "Using private multicast address %s", privname);
     log3(group->group_id, 0, "grtt = %.6f", group->grtt);
     log3(group->group_id, 0, "send time: %d.%06d",
             group->last_server_ts.tv_sec, group->last_server_ts.tv_usec);
@@ -928,7 +928,7 @@ void handle_announce(union sockaddr_u *src, unsigned char *packet,
 
     if (group->restart) {
         if (group->sync_mode) {
-            log0(group->group_id, 0, "Sync mode and restart mode incompatable");
+            log1(group->group_id, 0, "Sync mode and restart mode incompatable");
             send_abort(group, "Sync mode and restart mode incompatable");
             return;
         }
@@ -937,7 +937,7 @@ void handle_announce(union sockaddr_u *src, unsigned char *packet,
     if (!addr_blank(&group->multi)) {
         if (server_count > 0) {
             if (!is_multicast(&group->multi, 1)) {
-                log0(group->group_id, 0,
+                log1(group->group_id, 0,
                         "Invalid source specific multicast address: %s",
                         privname);
                 send_abort(group, "Invalid source specific multicast address");
@@ -960,7 +960,7 @@ void handle_announce(union sockaddr_u *src, unsigned char *packet,
             }
         } else {
             if (!is_multicast(&group->multi, 0)) {
-                log0(group->group_id, 0, "Invalid multicast address: %s",
+                log1(group->group_id, 0, "Invalid multicast address: %s",
                         privname);
                 send_abort(group, "Invalid multicast address");
                 return;
@@ -1064,7 +1064,7 @@ void handle_keyinfo(struct group_list_t *group, unsigned char *message,
                     keylist[keyidx].groupmaster, MASTER_LEN,
                     decgroupmaster, &declen) ||
                 (declen != MASTER_LEN - 1)) {
-            log0(group->group_id, 0, "Decrypt failed for group master");
+            log1(group->group_id, 0, "Decrypt failed for group master");
             send_abort(group, "Decrypt failed for group master");
             free(iv);
             return;

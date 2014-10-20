@@ -165,7 +165,7 @@ client that didn't respond with a DONE is marked as lost.
 TODO: Enter a holdoff period like NORM and add later NAKs?
 
 After a client sends a REGISTER, it will be retransmitted every 4 * GRTT with
-a maximum time of ROBUST * GRTT, after which the client drops the session.
+a maximum time of 4 * ROBUST * GRTT, after which the client drops the session.
 During the Completion/Confirmation stage, the client will retransmit a
 COMPLETE every 4 * GRTT with a maximum of ROBUST * GRTT, after which the
 client considers the session complete and does the normal cleanup.  During the
@@ -178,7 +178,7 @@ client, it will wait for 1 * GRTT for any related messages before sending an
 aggregated response to the server.  The proxy can also send a KEYINFO to one
 or more clients.  It will wait 2 * GRTT for responses before resending.  When
 a proxy has no pending aggregated messages to send, it will time out the
-session if no packets have been received in ROBUST * GRTT.
+session if no packets have been received in 4 * ROBUST * GRTT.
 
 When sending an aggregated REGISTER or FILEINFO_ACK message, a proxy will note
 which client reported the longest RTT based on the echoed timestamp and will

@@ -129,7 +129,7 @@ struct timeval *getrecenttimeout(void)
                         naks = NULL;
                     }
                     if (file_done(group, 1)) {
-                        log1(group->group_id, group->file_id,
+                        log2(group->group_id, group->file_id,
                              "File transfer complete");
                         send_complete(group, 0);
                         file_cleanup(group, 0);
@@ -222,14 +222,14 @@ void mainloop(void)
     struct timeval *tv, rxtime;
     double new_grtt;
 
-    log0(0, 0, "%s", VERSIONSTR);
+    log2(0, 0, "%s", VERSIONSTR);
     for (i = 0; i < key_count; i++) {
         if (privkey_type[i] == KEYBLOB_RSA) {
-            log1(0, 0, "Loaded %d bit RSA key with fingerprint %s",
+            log2(0, 0, "Loaded %d bit RSA key with fingerprint %s",
                   RSA_keylen(privkey[i].rsa) * 8,
                   print_key_fingerprint(privkey[i], KEYBLOB_RSA));
         } else {
-            log1(0, 0, "Loaded ECDSA key with curve %s and fingerprint %s",
+            log2(0, 0, "Loaded ECDSA key with curve %s and fingerprint %s",
                   curve_name(get_EC_curve(privkey[i].ec)),
                   print_key_fingerprint(privkey[i], KEYBLOB_EC));
         }

@@ -88,7 +88,7 @@ int send_file(const char *f_basedir, const char *filename,
     char path[MAXPATHNAME], destpath[MAXPATHNAME];
     int len, rval, fd, emptydir, maxsecsize;
 
-    log1(group_id, 0, "----- %s -----", filename);
+    log2(group_id, 0, "----- %s -----", filename);
     len = snprintf(path, sizeof(path), "%s%c%s", f_basedir, PATH_SEP, filename);
     if ((len >= sizeof(path)) || (len == -1)) {
         log1(group_id, 0, "Max pathname length exceeded: %s%c%s",
@@ -107,7 +107,7 @@ int send_file(const char *f_basedir, const char *filename,
         }
     }
     if (file_excluded(filename)) {
-        log0(group_id, 0, "Skipping %s", filename);
+        log2(group_id, 0, "Skipping %s", filename);
         return ERR_NONE;
     }
     rval = ERR_NONE;
@@ -340,7 +340,7 @@ int send_file(const char *f_basedir, const char *filename,
             free(finfo.deststate);
         }
     } else {
-        log0(group_id, 0, "Skipping special file %s", filename);
+        log2(group_id, 0, "Skipping special file %s", filename);
     }
     return rval;
 }
@@ -445,7 +445,7 @@ errexit:
 
 /**
  * The main sending function.  Goes through all files/diectories specified on
- * the command line and initializes the group for multiple files.
+ * the command line and initializes the group.
  */
 int send_files(void)
 {
@@ -474,24 +474,24 @@ int send_files(void)
                                   sizeof(struct deststate_t));
     
     t = time(NULL);
-    if (!showtime) slog0("");
-    log0(group_info.group_id, 0, "%s", VERSIONSTR);
-    if (!showtime) clog0(group_info.group_id, 0, "Starting at %s", ctime(&t));
+    if (!showtime) slog2("");
+    log2(group_info.group_id, 0, "%s", VERSIONSTR);
+    if (!showtime) clog2(group_info.group_id, 0, "Starting at %s", ctime(&t));
     if (privkey.key) {
         if ((keyextype == KEYEX_RSA) || (keyextype == KEYEX_ECDH_RSA)) {
-            log1(group_info.group_id, 0,
+            log2(group_info.group_id, 0,
                     "Loaded %d bit RSA key with fingerprint %s",
                        RSA_keylen(privkey.rsa) * 8,
                        print_key_fingerprint(privkey, KEYBLOB_RSA));
         } else {
-            log1(group_info.group_id, 0,
+            log2(group_info.group_id, 0,
                     "Loaded ECDSA key with curve %s and fingerprint %s",
                        curve_name(get_EC_curve(privkey.ec)),
                        print_key_fingerprint(privkey, KEYBLOB_EC));
         }
     }
     if (dhkey.key) {
-        log1(group_info.group_id, 0, "Loaded ECDH key with curve %s",
+        log2(group_info.group_id, 0, "Loaded ECDH key with curve %s",
                    curve_name(get_EC_curve(dhkey.ec)));
     }
     if (cc_type == CC_NONE || cc_type == CC_UFTP3) {
@@ -544,7 +544,7 @@ int send_files(void)
                     }
                 }
                 if (!found_base) {
-                    log0(group_info.group_id, 0, "Skipping %s: "
+                    log1(group_info.group_id, 0, "Skipping %s: "
                             "doesn't match any base", filelist[i]);
                     free(dir);
                     free(base);
@@ -595,7 +595,7 @@ int send_files(void)
             if (files_sent == 0) {
                 rval = ERR_NO_FILES;
             }
-            log1(group_info.group_id, 0, "-----------------------------");
+            log2(group_info.group_id, 0, "-----------------------------");
             completion_phase(&group_info);
         }
     }
@@ -605,7 +605,7 @@ int send_files(void)
     free(group_info.deststate);
 
     t = time(NULL);
-    if (!showtime) clog0(group_info.group_id, 0, "uftp: Finishing at %s",
+    if (!showtime) clog2(group_info.group_id, 0, "uftp: Finishing at %s",
                          ctime(&t));
     return rval;
 }

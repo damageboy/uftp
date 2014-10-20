@@ -474,7 +474,7 @@ void send_complete(struct group_list_t *group, int set_freespace)
     gettimeofday(&tv, NULL);
     if ((group->phase == PHASE_COMPLETE) &&
             (cmptimestamp(tv, group->expire_time) >= 0)) {
-        log0(group->group_id, group->file_id,
+        log1(group->group_id, group->file_id,
                 "Completion unconfirmed by server");
         move_files(group);
         file_cleanup(group, 0);
@@ -634,6 +634,69 @@ void handle_tfmcc_data_info(struct group_list_t *group,
 }
 
 /**
+ * Flushes the cache to disk
+ * Returns 1 on success, 0 on failure
+ */
+int flush_disk_cache(struct group_list_t *group)
+{
+    f_offset_t offset, seek_rval;
+    int wrote_len;
+    uint32_t i;
+
+    if (group->fileinfo.cache_len == 0) return 1;
+    offset = (f_offset_t) group->fileinfo.cache_start * group->blocksize;
+    if ((seek_rval = lseek_func(group->fileinfo.fd,
+            offset - group->fileinfo.curr_offset, SEEK_CUR)) == -1) {
+        syserror(group->group_id, group->file_id, "lseek failed for file");
+    }
+    if (seek_rval != offset) {
+        log2(group->group_id,group->file_id,"offset is %s", printll(seek_rval));
+        log2(group->group_id,group->file_id, "  should be %s", printll(offset));
+        if ((seek_rval = lseek_func(group->fileinfo.fd,
+                seek_rval - group->fileinfo.curr_offset, SEEK_CUR)) == -1) {
+            syserror(group->group_id, group->file_id, "lseek failed for file");
+            return 0;
+        }
+    }
+    if ((wrote_len = write(group->fileinfo.fd, group->fileinfo.cache,
+                           group->fileinfo.cache_len)) == -1) {
+        syserror(group->group_id, group->file_id,
+                 "Write failed for blocks %d - %d",
+                 group->fileinfo.cache_start, group->fileinfo.cache_end);
+        return 0;
+    } else {
+        group->fileinfo.curr_offset = offset + wrote_len;
+        if (wrote_len != group->fileinfo.cache_len) {
+            log0(group->group_id, group->file_id,
+                    "Write failed for blocks %d - %d, only wrote %d bytes",
+                    group->fileinfo.cache_start, group->fileinfo.cache_end);
+            return 0;
+        } else {
+            log4(group->group_id, group->file_id,
+                    "Wrote blocks %d - %d to disk from cache",
+                    group->fileinfo.cache_start, group->fileinfo.cache_end);
+            for (i = group->fileinfo.cache_start;
+                    i <= group->fileinfo.cache_end; i++) {
+                int status_idx = i - group->fileinfo.cache_start;
+                if (group->fileinfo.cache_status[status_idx]) {
+                    group->fileinfo.naklist[i] = 0;
+                }
+            }
+            group->fileinfo.cache_start = group->fileinfo.cache_end + 1;
+            while ((group->fileinfo.cache_start < group->fileinfo.blocks) &&
+                    (!group->fileinfo.naklist[group->fileinfo.cache_start])) {
+                group->fileinfo.cache_start++;
+            }
+            group->fileinfo.cache_end = group->fileinfo.cache_start;
+            group->fileinfo.cache_len = 0;
+            memset(group->fileinfo.cache, 0, cache_len);
+            memset(group->fileinfo.cache_status,0,cache_len / group->blocksize);
+            return 1;
+        }
+    }
+}
+
+/**
  * Reads an expected FILESEG and writes it to the proper place in the file
  */
 void handle_fileseg(struct group_list_t *group, const unsigned char *message,
@@ -643,9 +706,9 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
     const struct tfmcc_data_info_he *tfmcc;
     const unsigned char *data;
     const uint8_t *he;
-    int datalen, section, seq, wrote_len;
+    int datalen, section, cache_offset, status_idx;
+    uint32_t seq, i;
     unsigned extlen;
-    f_offset_t offset, seek_rval;
 
     if (group->fileinfo.ftype != FTYPE_REG) {
         log2(group->group_id, group->file_id,
@@ -730,38 +793,56 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
         group->fileinfo.last_section = section;
     }
     if (group->fileinfo.naklist[seq]) {
-        offset = (f_offset_t) seq * group->blocksize;
-        if ((seek_rval = lseek_func(group->fileinfo.fd,
-                offset - group->fileinfo.curr_offset,
-                SEEK_CUR)) == -1) {
-            syserror(group->group_id, group->file_id, "lseek failed for file");
-        }
-        if (seek_rval != offset) {
-            log2(group->group_id, group->file_id,
-                    "offset is %s", printll(seek_rval));
-            log2(group->group_id, group->file_id,
-                    "  should be %s", printll(offset));
-            if ((seek_rval = lseek_func(group->fileinfo.fd,
-                    seek_rval - group->fileinfo.curr_offset,
-                    SEEK_CUR)) == -1) {
-                syserror(group->group_id, group->file_id,
-                         "lseek failed for file");
-                return;
+        if ((seq >= group->fileinfo.cache_start) &&
+                (seq <= group->fileinfo.cache_end + MAXMISORDER)) {
+            cache_offset=(seq - group->fileinfo.cache_start) * group->blocksize;
+            if (seq > group->fileinfo.cache_end) {
+                if ((cache_offset + datalen) > cache_len) {
+                    log4(group->group_id, group->file_id,
+                            "Disk cache full, flushing");
+                    if (!flush_disk_cache(group)) {
+                        return;
+                    }
+                    cache_offset = (seq - group->fileinfo.cache_start) *
+                                   group->blocksize;
+                } else {
+                    for (i = group->fileinfo.cache_end; i <= seq; i++) {
+                        if (!group->fileinfo.naklist[i]) {
+                            log3(group->group_id, group->file_id,
+                                  "Cache gap seq %d already received, flushing", i);
+                            if (!flush_disk_cache(group)) {
+                                return;
+                            }
+                            group->fileinfo.cache_start = seq;
+                            cache_offset = 0;
+                            break;
+                        }
+                    }
+                    group->fileinfo.cache_end = seq;
+                }
             }
-        }
-        if ((wrote_len = write(group->fileinfo.fd, data, datalen)) == -1) {
-            syserror(group->group_id, group->file_id,
-                    "Write failed for segment %d", seq);
         } else {
-            group->fileinfo.curr_offset = offset + wrote_len;
-            if (wrote_len != datalen) {
-                log0(group->group_id, group->file_id,
-                        "Write failed for segment %d, only wrote %d bytes",
-                        seq, wrote_len);
-            } else {
-                group->fileinfo.naklist[seq] = 0;
+            if (group->fileinfo.cache_len != 0) {
+                log3(group->group_id, group->file_id,
+                        "Seq %d out of cache range, flushing", seq);
+                if (!flush_disk_cache(group)) {
+                    return;
+                }
             }
+            cache_offset = 0;
+            group->fileinfo.cache_start = seq;
+            group->fileinfo.cache_end = seq;
         }
+        group->fileinfo.cache_len = ((group->fileinfo.cache_end -
+                group->fileinfo.cache_start) * group->blocksize) + datalen;
+        status_idx = seq - group->fileinfo.cache_start;
+        if (group->fileinfo.cache_len > cache_len) {
+            log0(group->group_id, group->file_id, "Cache overrun: "
+                    "current cache len = %d, status_idx = %d",
+                    group->fileinfo.cache_len, status_idx);
+        }
+        group->fileinfo.cache_status[status_idx] = 1;
+        memcpy(&group->fileinfo.cache[cache_offset], data, datalen);
     }
     set_timeout(group, 0);
 }
@@ -776,6 +857,7 @@ int file_done(struct group_list_t *group, int detail)
     if ((group->phase == PHASE_MIDGROUP) || (group->file_id == 0)) {
         return 1;
     }
+    flush_disk_cache(group);
     for (section = 0; section < group->fileinfo.sections; section++) {
         if (!group->fileinfo.section_done[section]) {
             if (!detail) {
@@ -820,6 +902,7 @@ unsigned int get_naks(struct group_list_t *group,
         return 0;
     }
 
+    flush_disk_cache(group);
     if (section >= group->fileinfo.big_sections) {
         section_offset = (group->fileinfo.big_sections *
                     group->fileinfo.secsize_big) +
@@ -899,27 +982,28 @@ void handle_done(struct group_list_t *group, const unsigned char *message,
     }
 
     if (group->file_id) {
-        log1(group->group_id, group->file_id,
+        log2(group->group_id, group->file_id,
                 "Got DONE message for section %d", section);
     } else {
-        log1(group->group_id, group->file_id,
+        log2(group->group_id, group->file_id,
                 "Got DONE message for group");
     }
     if (uid_in_list(addrlist, listlen)) {
         if (group->file_id == 0) {
-            log1(group->group_id, 0, "Group complete");
+            log2(group->group_id, 0, "Group complete");
             group->phase = PHASE_COMPLETE;
             group->fileinfo.comp_status = COMP_STAT_NORMAL;
             gettimeofday(&group->expire_time, NULL);
-            if (group->robust * group->grtt < 1.0) {
+            if (4 * group->robust * group->grtt < 1.0) {
                 add_timeval_d(&group->expire_time, 1.0);
             } else {
-                add_timeval_d(&group->expire_time, group->robust * group->grtt);
+                add_timeval_d(&group->expire_time,
+                              4 * group->robust * group->grtt);
             }
             send_complete(group, 0);
         } else {
             if (file_done(group, 1)) {
-                log1(group->group_id, group->file_id, "File transfer complete");
+                log2(group->group_id, group->file_id, "File transfer complete");
                 group->fileinfo.nak_time.tv_sec = 0;
                 group->fileinfo.nak_time.tv_usec = 0;
                 send_complete(group, 0);
@@ -979,7 +1063,7 @@ void handle_done_conf(struct group_list_t *group, const unsigned char *message,
     }
 
     if (uid_in_list(addrlist, listlen)) {
-        log0(group->group_id, group->file_id,
+        log2(group->group_id, group->file_id,
                 "Group file transfer confirmed");
         move_files(group);
         file_cleanup(group, 0);

@@ -162,14 +162,14 @@ void mainloop(void)
     struct timeval *tv;
     double new_grtt;
 
-    log0(0, 0, "%s", VERSIONSTR);
+    log2(0, 0, "%s", VERSIONSTR);
     for (i = 0; i < key_count; i++) {
         if (privkey_type[i] == KEYBLOB_RSA) {
-            log1(0, 0, "Loaded %d bit RSA key with fingerprint %s",
+            log2(0, 0, "Loaded %d bit RSA key with fingerprint %s",
                   RSA_keylen(privkey[i].rsa) * 8,
                   print_key_fingerprint(privkey[i], KEYBLOB_RSA));
         } else {
-            log1(0, 0, "Loaded ECDSA key with curve %s and fingerprint %s",
+            log2(0, 0, "Loaded ECDSA key with curve %s and fingerprint %s",
                   curve_name(get_EC_curve(privkey[i].ec)),
                   print_key_fingerprint(privkey[i], KEYBLOB_EC));
         }
@@ -227,7 +227,7 @@ void mainloop(void)
             continue;
         }
         if ((proxy_type == SERVER_PROXY) && (addr_blank(&down_addr))) {
-            log2(0, 0, "Rejecting message from %s: downstream address "
+            log1(0, 0, "Rejecting message from %s: downstream address "
                        "not established", rxname);
             continue;
         }
@@ -303,7 +303,7 @@ void mainloop(void)
                             group->grouphmackey, group->hmaclen, group->sigtype,
                             group->keyextype, group->destinfo[hostidx].pubkey,
                             group->destinfo[hostidx].pubkeylen)) {
-                        log2(ntohl(header->group_id), 0, "Rejecting message "
+                        log1(ntohl(header->group_id), 0, "Rejecting message "
                                 "from %s: decrypt/validate failed", rxname);
                         continue;
                     }
@@ -317,7 +317,7 @@ void mainloop(void)
                              (header->func == FILEINFO_ACK) ||
                              (header->func == STATUS) ||
                              (header->func == COMPLETE))) {
-                        log2(ntohl(header->group_id), 0, "Rejecting %s message "
+                        log1(ntohl(header->group_id), 0, "Rejecting %s message "
                                 "from %s: not encrypted", 
                                 func_name(header->func), rxname);
                         continue;

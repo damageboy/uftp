@@ -107,14 +107,6 @@ void gotsig(int sig)
     exit(ERR_INTERRUPTED);
 }
 
-/**
- * Signal handler for SIGPIPE
- */
-void gotpipe(int sig)
-{
-    log2(0, 0, "Got SIGPIPE");
-}
-
 #ifdef WINDOWS
 /**
  * Windows event handler, exits
@@ -138,7 +130,7 @@ BOOL WINAPI winsig(DWORD event)
         log0(0, 0, "Got CTRL_SHUTDOWN_EVENT");
         break;
     default:
-        log0(0, 0, "GOT unknown event", event);
+        log0(0, 0, "GOT unknown event %d", event);
         break;
     }
     exit(ERR_INTERRUPTED);
@@ -242,9 +234,8 @@ void daemonize(void)
         act.sa_handler = gotsig;
         sigaction(SIGINT, &act, NULL);
         sigaction(SIGTERM, &act, NULL);
-        act.sa_handler = gotpipe;
-        sigaction(SIGPIPE, &act, NULL);
         act.sa_handler = SIG_IGN;
+        sigaction(SIGPIPE, &act, NULL);
         sigaction(SIGCHLD, &act, NULL);
     }
 #endif  // WINDOWS
