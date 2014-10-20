@@ -66,11 +66,7 @@ int send_doneconf(const struct finfo_t *finfo, int attempt)
         return 1;
     }
 
-    buf = calloc(MAXMTU, 1); 
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1); 
     header = (struct uftp_h *)buf;
     doneconf = (struct doneconf_h *)(buf + sizeof(struct uftp_h));
 
@@ -100,11 +96,7 @@ int send_done(const struct finfo_t *finfo, int attempt, int section,
     uint32_t *idlist;
     int rval;
 
-    buf = calloc(MAXMTU, 1); 
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1); 
     header = (struct uftp_h *)buf;
     done = (struct done_h *)(buf + sizeof(struct uftp_h));
 
@@ -134,17 +126,9 @@ void create_cc_list(unsigned char **body, int *len)
     struct cc_item *list;
     int *has_rtt, *no_rtt, has_rtt_len, no_rtt_len, maxlist, count, i;
 
-    *body = calloc(blocksize, 1);
-    if (*body == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
-    has_rtt = calloc(MAXDEST, sizeof(int));
-    no_rtt = calloc(MAXDEST, sizeof(int));
-    if ((has_rtt == NULL) || (no_rtt == NULL)) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    *body = safe_calloc(blocksize, 1);
+    has_rtt = safe_calloc(MAXDEST, sizeof(int));
+    no_rtt = safe_calloc(MAXDEST, sizeof(int));
 
     for (has_rtt_len = 0, no_rtt_len = 0, i = 0; i < destcount; i++) {
         if (i == clr) continue;
@@ -198,11 +182,7 @@ void send_cong_ctrl(const struct finfo_t *finfo, double l_grtt,
     struct timeval now;
     int payloadlen, enclen;
 
-    buf = calloc(MAXMTU, 1); 
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1); 
     header = (struct uftp_h *)buf;
     cong_ctrl = (struct cong_ctrl_h *)(buf + sizeof(struct uftp_h));
 
@@ -226,7 +206,7 @@ void send_cong_ctrl(const struct finfo_t *finfo, double l_grtt,
         if (!encrypt_and_sign(buf, &encrypted, payloadlen, &enclen, keytype,
                 groupkey, groupsalt, &ivctr, ivlen, hashtype, grouphmackey,
                 hmaclen, sigtype, keyextype, privkey, privkeylen)) {
-            log0(0, 0, "Error encrypting CONG_CTRL");
+            log0(finfo->group_id, finfo->file_id, "Error encrypting CONG_CTRL");
             free(buf);
             return;
         }
@@ -240,9 +220,9 @@ void send_cong_ctrl(const struct finfo_t *finfo, double l_grtt,
     if (nb_sendto(sock, outpacket, payloadlen + sizeof(struct uftp_h), 0,
                   (struct sockaddr *)&receive_dest,
                   family_len(receive_dest)) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error sending CONG_CTRL");
+        sockerror(finfo->group_id, finfo->file_id, "Error sending CONG_CTRL");
     }
-    log4(0, 0, "Sent CONG_CTRL, seq %d", l_cc_seq);
+    log4(finfo->group_id, finfo->file_id, "Sent CONG_CTRL, seq %d", l_cc_seq);
     free(buf);
     free(encrypted);
 }
@@ -263,38 +243,40 @@ void handle_freespace_info(const struct freespace_info_he *freespace,
 void handle_complete(const unsigned char *message, unsigned meslen,
                      struct finfo_t *finfo, int hostidx)
 {
-    struct complete_h *complete;
-    struct freespace_info_he *freespace;
-    uint8_t *he;
-    uint32_t *idlist;
+    const struct complete_h *complete;
+    const struct freespace_info_he *freespace;
+    const uint8_t *he;
+    const uint32_t *idlist;
     int clientcnt, clientidx, dupmsg, isproxy, i;
     unsigned extlen;
     char status[20];
 
-    complete = (struct complete_h *)message;
-    idlist = (uint32_t *)(message + (complete->hlen * 4));
+    complete = (const struct complete_h *)message;
+    idlist = (const uint32_t *)(message + (complete->hlen * 4));
     clientcnt = (meslen - (complete->hlen * 4)) / 4;
 
     if ((meslen < (complete->hlen * 4U)) || 
             ((complete->hlen * 4U) < sizeof(struct complete_h))) {
-        log1(0, 0, "Rejecting COMPLETE from %s: invalid message size",
-                    destlist[hostidx].name);
+        log1(finfo->group_id, finfo->file_id, "Rejecting COMPLETE from %s: "
+                "invalid message size", destlist[hostidx].name);
         return;
     }
     if (ntohs(complete->file_id) != finfo->file_id) {
         if (finfo->file_id == 0) {
             return;  // Reject silently
         }
-        log1(0, 0, "Rejecting COMPLETE from %s: invalid file ID %04X, "
-                   "expected %04X ", destlist[hostidx].name,
+        log1(finfo->group_id, finfo->file_id, "Rejecting COMPLETE from %s: "
+                "invalid file ID %04X, expected %04X ", destlist[hostidx].name,
                    ntohs(complete->file_id), finfo->file_id);
         if (clientcnt > 0) {
             for (i = 0; i < clientcnt; i++) {
                 clientidx = find_client(idlist[i]);
                 if (clientidx == -1) {
-                    log2(0, 0, "  For client %08X", ntohl(idlist[i]));
+                    log2(finfo->group_id, finfo->file_id,
+                            "  For client %08X", ntohl(idlist[i]));
                 } else {
-                    log2(0, 0, "  For client %s", destlist[clientidx].name);
+                    log2(finfo->group_id, finfo->file_id,
+                            "  For client %s", destlist[clientidx].name);
                 }
             }
         }
@@ -302,14 +284,15 @@ void handle_complete(const unsigned char *message, unsigned meslen,
     }
     freespace = NULL;
     if (complete->hlen * 4U > sizeof(struct complete_h)) {
-        he = (uint8_t *)complete + sizeof(struct complete_h);
+        he = (const uint8_t *)complete + sizeof(struct complete_h);
         if (*he == EXT_FREESPACE_INFO) {
-            freespace = (struct freespace_info_he *)he;
+            freespace = (const struct freespace_info_he *)he;
             extlen = freespace->extlen * 4U;
             if ((extlen > (complete->hlen * 4U) - sizeof(struct complete_h)) ||
                     extlen < sizeof(struct freespace_info_he)) {
-                log1(0, 0, "Rejecting COMPLETE from %s: invalid extension size",
-                           destlist[hostidx].name);
+                log1(finfo->group_id, finfo->file_id,
+                        "Rejecting COMPLETE from %s: invalid extension size",
+                        destlist[hostidx].name);
                 return;
             }
         }
@@ -332,25 +315,27 @@ void handle_complete(const unsigned char *message, unsigned meslen,
         strncpy(status, "(rejected)", sizeof(status));
         break;
     }
-    log2(0, 0, "Got COMPLETE%s%s from %s %s", status,
+    log2(finfo->group_id, finfo->file_id, "Got COMPLETE%s%s from %s %s", status,
                (dupmsg && !isproxy) ? "+" : "",
                (isproxy) ? "proxy" : "client", destlist[hostidx].name);
     if (destlist[hostidx].clientcnt != -1) {
         for (i = 0; i < clientcnt; i++) {
             clientidx = find_client(idlist[i]);
             if (clientidx == -1) {
-                log1(0, 0, "Client %08X via proxy %s not found",
+                log1(finfo->group_id, finfo->file_id,
+                        "Client %08X via proxy %s not found",
                             ntohl(idlist[i]),
                             destlist[hostidx].name);
             } else if (destlist[clientidx].proxyidx != hostidx) {
-                log1(0, 0, "Client %s found via proxy %s, expected proxy %s",
+                log1(finfo->group_id, finfo->file_id,
+                        "Client %s found via proxy %s, expected proxy %s",
                             destlist[clientidx].name,
                             destlist[destlist[clientidx].proxyidx].name,
                             destlist[hostidx].name);
             } else {
                 dupmsg = (destlist[clientidx].status == DEST_DONE);
-                log2(0, 0, "  For client%s %s", dupmsg ? "+" : "",
-                           destlist[clientidx].name);
+                log2(finfo->group_id, finfo->file_id, "  For client%s %s",
+                        dupmsg ? "+" : "", destlist[clientidx].name);
                 finfo->deststate[clientidx].conf_sent = 0;
                 destlist[clientidx].status = DEST_DONE;
                 destlist[clientidx].comp_status = complete->status;
@@ -371,7 +356,8 @@ void handle_complete(const unsigned char *message, unsigned meslen,
  * Handle a EXT_TFMCC_ACK_INFO extension in a STATUS or CC_ACK
  * The mux_main mutex should already be locked
  */ 
-void handle_tfmcc_ack_info(const struct tfmcc_ack_info_he *tfmcc, int hostidx)
+void handle_tfmcc_ack_info(const struct finfo_t *finfo,
+                           const struct tfmcc_ack_info_he *tfmcc, int hostidx)
 {
     struct timeval now, msgtime;
     int flag_ss, flag_rtt, rate_1grtt;
@@ -381,13 +367,13 @@ void handle_tfmcc_ack_info(const struct tfmcc_ack_info_he *tfmcc, int hostidx)
     gettimeofday(&now, NULL);
     msgtime.tv_sec = ntohl(tfmcc->tstamp_sec);
     msgtime.tv_usec = ntohl(tfmcc->tstamp_usec);
-    destlist[hostidx].rtt = (double)(diff_usec(now, msgtime)) / 1000000;
+    destlist[hostidx].rtt = diff_usec(now, msgtime) / 1000000.0;
     if (destlist[hostidx].rtt < CLIENT_RTT_MIN) {
         destlist[hostidx].rtt = CLIENT_RTT_MIN;
     }
     destlist[hostidx].rtt_measured = 1;
     destlist[hostidx].rtt_sent = 0;
-    log4(0, 0, "  rtt = %.6f", destlist[hostidx].rtt);
+    log4(finfo->group_id,finfo->file_id, "  rtt = %.6f", destlist[hostidx].rtt);
 
     client_rate = unquantize_rate(ntohs(tfmcc->cc_rate));
     flag_ss = ((tfmcc->flags & FLAG_CC_START) != 0);
@@ -401,7 +387,8 @@ void handle_tfmcc_ack_info(const struct tfmcc_ack_info_he *tfmcc, int hostidx)
         slowstart = 0;
     }
     if (hostidx == clr) {
-        log3(0, 0, "Got clr CC response for round %d", ntohs(tfmcc->cc_seq));
+        log3(finfo->group_id, finfo->file_id,
+                "Got clr CC response for round %d", ntohs(tfmcc->cc_seq));
         rate_1grtt = (int)(datapacketsize / grtt);
         if (!flag_ss && !flag_rtt) {
             client_rate *= (int)(adv_grtt / destlist[hostidx].rtt);
@@ -414,7 +401,8 @@ void handle_tfmcc_ack_info(const struct tfmcc_ack_info_he *tfmcc, int hostidx)
         packet_wait = (int32_t)(1000000.0 * datapacketsize / rate);
         last_clr_time = now;
     } else {
-        log3(0, 0, "Got CC response for round %d", ntohs(tfmcc->cc_seq));
+        log3(finfo->group_id, finfo->file_id,
+                "Got CC response for round %d", ntohs(tfmcc->cc_seq));
         if (client_rate < cc_rate) {
             cc_rate = (int)(client_rate * 0.9);
         }
@@ -422,7 +410,8 @@ void handle_tfmcc_ack_info(const struct tfmcc_ack_info_he *tfmcc, int hostidx)
             client_rate *= (int)(adv_grtt / destlist[hostidx].rtt);
         }
         if ((client_rate < (unsigned)rate) || (clr == -1)) {
-            log3(0, 0, "Selected new clr %s", destlist[hostidx].name);
+            log3(finfo->group_id, finfo->file_id,
+                    "Selected new clr %s", destlist[hostidx].name);
             if (!clr_drop) {
                 rate = client_rate;
                 packet_wait = (int32_t)(1000000.0 * datapacketsize / rate);
@@ -452,40 +441,41 @@ void handle_tfmcc_ack_info(const struct tfmcc_ack_info_he *tfmcc, int hostidx)
 void handle_status(const unsigned char *message, unsigned meslen,
                    struct finfo_t *finfo, int hostidx, int *got_naks)
 {
-    struct status_h *status;
-    struct tfmcc_ack_info_he *tfmcc;
-    uint8_t *naklist, *he;
+    const struct status_h *status;
+    const struct tfmcc_ack_info_he *tfmcc;
+    const uint8_t *naklist, *he;
     unsigned section, current_section, naks, section_offset, blocks_this_sec;
     unsigned nakidx, listidx, nak_bytes, i, j;
     unsigned extlen;
 
-    status = (struct status_h *)message;
-    naklist = ((uint8_t *)status) + (status->hlen * 4);
+    status = (const struct status_h *)message;
+    naklist = ((const uint8_t *)status) + (status->hlen * 4);
     section = ntohs(status->section);
 
     if ((meslen < (status->hlen * 4U)) || 
             ((status->hlen * 4U) < sizeof(struct status_h))) {
-        log1(0, 0, "Rejecting STATUS from %s: invalid message size",
-                    destlist[hostidx].name);
+        log1(finfo->group_id, finfo->file_id, "Rejecting STATUS from %s: "
+                "invalid message size", destlist[hostidx].name);
         return;
     }
     if (ntohs(status->file_id) != finfo->file_id) {
-        log1(0, 0, "Rejecting STATUS from %s: invalid file ID %04X, "
-                   "expected %04X ", destlist[hostidx].name,
-                   ntohs(status->file_id), finfo->file_id );
+        log1(finfo->group_id, finfo->file_id, "Rejecting STATUS from %s: "
+                "invalid file ID %04X, expected %04X ", destlist[hostidx].name,
+                ntohs(status->file_id), finfo->file_id );
         return;
     }
 
     tfmcc = NULL;
     if (status->hlen * 4U > sizeof(struct status_h)) {
-        he = (uint8_t *)status + sizeof(struct status_h);
+        he = (const uint8_t *)status + sizeof(struct status_h);
         if (*he == EXT_TFMCC_ACK_INFO) {
-            tfmcc = (struct tfmcc_ack_info_he *)he;
+            tfmcc = (const struct tfmcc_ack_info_he *)he;
             extlen = tfmcc->extlen * 4U;
             if ((extlen > (status->hlen * 4U) - sizeof(struct status_h)) ||
                     extlen < sizeof(struct tfmcc_ack_info_he)) {
-                log1(0, 0, "Rejecting STATUS from %s: invalid extension size",
-                           destlist[hostidx].name);
+                log1(finfo->group_id, finfo->file_id,
+                        "Rejecting STATUS from %s: invalid extension size",
+                        destlist[hostidx].name);
                 return;
             }
         }
@@ -500,17 +490,18 @@ void handle_status(const unsigned char *message, unsigned meslen,
         blocks_this_sec = finfo->secsize_big;
     }
     if (meslen < (status->hlen * 4U) + (blocks_this_sec / 8) + 1) {
-        log1(0, 0, "Rejecting STATUS from %s: invalid message size",
-                    destlist[hostidx].name);
+        log1(finfo->group_id, finfo->file_id, "Rejecting STATUS from %s: "
+                "invalid message size", destlist[hostidx].name);
         return;
     }
 
     if (mux_lock(mux_main)) {
-        log0(0, 0, "Failed to lock mutex in handle_status");
+        log0(finfo->group_id, finfo->file_id,
+                "Failed to lock mutex in handle_status");
         return;
     }
     if ((cc_type == CC_TFMCC) && tfmcc) {
-        handle_tfmcc_ack_info(tfmcc, hostidx);
+        handle_tfmcc_ack_info(finfo, tfmcc, hostidx);
     }
     if (current_position < finfo->blocks) {
         if (current_position >= finfo->big_sections * finfo->secsize_big) {
@@ -522,9 +513,11 @@ void handle_status(const unsigned char *message, unsigned meslen,
         }
         if (section == current_section) {
             // Don't accept if it's for the current section
-            log3(0, 0, "Dropping STATUS for section %d", section);
+            log3(finfo->group_id, finfo->file_id,
+                    "Dropping STATUS for section %d", section);
             if (mux_unlock(mux_main)) {
-                log0(0, 0, "Failed to unlock mutex in handle_status");
+                log0(finfo->group_id, finfo->file_id,
+                        "Failed to unlock mutex in handle_status");
             }
             return;
         }
@@ -543,7 +536,7 @@ void handle_status(const unsigned char *message, unsigned meslen,
         destlist[hostidx].max_nak_exceed++;
     }
     if (destlist[hostidx].max_nak_exceed >= max_nak_cnt) {
-        log1(0, 0, "Got excessive NAKs (%d) "
+        log1(finfo->group_id, finfo->file_id, "Got excessive NAKs (%d) "
                 "for section %d from %s %s, aborting", naks, section,
                 (destlist[hostidx].clientcnt != -1) ? "proxy" : "client",
                 destlist[hostidx].name);
@@ -551,7 +544,8 @@ void handle_status(const unsigned char *message, unsigned meslen,
         send_abort(finfo, "Excessive NAKs received",
                 &receive_dest, destlist[hostidx].id, (keytype != KEY_NONE), 0);
         if (mux_unlock(mux_main)) {
-            log0(0, 0, "Failed to unlock mutex in handle_status");
+            log0(finfo->group_id, finfo->file_id,
+                    "Failed to unlock mutex in handle_status");
         }
         return;
     }
@@ -562,17 +556,19 @@ void handle_status(const unsigned char *message, unsigned meslen,
         nakidx = i + section_offset;
         listidx = i;
         if ((naklist[listidx >> 3] & (1 << (listidx & 7))) != 0) {
-            log4(0, 0, "Got NAK for %d", nakidx);
+            log4(finfo->group_id, finfo->file_id, "Got NAK for %d", nakidx);
             finfo->naklist[nakidx] = 1;
             *got_naks = 1;
             naks++;
         }
     }
     if (mux_unlock(mux_main)) {
-        log0(0, 0, "Failed to unlock mutex in handle_status");
+        log0(finfo->group_id, finfo->file_id,
+                "Failed to unlock mutex in handle_status");
     }
 
-    log2(0, 0, "Got %d NAKs for section %d from %s %s", naks, section,
+    log2(finfo->group_id, finfo->file_id,
+            "Got %d NAKs for section %d from %s %s", naks, section,
             (destlist[hostidx].clientcnt != -1) ? "proxy" : "client",
             destlist[hostidx].name);
     destlist[hostidx].status = DEST_ACTIVE_NAK;
@@ -584,44 +580,48 @@ void handle_status(const unsigned char *message, unsigned meslen,
 void handle_cc_ack(const unsigned char *message, unsigned meslen,
                    struct finfo_t *finfo, int hostidx)
 {
-    struct cc_ack_h *cc_ack;
-    struct tfmcc_ack_info_he *tfmcc;
-    uint8_t *he;
+    const struct cc_ack_h *cc_ack;
+    const struct tfmcc_ack_info_he *tfmcc;
+    const uint8_t *he;
     unsigned extlen;
 
-    cc_ack = (struct cc_ack_h *)message;
+    cc_ack = (const struct cc_ack_h *)message;
 
     if ((meslen < (cc_ack->hlen * 4U)) || 
             ((cc_ack->hlen * 4U) < sizeof(struct cc_ack_h))) {
-        log1(0, 0, "Rejecting CC_ACK from %s: invalid message size",
-                    destlist[hostidx].name);
+        log1(finfo->group_id, finfo->file_id, "Rejecting CC_ACK from %s: "
+                "invalid message size", destlist[hostidx].name);
         return;
     }
 
     tfmcc = NULL;
     if (cc_ack->hlen * 4U > sizeof(struct cc_ack_h)) {
-        he = (uint8_t *)cc_ack + sizeof(struct cc_ack_h);
+        he = (const uint8_t *)cc_ack + sizeof(struct cc_ack_h);
         if (*he == EXT_TFMCC_ACK_INFO) {
-            tfmcc = (struct tfmcc_ack_info_he *)he;
+            tfmcc = (const struct tfmcc_ack_info_he *)he;
             extlen = tfmcc->extlen * 4U;
             if ((extlen > (cc_ack->hlen * 4U) - sizeof(struct cc_ack_h)) ||
                     extlen < sizeof(struct tfmcc_ack_info_he)) {
-                log1(0, 0, "Rejecting CC_ACK from %s: invalid extension size",
-                           destlist[hostidx].name);
+                log1(finfo->group_id, finfo->file_id,
+                        "Rejecting CC_ACK from %s: invalid extension size",
+                        destlist[hostidx].name);
                 return;
             }
         }
     }
 
-    log3(0, 0, "Got CC_ACK from %s", destlist[hostidx].name);
+    log3(finfo->group_id, finfo->file_id,
+            "Got CC_ACK from %s", destlist[hostidx].name);
     if ((cc_type == CC_TFMCC) && tfmcc) {
         if (mux_lock(mux_main)) {
-            log0(0, 0, "Failed to lock mutex in handle_cc_ack");
+            log0(finfo->group_id, finfo->file_id,
+                    "Failed to lock mutex in handle_cc_ack");
             return;
         }
-        handle_tfmcc_ack_info(tfmcc, hostidx);
+        handle_tfmcc_ack_info(finfo, tfmcc, hostidx);
         if (mux_unlock(mux_main)) {
-            log0(0, 0, "Failed to unlock mutex in handle_cc_ack");
+            log0(finfo->group_id, finfo->file_id,
+                    "Failed to unlock mutex in handle_cc_ack");
             return;
         }
     }
@@ -647,7 +647,7 @@ int send_data(const struct finfo_t *finfo, unsigned char *packet, int datalen,
         if (!encrypt_and_sign(packet, &encpacket, payloadlen, &enclen, keytype,
                 groupkey, groupsalt, &ivctr, ivlen, hashtype, grouphmackey,
                 hmaclen, sigtype, keyextype, privkey, privkeylen)) {
-            log0(0, 0, "Error encrypting FILESEG");
+            log0(finfo->group_id, finfo->file_id, "Error encrypting FILESEG");
             return 0;
         }
         outpacket = encpacket;
@@ -659,7 +659,7 @@ int send_data(const struct finfo_t *finfo, unsigned char *packet, int datalen,
     if (nb_sendto(sock, outpacket, payloadlen + sizeof(struct uftp_h), 0,
                   (struct sockaddr *)&receive_dest,
                   family_len(receive_dest)) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error sending FILESEG");
+        sockerror(finfo->group_id, finfo->file_id, "Error sending FILESEG");
         return 0;
     }
 
@@ -718,8 +718,8 @@ void print_status_file(const struct finfo_t *finfo, struct timeval start_time)
                 throughput = rate / 8;
                 elapsed_time = finfo->size / (throughput * 1024);
             } else {
-                elapsed_time = (double)diff_usec(finfo->deststate[i].time,
-                                                 start_time) / 1000000;
+                elapsed_time = diff_usec(finfo->deststate[i].time,
+                                         start_time) / 1000000.0;
                 if (elapsed_time > 0) {
                     throughput = finfo->size / elapsed_time / 1024;
                 } else {
@@ -776,16 +776,17 @@ void print_status(const struct finfo_t *finfo, struct timeval start_time)
     }
 
     if (finfo->file_id == 0) {
-        log0(0, 0, "Group complete");
+        log0(finfo->group_id, finfo->file_id, "Group complete");
         return;
     }
 
-    log0(0, 0, "Transfer status:");
+    log0(finfo->group_id, finfo->file_id, "Transfer status:");
     for (done_time = start_time, i = 0; i < destcount; i++) {
         if (destlist[i].clientcnt >= 0) {
             continue;
         }
-        clog0(0, 0, "Host: %-15s  Status: ", destlist[i].name);
+        clog0(finfo->group_id, finfo->file_id,
+                "Host: %-15s  Status: ", destlist[i].name);
         switch (destlist[i].status) {
         case DEST_MUTE:
             slog0("Mute");
@@ -802,8 +803,8 @@ void print_status(const struct finfo_t *finfo, struct timeval start_time)
                 if (diff_usec(finfo->deststate[i].time, done_time) > 0) {
                     done_time = finfo->deststate[i].time;
                 }
-                elapsed_time = (double)diff_usec(finfo->deststate[i].time,
-                                                 start_time) / 1000000;
+                elapsed_time = diff_usec(finfo->deststate[i].time,
+                                         start_time) / 1000000.0;
                 slog0("Completed   time: %7.3f seconds", elapsed_time);
                 break;
             case COMP_STAT_SKIPPED:
@@ -813,8 +814,8 @@ void print_status(const struct finfo_t *finfo, struct timeval start_time)
                 if (diff_usec(finfo->deststate[i].time, done_time) > 0) {
                     done_time = finfo->deststate[i].time;
                 }
-                elapsed_time = (double)diff_usec(finfo->deststate[i].time,
-                                                 start_time) / 1000000;
+                elapsed_time = diff_usec(finfo->deststate[i].time,
+                                         start_time) / 1000000.0;
                 slog0("Completed(overwritten)   time: %7.3f seconds",
                         elapsed_time);
                 break;
@@ -826,7 +827,8 @@ void print_status(const struct finfo_t *finfo, struct timeval start_time)
                 break;
             }
             if (destlist[i].freespace != -1) {
-                log0(0, 0, "  Free space on host: %s bytes",
+                log0(finfo->group_id, finfo->file_id,
+                        "  Free space on host: %s bytes",
                         printll(destlist[i].freespace));
             }
             break;
@@ -835,9 +837,10 @@ void print_status(const struct finfo_t *finfo, struct timeval start_time)
             break;
         }
     }
-    elapsed_time = (double)diff_usec(done_time, start_time) / 1000000;
-    log1(0, 0, "Total elapsed time: %.3f seconds", elapsed_time);
-    log1(0, 0, "Overall throughput: %.2f KB/s",
+    elapsed_time = diff_usec(done_time, start_time) / 1000000.0;
+    log1(finfo->group_id, finfo->file_id,
+            "Total elapsed time: %.3f seconds", elapsed_time);
+    log1(finfo->group_id, finfo->file_id, "Overall throughput: %.2f KB/s",
                (elapsed_time != 0) ? (finfo->size / elapsed_time / 1024) : 0);
 }
 

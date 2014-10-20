@@ -73,36 +73,32 @@ void send_abort(const struct finfo_t *finfo, const char *message,
 {
     unsigned char *buf, *encrypted, *outpacket;
     struct uftp_h *header;
-    struct abort_h *abort;
+    struct abort_h *abort_hdr;
     int payloadlen, enclen;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
     header = (struct uftp_h *)buf;
-    abort = (struct abort_h *)(buf + sizeof(struct uftp_h));
+    abort_hdr = (struct abort_h *)(buf + sizeof(struct uftp_h));
 
     set_uftp_header(header, ABORT, finfo->group_id, finfo->group_inst,
                     grtt, destcount);
     header->seq = htons(send_seq++);
-    abort->func = ABORT;
-    abort->hlen = sizeof(struct abort_h) / 4;
+    abort_hdr->func = ABORT;
+    abort_hdr->hlen = sizeof(struct abort_h) / 4;
     if (dest) {
-        abort->host = dest;
+        abort_hdr->host = dest;
     } else if (current) {
-        abort->flags |= FLAG_CURRENT_FILE;
+        abort_hdr->flags |= FLAG_CURRENT_FILE;
     }
-    strncpy(abort->message, message, sizeof(abort->message) - 1);
+    strncpy(abort_hdr->message, message, sizeof(abort_hdr->message) - 1);
 
-    payloadlen = (abort->hlen * 4);
+    payloadlen = (abort_hdr->hlen * 4);
     if (encrypt) {
         encrypted = NULL;
         if (!encrypt_and_sign(buf, &encrypted, payloadlen, &enclen, keytype,
                 groupkey, groupsalt, &ivctr, ivlen, hashtype, grouphmackey,
                 hmaclen, sigtype, keyextype, privkey, privkeylen)) {
-            log0(0, 0, "Error encrypting ABORT");
+            log0(finfo->group_id, finfo->file_id, "Error encrypting ABORT");
             free(buf);
             return;
         }
@@ -114,9 +110,9 @@ void send_abort(const struct finfo_t *finfo, const char *message,
     }
 
     if (nb_sendto(sock, outpacket, payloadlen + sizeof(struct uftp_h), 0,
-                  (struct sockaddr *)destaddr,
+                  (const struct sockaddr *)destaddr,
                   family_len(*destaddr)) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error sending ABORT");
+        sockerror(finfo->group_id, finfo->file_id, "Error sending ABORT");
     }
     free(buf); 
     free(encrypted);
@@ -145,11 +141,7 @@ int send_multiple(const struct finfo_t *finfo, unsigned char *packet,
     maxdest = blocksize / sizeof(uint32_t);
     packetcnt = 1;
     if (encrypt) {
-        encpacket = calloc(MAXMTU + keylen, 1); 
-        if (encpacket == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
+        encpacket = safe_calloc(MAXMTU + keylen, 1); 
     } else {
         encpacket = NULL;
     }
@@ -182,8 +174,9 @@ int send_multiple(const struct finfo_t *finfo, unsigned char *packet,
             payloadlen = hsize + (dests * sizeof(uint32_t));
             if (message == ANNOUNCE) {
                 outpacket = packet;
-                if (!sign_announce(outpacket, payloadlen)) {
-                    log0(0, 0, "Error signing ANNOUNCE");
+                if (!sign_announce(finfo, outpacket, payloadlen)) {
+                    log0(finfo->group_id, finfo->file_id,
+                            "Error signing ANNOUNCE");
                     free(encpacket);
                     return 0;
                 }
@@ -192,7 +185,8 @@ int send_multiple(const struct finfo_t *finfo, unsigned char *packet,
                         keytype, groupkey, groupsalt, &ivctr, ivlen, hashtype,
                         grouphmackey, hmaclen, sigtype, keyextype,
                         privkey, privkeylen)) {
-                    log0(0, 0, "Error encrypting %s", func_name(message));
+                    log0(finfo->group_id, finfo->file_id,
+                            "Error encrypting %s", func_name(message));
                     free(encpacket);
                     return 0;
                 }
@@ -201,21 +195,24 @@ int send_multiple(const struct finfo_t *finfo, unsigned char *packet,
             } else {
                 outpacket = packet;
             }
-            log2(0, 0, "Sending %s %d.%d", func_name(message), 
+            log2(finfo->group_id, finfo->file_id,
+                    "Sending %s %d.%d", func_name(message), 
                        attempt, packetcnt);
             if (log_level >= 4) {
-                rval = getnameinfo((struct sockaddr *)destaddr,
+                rval = getnameinfo((const struct sockaddr *)destaddr,
                         family_len(*destaddr), out_addr, sizeof(out_addr),
                         NULL, 0, NI_NUMERICHOST);
                 if (rval) {
-                    log4(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+                    log4(finfo->group_id, finfo->file_id,
+                            "getnameinfo failed: %s", gai_strerror(rval));
                 }
-                log4(0, 0, "Sending to %s", out_addr);
+                log4(finfo->group_id,finfo->file_id, "Sending to %s", out_addr);
             }
             if (nb_sendto(sock, outpacket, payloadlen + sizeof(struct uftp_h),
-                          0, (struct sockaddr *)destaddr,
+                          0, (const struct sockaddr *)destaddr,
                           family_len(*destaddr)) == SOCKET_ERROR) {
-                sockerror(0, 0, "Error sending %s", func_name(message));
+                sockerror(finfo->group_id, finfo->file_id,
+                          "Error sending %s", func_name(message));
                 sleep(1);
                 free(encpacket);
                 return 0;
@@ -238,31 +235,33 @@ int send_multiple(const struct finfo_t *finfo, unsigned char *packet,
 int validate_packet(const unsigned char *packet, int len,
                     const struct finfo_t *finfo)
 {
-    struct uftp_h *header;
+    const struct uftp_h *header;
 
-    header = (struct uftp_h *)packet;
+    header = (const struct uftp_h *)packet;
     if (header->version != UFTP_VER_NUM) {
-        log1(0, 0, "Invalid version %02X", header->version);
+        log1(finfo->group_id, finfo->file_id,
+                "Invalid version %02X", header->version);
         return 0;
     }
     if (header->func == ENCRYPTED) {
         if (len < sizeof(struct uftp_h) + sizeof(struct encrypted_h)) {
-            log1(0, 0, "Invalid packet size %d", len);
+            log1(finfo->group_id,finfo->file_id, "Invalid packet size %d", len);
             return 0;
         }
     } else {
         if (len < sizeof(struct uftp_h) + 4) {
-            log1(0, 0, "Invalid packet size %d", len);
+            log1(finfo->group_id,finfo->file_id, "Invalid packet size %d", len);
             return 0;
         }
     }
     if (ntohl(header->group_id) != finfo->group_id) {
-        log1(0, 0, "Invalid group ID %08X, expected %08X",
-                    ntohl(header->group_id), finfo->group_id);
+        log1(finfo->group_id, finfo->file_id, "Invalid group ID %08X, "
+                "expected %08X", ntohl(header->group_id), finfo->group_id);
         return 0;
     }
     if ((header->func == ENCRYPTED) && (keytype == KEY_NONE)) {
-        log1(0, 0, "Received encrypted packet with encryption disabled");
+        log1(finfo->group_id, finfo->file_id,
+                "Received encrypted packet with encryption disabled");
         return 0;
     }
     return 1;
@@ -273,7 +272,8 @@ int validate_packet(const unsigned char *packet, int len,
  * On entry, the packet should be complete other that the signature.
  * Returns 1 on success, 0 on fail.
  */
-int sign_announce(unsigned char *packet, int packetlen)
+int sign_announce(const struct finfo_t *finfo, unsigned char *packet,
+                  int packetlen)
 {
     struct announce_h *announce;
     struct enc_info_he *encinfo;
@@ -297,11 +297,7 @@ int sign_announce(unsigned char *packet, int packetlen)
 
     siglen = ntohs(encinfo->siglen);
     memset(sig, 0, siglen);
-    sigcopy = calloc(siglen, 1);
-    if (sigcopy == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    sigcopy = safe_calloc(siglen, 1);
 
     if (keyextype == KEYEX_ECDH_ECDSA) {
         if (!create_ECDSA_sig(privkey.ec, hashtype, packet, packetlen,
@@ -319,8 +315,10 @@ int sign_announce(unsigned char *packet, int packetlen)
         }
     }
     if (_siglen != siglen) {
-        log0(0, 0, "Signature length doesn't match expected length");
-        log1(0, 0, "expected %d, got %d", siglen, _siglen);
+        log0(finfo->group_id, finfo->file_id,
+                "Signature length doesn't match expected length");
+        log1(finfo->group_id, finfo->file_id,
+                "expected %d, got %d", siglen, _siglen);
         free(sigcopy);
         return 0;
     }
@@ -364,34 +362,35 @@ int client_error(int listidx)
 void handle_abort(const unsigned char *message, int meslen, int idx,
                   struct finfo_t *finfo, uint32_t src)
 {
-    struct abort_h *abort;
+    const struct abort_h *abort_hdr;
     int i;
 
-    abort = (struct abort_h *)message;
-    if (meslen < (abort->hlen * 4)) {
-        log1(0, 0, "Rejecting ABORT from %08X: invalid message size",
-                   (idx == -1) ? ntohl(src) : destlist[idx].id);
+    abort_hdr = (const struct abort_h *)message;
+    if (meslen < (abort_hdr->hlen * 4)) {
+        log1(finfo->group_id, finfo->file_id,
+                "Rejecting ABORT from %08X: invalid message size",
+                (idx == -1) ? ntohl(src) : destlist[idx].id);
         return;
     }
     if (idx == -1) {
-        log1(0, 0, "Transfer aborted by %08X: %s",
-                    ntohl(src), abort->message);
+        log1(finfo->group_id, finfo->file_id, "Transfer aborted by %08X: %s",
+                    ntohl(src), abort_hdr->message);
         return;
     }
 
-    if (abort->host != 0) {
-        idx = find_client(abort->host);
+    if (abort_hdr->host != 0) {
+        idx = find_client(abort_hdr->host);
     }
     if (idx == -1) {
-        log1(0, 0, "Transfer aborted by %08X: %s",
-                    ntohl(src), abort->message);
+        log1(finfo->group_id, finfo->file_id, "Transfer aborted by %08X: %s",
+                    ntohl(src), abort_hdr->message);
     } else {
         destlist[idx].status = DEST_ABORT;
-        log1(0, 0, "Transfer aborted by %s: %s",
-                    destlist[idx].name, abort->message);
+        log1(finfo->group_id, finfo->file_id, "Transfer aborted by %s: %s",
+                    destlist[idx].name, abort_hdr->message);
     }
     if (quit_on_error) {
-        log0(0, 0, "Aboring all clients");
+        log0(finfo->group_id, finfo->file_id, "Aboring all clients");
         send_abort(finfo, "A client aborted, aborting all",
                 &receive_dest, 0, 0, 0);
         // If encryption enabled, send ABORT both encrypted and unencrypted
@@ -413,7 +412,8 @@ void handle_abort(const unsigned char *message, int meslen, int idx,
  * Recalculate the GRTT based on the RTTs of all receivers
  * Returns 1 if at least one active client is found, 0 if no active clients
  */
-int recalculate_grtt(int grtt_set, int clear_measured)
+int recalculate_grtt(const struct finfo_t *finfo, int grtt_set,
+                     int clear_measured)
 {
     double new_grtt;
     int i, found;
@@ -441,7 +441,7 @@ int recalculate_grtt(int grtt_set, int clear_measured)
         } else {
             grtt = new_grtt;
         }
-        log3(0, 0, "grtt = %.6f", grtt);
+        log3(finfo->group_id, finfo->file_id, "grtt = %.6f", grtt);
         return 1;
     } else {
         return 0;

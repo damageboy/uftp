@@ -32,11 +32,11 @@
 #define _CLIENT_COMMON_H
 
 struct group_list_t *find_group(uint32_t group_id, uint8_t group_inst);
-int uid_in_list(uint32_t *addrlist, int size);
+int uid_in_list(const uint32_t *addrlist, int size);
 void read_restart_file(struct group_list_t *group);
 void run_postreceive_multi(struct group_list_t *group, char *const *files,
                            int count);
-void run_postreceive(struct group_list_t *group, const char *file);
+void run_postreceive(struct group_list_t *group, char *file);
 void file_cleanup(struct group_list_t *group, int abort);
 void set_uftp_header(struct uftp_h *header, int func,
                      struct group_list_t *group);
@@ -44,9 +44,9 @@ void set_timeout(struct group_list_t *group, int rescale);
 void send_abort(struct group_list_t *group, const char *message);
 void handle_abort(struct group_list_t *group, const unsigned char *message,
                   unsigned meslen);
-void send_key_req();
+void send_key_req(void);
 void handle_proxy_key(const union sockaddr_u *src,
-                      const unsigned char *message, unsigned meslen);
+                      unsigned char *message, unsigned meslen);
 void clear_path(const char *path, struct group_list_t *group);
 void move_to_backup(struct group_list_t *group);
 int create_path_to_file(struct group_list_t *group, const char *filename);

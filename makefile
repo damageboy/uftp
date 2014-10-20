@@ -70,7 +70,7 @@ endif
 
 # Linux
 ifeq ("Linux", "$(UNAME_S)")
-OPTIONS=-g -Wall -DHAS_GETIFADDRS $(ENC_OPTS)
+OPTIONS=-g -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare -Wformat=2 -Wwrite-strings -Wpointer-arith -Wcast-qual -Wshadow -Wno-missing-field-initializers -Wstrict-prototypes -Winline -Wbad-function-cast -DHAS_GETIFADDRS $(ENC_OPTS)
 LDLIBS=-lm $(CRYPT_LIB)
 CFLAGS=`getconf LFS_CFLAGS`
 endif

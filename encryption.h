@@ -56,6 +56,9 @@ int is_auth_enc(int keytype);
 int is_gcm_mode(int keytype);
 int is_ccm_mode(int keytype);
 
+void *safe_malloc(size_t size);
+void *safe_calloc(size_t num, size_t size);
+
 #endif
 
 #ifdef NO_ENCRYPTION
@@ -103,7 +106,7 @@ union key_t {
 
 void crypto_init(int set_sys_key);
 
-void crypto_cleanup();
+void crypto_cleanup(void);
 
 int cipher_supported(int keytype);
 
@@ -124,7 +127,7 @@ int encrypt_block(int keytype, const unsigned char *IV,
 int decrypt_block(int keytype, const unsigned char *IV,
                   const unsigned char *key,
                   const unsigned char *aad, unsigned int aadlen,
-                  const unsigned char *src, unsigned int srclen,
+                  unsigned char *src, unsigned int srclen,
                   unsigned char *dest, unsigned int *destlen);
 
 int create_hmac(int hashtype, const unsigned char *key, unsigned int keylen,
@@ -160,7 +163,7 @@ int create_ECDSA_sig(EC_key_t ec, int hashtype,
 
 int verify_ECDSA_sig(EC_key_t ec, int hashtype,
                      const unsigned char *mes, unsigned int meslen,
-                     unsigned char *sig, unsigned int siglen);
+                     const unsigned char *sig, unsigned int siglen);
 
 int get_ECDH_key(EC_key_t pubkey, EC_key_t privkey, unsigned char *key,
                  unsigned int *keylen);
@@ -192,7 +195,7 @@ void free_RSA_key(RSA_key_t rsa);
 
 void free_EC_key(EC_key_t ec);
 
-const char *get_next_container();
+const char *get_next_container(void);
 
 void delete_container(const char *name);
 

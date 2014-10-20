@@ -95,7 +95,7 @@ int encrypt_block(int keytype, const unsigned char *IV,
 int decrypt_block(int keytype, const unsigned char *IV,
                   const unsigned char *key,
                   const unsigned char *aad, unsigned int aadlen,
-                  const unsigned char *src, unsigned int srclen,
+                  unsigned char *src, unsigned int srclen,
                   unsigned char *dest, unsigned int *destlen)
 {
     return 0;
@@ -164,7 +164,7 @@ int create_ECDSA_sig(EC_key_t rsa, int hashtype,
 
 int verify_ECDSA_sig(EC_key_t ec, int hashtype,
                      const unsigned char *mes, unsigned int meslen,
-                     unsigned char *sig, unsigned int siglen)
+                     const unsigned char *sig, unsigned int siglen)
 {
     return 0;
 }

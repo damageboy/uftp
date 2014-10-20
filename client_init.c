@@ -157,7 +157,7 @@ BOOL WINAPI winsig(DWORD event)
 /**
  * Do initial setup before parsing arguments, including getting interface list
  */
-void pre_initialize()
+void pre_initialize(void)
 {
 #ifdef WINDOWS
     struct WSAData data;
@@ -175,7 +175,7 @@ void pre_initialize()
 /**
  * Set up log file and run in the backgroud
  */
-void daemonize()
+void daemonize(void)
 {
     showtime = 1;
     init_log_mux = 0;
@@ -262,7 +262,7 @@ void daemonize()
 /**
  * Initialize crypto library, generate keys
  */
-void key_init()
+void key_init(void)
 {
 #ifndef NO_ENCRYPTION
     char *keyname;
@@ -330,7 +330,7 @@ void key_init()
 /**
  * Do all socket creation and initialization
  */
-void create_sockets()
+void create_sockets(void)
 {
     struct addrinfo ai_hints, *ai_rval;
     int family, rval, fdflag, i;
@@ -511,7 +511,7 @@ int dirs_movable(const char *dir1, const char *dir2)
 /**
  * Initialization based on command line args
  */
-void initialize()
+void initialize(void)
 {
     char tempf1[MAXPATHNAME], hostname[256];
     struct addrinfo ai_hints, *ai_rval;

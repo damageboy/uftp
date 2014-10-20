@@ -1,3 +1,16 @@
+Version 4.1.4 - 12/5/2013
+  During a restart session, a bug caused the full file to be resent on the
+    first pass, and client wouldn't send back NAKs for the first session.
+    This has been fixed.
+  Fixed incorrect reading of client ID lists in DONE, DONE_CONF, and CONG_CTRL
+    messages.
+  Added group ID and file ID to server logging when timestamps are enabled.
+  Added more warning checks for Linux and corrected warnings.
+  Cleaned up error checking code for malloc and calloc calls.
+
+Version 4.1.3 - 10/13/2013
+  Since 4.0, compilation failed on MacOSX.  This has been fixed.
+
 Version 4.1.2 - 8/20/2013
   Fixed client pathname checking that disallows ".." path elements.
   Server wasn't writing clients to the restart file that didn't send a

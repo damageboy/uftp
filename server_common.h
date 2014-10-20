@@ -47,7 +47,7 @@ int send_multiple(const struct finfo_t *finfo, unsigned char *packet,
 int validate_packet(const unsigned char *packet, int len,
                     const struct finfo_t *finfo);
 
-int sign_announce(unsigned char *packet, int len);
+int sign_announce(const struct finfo_t *finfo, unsigned char *packet, int len);
 
 int find_client(uint32_t addr);
 
@@ -56,7 +56,8 @@ int client_error(int listidx);
 void handle_abort(const unsigned char *message, int meslen, int idx,
                   struct finfo_t *finfo, uint32_t src);
 
-int recalculate_grtt(int grtt_set, int clear_measured);
+int recalculate_grtt(const struct finfo_t *finfo, int grtt_set,
+                     int clear_measured);
 
 #endif  // _SERVER_COMMON_H
 

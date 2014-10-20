@@ -102,7 +102,7 @@ void crypto_init(int set_sys_key)
 /**
  * Performs all necessary steps to clean up the crypto library
  */
-void crypto_cleanup()
+void crypto_cleanup(void)
 {
     NTSTATUS status;
     int i;
@@ -122,7 +122,7 @@ void crypto_cleanup()
 /**
  * Returns the next key for the current user
  */
-const char *get_next_container()
+const char *get_next_container(void)
 {
     static NCRYPT_PROV_HANDLE prov = 0;
     static NCryptKeyName *keyitem = NULL;
@@ -487,11 +487,7 @@ int encrypt_block(int keytype, const unsigned char *IV,
         mserror("BCryptGenerateSymmetricKey failed", status);
         return 0;
     }
-    l_IV = calloc(ivlen, 1);
-    if (l_IV == NULL) {
-        perror("calloc failed!");
-        exit(1);
-    }
+    l_IV = safe_calloc(ivlen, 1);
     memcpy(l_IV, IV, ivlen);
 
     taglen = is_gcm_mode(keytype) ? GCM_TAG_LEN :
@@ -544,7 +540,7 @@ int encrypt_block(int keytype, const unsigned char *IV,
 int decrypt_block(int keytype, const unsigned char *IV,
                   const unsigned char *key,
                   const unsigned char *aad, unsigned int aadlen,
-                  const unsigned char *src, unsigned int srclen,
+                  unsigned char *src, unsigned int srclen,
                   unsigned char *dest, unsigned int *destlen)
 {
     BCRYPT_ALG_HANDLE alghandle = NULL;
@@ -575,11 +571,7 @@ int decrypt_block(int keytype, const unsigned char *IV,
         mserror("BCryptGenerateSymmetricKey failed", status);
         return 0;
     }
-    l_IV = calloc(ivlen, 1);
-    if (l_IV == NULL) {
-        perror("calloc failed!");
-        exit(1);
-    }
+    l_IV = safe_calloc(ivlen, 1);
     memcpy(l_IV, IV, ivlen);
 
     taglen = is_gcm_mode(keytype) ? GCM_TAG_LEN :
@@ -922,11 +914,7 @@ int create_ECDSA_sig(EC_key_t ec, int hashtype,
         mserror("NCryptSignHash failed", sstatus);
         return 0;
     }
-    buf = malloc(_siglen);
-    if (buf == NULL) {
-        syserror(0, 0, "malloc failed!");
-        exit(1);
-    }
+    buf = safe_malloc(_siglen);
     sstatus = NCryptSignHash(ec, NULL, meshash, meshashlen, buf, _siglen,
                              &_siglen, 0);
     if (!BCRYPT_SUCCESS(sstatus)) {
@@ -953,7 +941,7 @@ int create_ECDSA_sig(EC_key_t ec, int hashtype,
  */
 int verify_ECDSA_sig(EC_key_t ec, int hashtype,
                      const unsigned char *mes, unsigned int meslen,
-                     unsigned char *sig, unsigned int siglen)
+                     const unsigned char *sig, unsigned int siglen)
 {
     SECURITY_STATUS sstatus;
     unsigned char meshash[HMAC_LEN];
@@ -1035,11 +1023,7 @@ int import_RSA_key(RSA_key_t *rsa, const unsigned char *keyblob,
 
     buflen = sizeof(BCRYPT_RSAKEY_BLOB) + sizeof(rsablob->exponent) +
                 ntohs(rsablob->modlen);
-    buf = calloc(buflen, 1);
-    if (buf == NULL) {
-        log0(0, 0, "malloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(buflen, 1);
 
     blobheader = (BCRYPT_RSAKEY_BLOB *)buf;
     buf_exp = buf + sizeof(BCRYPT_RSAKEY_BLOB);
@@ -1096,11 +1080,7 @@ int export_RSA_key(const RSA_key_t rsa, unsigned char *keyblob,
         mserror("NCryptExportKey failed", sstatus);
         return 0;
     }
-    buf = malloc(len);
-    if (buf == NULL) {
-        syserror(0, 0, "malloc failed!");
-        exit(1);
-    }
+    buf = safe_malloc(len);
     sstatus = NCryptExportKey(rsa, (NCRYPT_KEY_HANDLE)NULL,
             BCRYPT_RSAPUBLIC_BLOB, NULL, buf, len, &len, NCRYPT_SILENT_FLAG);
     if (!BCRYPT_SUCCESS(sstatus)) {
@@ -1155,11 +1135,7 @@ int import_EC_key(EC_key_t *ec, const unsigned char *keyblob, uint16_t bloblen,
     } 
 
     buflen = sizeof(BCRYPT_ECCKEY_BLOB) + ntohs(ecblob->keylen);
-    buf = calloc(buflen, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "malloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(buflen, 1);
 
     blobheader = (BCRYPT_ECCKEY_BLOB *)buf;
     buf_key = buf + sizeof(BCRYPT_ECCKEY_BLOB);
@@ -1206,11 +1182,7 @@ int export_EC_key(const EC_key_t ec, unsigned char *keyblob, uint16_t *bloblen)
         mserror("NCryptExportKey failed", sstatus);
         return 0;
     }
-    buf = malloc(len);
-    if (buf == NULL) {
-        syserror(0, 0, "malloc failed!");
-        exit(1);
-    }
+    buf = safe_malloc(len);
     sstatus = NCryptExportKey(ec, 0, BCRYPT_ECCPUBLIC_BLOB, NULL, 
                               buf, len, &len, NCRYPT_SILENT_FLAG);
     if (!BCRYPT_SUCCESS(sstatus)) {

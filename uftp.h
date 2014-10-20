@@ -76,6 +76,7 @@ typedef struct _utimbuf utim_buf;
 #define lseek_func(fd, offset, whence) _lseeki64(fd, offset, whence)
 #define snprintf(buf, cnt, ...) _snprintf(buf, cnt, __VA_ARGS__)
 
+
 typedef int socklen_t;
 #define OPENREAD (O_RDONLY | O_BINARY)
 #define OPENWRITE (O_WRONLY | O_BINARY)
@@ -99,6 +100,7 @@ typedef unsigned long thread_t;
 
 #include <inttypes.h>
 #include <pthread.h>
+
 
 #define closesocket(s) close(s)
 
@@ -148,7 +150,7 @@ typedef pthread_t thread_t;
 
 #endif // if WINDOWS
 
-#define VERSIONSTR "UFTP version 4.1.3  Copyright (C) 2001-2013  Dennis A. Bush"
+#define VERSIONSTR "UFTP version 4.1.4  Copyright (C) 2001-2013  Dennis A. Bush"
 #define UFTP_VER_NUM 0x40
 
 #define ANNOUNCE      1

@@ -140,7 +140,7 @@ void add_dest_by_name(const char *destname, const char *fingerprint, int proxy)
 /**
  * Set defaults for all command line arguments
  */
-void set_defaults()
+void set_defaults(void)
 {
     memset(destlist, 0, sizeof(destlist));
     memset(filelist, 0, sizeof(filelist));

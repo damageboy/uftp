@@ -87,11 +87,11 @@ void add_server_by_name(const char *server, const char *ip,
                         const char *fingerprint)
 {
     struct addrinfo ai_hints, *ai_rval;
-    uint32_t uid;
+    uint32_t server_uid;
     int rval;
 
-    uid = strtoul(server, NULL, 16);
-    if ((uid == 0xffffffff) || (uid == 0)) {
+    server_uid = strtoul(server, NULL, 16);
+    if ((server_uid == 0xffffffff) || (server_uid == 0)) {
         fprintf(stderr, "Invalid server UID %s\n", server);
         exit(1);
     }
@@ -107,7 +107,7 @@ void add_server_by_name(const char *server, const char *ip,
         exit(1);
     }
 
-    server_keys[server_count].uid = htonl(uid);
+    server_keys[server_count].uid = htonl(server_uid);
     memcpy(&server_keys[server_count].addr, ai_rval->ai_addr,
             ai_rval->ai_addrlen);
     server_keys[server_count].has_fingerprint =
@@ -120,7 +120,7 @@ void add_server_by_name(const char *server, const char *ip,
 /**
  * Set defaults for all command line arguments
  */
-void set_defaults()
+void set_defaults(void)
 {
     debug = 0;
     log_level = DEF_LOG_LEVEL;

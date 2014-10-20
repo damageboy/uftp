@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2012   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,9 +31,9 @@
 #ifndef _CLIENT_ANNOUNCE_H
 #define _CLIENT_ANNOUNCE_H
 
-void handle_announce(union sockaddr_u *src, const unsigned char *packet,
+void handle_announce(union sockaddr_u *src, unsigned char *packet,
                      unsigned packetlen, struct timeval rxtime);
-void handle_keyinfo(struct group_list_t *group, const unsigned char *message,
+void handle_keyinfo(struct group_list_t *group, unsigned char *message,
                     unsigned meslen, uint32_t src_id);
 void handle_regconf(struct group_list_t *group, const unsigned char *message,
                     unsigned meslen);

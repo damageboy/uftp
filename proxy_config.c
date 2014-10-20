@@ -93,7 +93,7 @@ void add_hosts_by_name(struct fp_list_t *list, int *list_count,
     char line[1000], *hostid, *ipstr, *fingerprint;
     FILE *hostfile;
     struct addrinfo ai_hints, *ai_rval;
-    uint32_t uid;
+    uint32_t remote_uid;
     int rval;
 
     if ((hostfile = fopen(filename, "r")) == NULL) {
@@ -131,13 +131,13 @@ void add_hosts_by_name(struct fp_list_t *list, int *list_count,
             exit(1);
         }
 
-        uid = strtoul(hostid, NULL, 16);
-        if ((uid == 0xffffffff) || (uid == 0)) {
+        remote_uid = strtoul(hostid, NULL, 16);
+        if ((remote_uid == 0xffffffff) || (remote_uid == 0)) {
             fprintf(stderr, "Invalid UID %s\n", hostid);
             exit(1);
         }
 
-        list[*list_count].uid = htonl(uid);
+        list[*list_count].uid = htonl(remote_uid);
         if (expect_ip) {
             memset(&ai_hints, 0, sizeof(ai_hints));
             ai_hints.ai_family = AF_UNSPEC;
@@ -167,7 +167,7 @@ void add_hosts_by_name(struct fp_list_t *list, int *list_count,
 /**
  * Set defaults for all command line arguments
  */
-void set_defaults()
+void set_defaults(void)
 {
     proxy_type = UNDEF_PROXY;
     hbhost_count =  0;
@@ -468,7 +468,8 @@ void process_args(int argc, char *argv[])
                             p, gai_strerror(rval));
                     exit(1);
                 }
-                if ((listidx = getifbyaddr((union sockaddr_u *)ai_rval->ai_addr,                        ifl, ifl_len)) == -1) {
+                if ((listidx = getifbyaddr((union sockaddr_u *)ai_rval->ai_addr,
+                        ifl, ifl_len)) == -1) {
                     fprintf(stderr, "Interface %s not found\n", p);
                     exit(1);
                 }

@@ -62,7 +62,7 @@
  * the active group with the earliest timeout and return the time until that
  * timeout.  If there are no active groups, return NULL.
  */
-struct timeval *getrecenttimeout()
+struct timeval *getrecenttimeout(void)
 {
     static struct timeval tv = {0,0};
     struct timeval current_timestamp, min_timestamp;
@@ -149,7 +149,7 @@ struct timeval *getrecenttimeout()
  * This is the main message reading loop.  Messages are read, validated,
  * decrypted if necessary, then passed to the appropriate routine for handling.
  */
-void mainloop()
+void mainloop(void)
 {
     struct uftp_h *header;
     struct pr_group_list_t *group;
@@ -175,12 +175,8 @@ void mainloop()
         }
     }
 
-    buf = calloc(MAXMTU, 1);
-    decrypted = calloc(MAXMTU, 1);
-    if ((buf == NULL) || (decrypted == NULL)) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
+    decrypted = safe_calloc(MAXMTU, 1);
     header = (struct uftp_h *)buf;
 
     while (1) {

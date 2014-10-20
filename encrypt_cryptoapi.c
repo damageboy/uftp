@@ -162,7 +162,7 @@ void crypto_init(int set_sys_key)
 /**
  * Performs all necessary steps to clean up the crypto library
  */
-void crypto_cleanup()
+void crypto_cleanup(void)
 {
     int i;
 
@@ -196,7 +196,7 @@ void crypto_cleanup()
 /**
  * Returns the next key container for the current user
  */
-const char *get_next_container()
+const char *get_next_container(void)
 {
     static int flag = CRYPT_FIRST;
     static char *item = NULL;
@@ -209,11 +209,7 @@ const char *get_next_container()
         if (!rval) {
             return NULL;
         }
-        item = malloc(mlen);
-        if (item == NULL) {
-            syserror(0, 0, "malloc failed!");
-            exit(1);
-        }
+        item = safe_malloc(mlen);
     }
     len = mlen;
     rval = CryptGetProvParam(base_prov, PP_ENUMCONTAINERS, item, &len, flag);
@@ -484,7 +480,7 @@ end:
 int decrypt_block(int keytype, const unsigned char *IV,
                   const unsigned char *key,
                   const unsigned char *aad, unsigned int aadlen,
-                  const unsigned char *src, unsigned int srclen,
+                  unsigned char *src, unsigned int srclen,
                   unsigned char *dest, unsigned int *destlen)
 {
     // TODO: right now we reimport the key each time.  Test to see if this
@@ -721,11 +717,7 @@ int RSA_encrypt(RSA_key_t rsa, const unsigned char *from, unsigned int fromlen,
         flags = CRYPT_OAEP;
     }
 
-    outbuf = calloc(RSA_keylen(rsa), 1);
-    if (outbuf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    outbuf = safe_calloc(RSA_keylen(rsa), 1);
     memcpy(outbuf, from, fromlen);
     _tolen = fromlen;
     if (!CryptEncrypt(rsa, 0, 1, flags, outbuf, &_tolen, RSA_keylen(rsa))) {
@@ -819,11 +811,7 @@ int create_RSA_sig(RSA_key_t rsa, int hashtype,
     }
 
     _siglen = RSA_keylen(rsa);
-    outsig = calloc(_siglen, 1);
-    if (outsig == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    outsig = safe_calloc(_siglen, 1);
     if (!CryptSignHash(hash, AT_KEYEXCHANGE, NULL, 0, outsig, &_siglen)) {
         mserror("CryptSignHash failed");
         free(outsig);
@@ -875,11 +863,7 @@ int verify_RSA_sig(RSA_key_t rsa, int hashtype,
         rval = 0;
         goto end;
     }
-    insig = calloc(siglen, 1);
-    if (insig == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    insig = safe_calloc(siglen, 1);
     // CryptoAPI expects signatures in little endian, so reverse the bytes
     for (i = 0; i < siglen; i++) {
         insig[i] = sig[siglen - i - 1];
@@ -911,7 +895,7 @@ int create_ECDSA_sig(EC_key_t rsa, int hashtype,
 
 int verify_ECDSA_sig(EC_key_t ec, int hashtype,
                      const unsigned char *mes, unsigned int meslen,
-                     unsigned char *sig, unsigned int siglen)
+                     const unsigned char *sig, unsigned int siglen)
 {
     log0(0, 0, "ECDSA not supported");
     return 0;

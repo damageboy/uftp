@@ -48,9 +48,9 @@ int check_unfinished_clients(struct pr_group_list_t *group, int abort);
 
 void forward_message(struct pr_group_list_t *group,
                      const union sockaddr_u *src,
-                     const unsigned char *packet, int packetlen);
+                     unsigned char *packet, int packetlen);
 void handle_hb_request(const union sockaddr_u *src,
-                       const unsigned char *packet, unsigned packetlen);
+                       unsigned char *packet, unsigned packetlen);
 void handle_key_req(const union sockaddr_u *src,
                     const unsigned char *packet, unsigned packetlen);
 void handle_abort(struct pr_group_list_t *group, const union sockaddr_u *src,
@@ -61,7 +61,7 @@ void send_upstream_abort(struct pr_group_list_t *group, uint32_t dest_id,
 void send_downstream_abort(struct pr_group_list_t *group, uint32_t dest_id,
                            const char *message, int current);
 void send_hb_response(const union sockaddr_u *src, int response);
-void send_proxy_key();
+void send_proxy_key(void);
 
 int verify_fingerprint(const struct fp_list_t *fplist, int listlen,
                        const unsigned char *keyblob, uint16_t bloblen,

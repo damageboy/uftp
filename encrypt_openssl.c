@@ -85,7 +85,7 @@ void crypto_init(int set_sys_key)
 /**
  * Performs all necessary steps to clean up the crypto library
  */
-void crypto_cleanup()
+void crypto_cleanup(void)
 {
     if (init_done) {
         ERR_free_strings();
@@ -450,7 +450,7 @@ int encrypt_block(int keytype, const unsigned char *IV,
 int decrypt_block(int keytype, const unsigned char *IV,
                   const unsigned char *key,
                   const unsigned char *aad, unsigned int aadlen,
-                  const unsigned char *src, unsigned int srclen,
+                  unsigned char *src, unsigned int srclen,
                   unsigned char *dest, unsigned int *destlen)
 {
     EVP_CIPHER_CTX ctx;
@@ -811,15 +811,15 @@ int create_ECDSA_sig(EC_key_t ec, int hashtype,
  */
 int verify_ECDSA_sig(EC_key_t ec, int hashtype,
                      const unsigned char *mes, unsigned int meslen,
-                     unsigned char *sig, unsigned int siglen)
+                     const unsigned char *sig, unsigned int siglen)
 {
 #ifndef NO_EC
     unsigned char meshash[HMAC_LEN];
     unsigned int meshashlen;
     const EVP_MD *hashptr;
     ECDSA_SIG *_sig;
-    uint16_t *rlen, *slen;
-    unsigned char *rval, *sval;
+    const uint16_t *rlen, *slen;
+    const unsigned char *rval, *sval;
 
     if (!hash(hashtype, mes, meslen, meshash, &meshashlen)) {
         return 0;
@@ -831,9 +831,9 @@ int verify_ECDSA_sig(EC_key_t ec, int hashtype,
         return 0;
     }
 
-    rlen = (uint16_t *)sig;
-    slen = (uint16_t *)(sig + sizeof(uint16_t));
-    rval = (unsigned char *)slen + sizeof(uint16_t);
+    rlen = (const uint16_t *)sig;
+    slen = (const uint16_t *)(sig + sizeof(uint16_t));
+    rval = (const unsigned char *)slen + sizeof(uint16_t);
     sval = rval + ntohs(*rlen);
     if (ntohs(*rlen) + ntohs(*slen) > siglen) {
         log0(0, 0, "Invalid signature length");
@@ -910,7 +910,7 @@ int import_RSA_key(RSA_key_t *rsa, const unsigned char *keyblob,
     const struct rsa_blob_t *rsablob;
     const unsigned char *modulus;
 
-    rsablob = (struct rsa_blob_t *)keyblob;
+    rsablob = (const struct rsa_blob_t *)keyblob;
     modulus = keyblob + sizeof(struct rsa_blob_t);
 
     if (sizeof(struct rsa_blob_t) + ntohs(rsablob->modlen) != bloblen) {
@@ -989,7 +989,7 @@ int import_EC_key(EC_key_t *ec, const unsigned char *keyblob, uint16_t bloblen,
     const unsigned char *keyval, *tmp;
     unsigned char *buf;
 
-    ecblob = (struct ec_blob_t *)keyblob;
+    ecblob = (const struct ec_blob_t *)keyblob;
     keyval = keyblob + sizeof(struct ec_blob_t);
 
     if (sizeof(struct ec_blob_t) + ntohs(ecblob->keylen) > bloblen) {
@@ -1002,11 +1002,7 @@ int import_EC_key(EC_key_t *ec, const unsigned char *keyblob, uint16_t bloblen,
         log_ssl_err("EC_KEY_new_by_curve_name failed");
         return 0;
     }
-    buf = malloc(ntohs(ecblob->keylen) + 1);
-    if (buf == NULL) {
-        syserror(0, 0, "malloc failed!");
-        exit(1);
-    }
+    buf = safe_malloc(ntohs(ecblob->keylen) + 1);
     buf[0] = 4;
     memcpy(&buf[1], keyval, ntohs(ecblob->keylen));
     tmp = buf;
@@ -1041,11 +1037,7 @@ int export_EC_key(const EC_key_t ec, unsigned char *keyblob, uint16_t *bloblen)
         log0(0, 0, "error getting size of EC key");
         return 0;
     }
-    buf = malloc(keylen);
-    if (buf == NULL) {
-        syserror(0, 0, "malloc failed!");
-        exit(1);
-    }
+    buf = safe_malloc(keylen);
     tmp = buf;
     // After this call, tmp points to (buf + keylen),
     // but the exported key lives at buf

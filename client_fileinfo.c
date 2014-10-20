@@ -74,15 +74,15 @@ void early_complete(struct group_list_t *group, int status, int freespace)
 int read_fileinfo(struct group_list_t *group, const unsigned char *message,
                   int meslen, struct timeval rxtime)
 {
-    struct fileinfo_h *fileinfo;
-    uint32_t *addrlist;
+    const struct fileinfo_h *fileinfo;
+    const uint32_t *addrlist;
     int listlen, maxsecsize;
-    char *name, *link, *p;
+    const char *name, *flink, *p;
 
-    fileinfo = (struct fileinfo_h *)message;
-    addrlist = (uint32_t *)(message + (fileinfo->hlen * 4));
-    name = (char *)message + sizeof(struct fileinfo_h);
-    link = name + (fileinfo->namelen * 4);
+    fileinfo = (const struct fileinfo_h *)message;
+    addrlist = (const uint32_t *)(message + (fileinfo->hlen * 4));
+    name = (const char *)message + sizeof(struct fileinfo_h);
+    flink = name + (fileinfo->namelen * 4);
     listlen = (meslen - (fileinfo->hlen * 4)) / 4;
 
     if ((meslen < (fileinfo->hlen * 4)) ||
@@ -122,7 +122,7 @@ int read_fileinfo(struct group_list_t *group, const unsigned char *message,
     group->fileinfo.ftype = fileinfo->ftype;
     group->file_id = ntohs(fileinfo->file_id);
     strncpy(group->fileinfo.name, name, fileinfo->namelen * 4);
-    strncpy(group->fileinfo.linkname, link, fileinfo->linklen * 4);
+    strncpy(group->fileinfo.linkname, flink, fileinfo->linklen * 4);
     group->fileinfo.size = (f_offset_t)ntohs(fileinfo->hifsize) << 32;
     group->fileinfo.size |= ntohl(fileinfo->lofsize);
 
@@ -421,20 +421,12 @@ void handle_fileinfo_regular(struct group_list_t *group)
         free(group->restartinfo);
         group->restartinfo = NULL;
     } else {
-        group->fileinfo.naklist = calloc(group->fileinfo.blocks, 1);
-        if (group->fileinfo.naklist == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
-        group->fileinfo.section_done = calloc(group->fileinfo.sections, 1);
-        if (group->fileinfo.section_done == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
+        group->fileinfo.naklist = safe_calloc(group->fileinfo.blocks, 1);
+        group->fileinfo.section_done = safe_calloc(group->fileinfo.sections, 1);
         memset(group->fileinfo.naklist, 1, group->fileinfo.blocks);
     }
     group->fileinfo.last_block = -1;
-    group->fileinfo.last_section = 1;
+    group->fileinfo.last_section = 0;
     group->fileinfo.curr_offset = 0;
     group->phase = PHASE_RECEIVING;
     send_fileinfo_ack(group, group->fileinfo.restart);

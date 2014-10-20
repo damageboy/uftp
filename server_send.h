@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2010   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@
 #ifndef _SERVER_SEND_H
 #define _SERVER_SEND_H
 
-int send_files();
+int send_files(void);
 
 #endif // _SERVER_SEND_H
 

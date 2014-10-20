@@ -61,11 +61,11 @@ void handle_hb_response(SOCKET s, const union sockaddr_u *src,
                         union sockaddr_u hb_hosts[], int num_hosts,
                         union key_t privkey, int keytype, uint32_t uid)
 {
-    struct hb_resp_h *hbresp;
+    const struct hb_resp_h *hbresp;
     char addrname[INET6_ADDRSTRLEN];
     int hostidx, rval;
 
-    hbresp = (struct hb_resp_h *)message;
+    hbresp = (const struct hb_resp_h *)message;
 
     if (meslen < (hbresp->hlen * 4U) ||
             ((hbresp->hlen * 4U) < sizeof(struct hb_resp_h))) {
@@ -73,7 +73,7 @@ void handle_hb_response(SOCKET s, const union sockaddr_u *src,
         return;
     }
 
-    if ((rval = getnameinfo((struct sockaddr *)src,
+    if ((rval = getnameinfo((const struct sockaddr *)src,
             sizeof(union sockaddr_u), addrname, sizeof(addrname),
             NULL, 0, NI_NUMERICHOST)) != 0) {
         log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
@@ -109,12 +109,8 @@ void send_auth_hb_request(SOCKET s, union sockaddr_u *hbhost, uint32_t nonce,
     uint16_t bloblen;
     char addrname[INET6_ADDRSTRLEN], portstr[PORTNAME_LEN];
 
-    packet = calloc(sizeof(struct uftp_h) + sizeof(struct hb_req_h) +
+    packet = safe_calloc(sizeof(struct uftp_h) + sizeof(struct hb_req_h) +
                     (PUBKEY_LEN * 2) , 1);
-    if (packet == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
 
     header = (struct uftp_h *)packet;
     hbreq = (struct hb_req_h *)(packet + sizeof(struct uftp_h));
@@ -184,11 +180,7 @@ void send_hb_request(SOCKET s, union sockaddr_u hb_hosts[], int num_hosts,
     char addrname[INET6_ADDRSTRLEN], portstr[PORTNAME_LEN];
     int meslen, rval, i;
 
-    packet = calloc(sizeof(struct uftp_h) + sizeof(struct hb_req_h), 1);
-    if (packet == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    packet = safe_calloc(sizeof(struct uftp_h) + sizeof(struct hb_req_h), 1);
 
     header = (struct uftp_h *)packet;
     hbreq = (struct hb_req_h *)(packet + sizeof(struct uftp_h));

@@ -59,11 +59,7 @@ void getiflist(struct iflist *list, int *len)
     int buflen, err, i;
 
     buflen = 100000;
-    buf = calloc(buflen, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(buflen, 1);
     head = (IP_ADAPTER_ADDRESSES *)buf;
     if ((err = GetAdaptersAddresses(AF_UNSPEC, 0, NULL, head,
                                     &buflen)) != ERROR_SUCCESS) {
@@ -83,8 +79,10 @@ void getiflist(struct iflist *list, int *len)
                         sizeof(list[i].name) - 1);
                 memcpy(&list[*len].su, uni->Address.lpSockaddr,
                         uni->Address.iSockaddrLength);
-                list[*len].isloopback = (curr->IfType == IF_TYPE_SOFTWARE_LOOPBACK);
-                list[*len].ismulti = ((curr->Flags & IP_ADAPTER_NO_MULTICAST) == 0);
+                list[*len].isloopback =
+                        (curr->IfType == IF_TYPE_SOFTWARE_LOOPBACK);
+                list[*len].ismulti =
+                        ((curr->Flags & IP_ADAPTER_NO_MULTICAST) == 0);
                 if (uni->Address.lpSockaddr->sa_family == AF_INET6) {
                     list[*len].ifidx = curr->Ipv6IfIndex;
                 } else {
@@ -165,11 +163,7 @@ void getiflist(struct iflist *list, int *len)
 
     if (*len <= 0) return;
     count = *len;
-    ifr = malloc(sizeof(struct lifreq) * count);
-    if (ifr == NULL) {
-        syserror(0, 0, "malloc failed!");
-        exit(1);
-    }
+    ifr = safe_malloc(sizeof(struct lifreq) * count);
     ifc.lifc_family = AF_UNSPEC;
     ifc.lifc_flags = 0;
     ifc.lifc_len = sizeof(struct lifreq) * count;
@@ -283,7 +277,7 @@ struct timeval add_timeval(struct timeval t2, struct timeval t1)
 
 void add_timeval_d(struct timeval *t2, double t1)
 {
-    t2->tv_sec += (long)floor(t1);
+    t2->tv_sec += (long)(floor(t1) + 0);
     t2->tv_usec += (long)((t1 - floor(t1)) * 1000000);
     while (t2->tv_usec >= 1000000) {
         t2->tv_usec -= 1000000;
@@ -625,16 +619,16 @@ void logfunc(uint32_t group_id, uint16_t file_id, int level, int _showtime,
                 timeval->tm_hour, timeval->tm_min, timeval->tm_sec,
                 (int)tv.tv_usec);
         if (write_len != -1) log_size += write_len;
-    }
-    if (group_id && file_id) {
-        write_len = fprintf(applog, "[%08X:%04X]: ", group_id, file_id);
-        if (write_len != -1) log_size += write_len;
-    } else if (group_id && !file_id) {
-        write_len = fprintf(applog, "[%08X:0]: ", group_id);
-        if (write_len != -1) log_size += write_len;
-    } else if (!group_id && file_id) {
-        write_len = fprintf(applog, "[%04X]: ", file_id);
-        if (write_len != -1) log_size += write_len;
+        if (group_id && file_id) {
+            write_len = fprintf(applog, "[%08X:%04X]: ", group_id, file_id);
+            if (write_len != -1) log_size += write_len;
+        } else if (group_id && !file_id) {
+            write_len = fprintf(applog, "[%08X:0]: ", group_id);
+            if (write_len != -1) log_size += write_len;
+        } else if (!group_id && file_id) {
+            write_len = fprintf(applog, "[%04X]: ", file_id);
+            if (write_len != -1) log_size += write_len;
+        }
     }
     va_start(args, str);
     write_len = vfprintf(applog, str, args);
@@ -709,11 +703,7 @@ void split_path(const char *path, char **dir, char **file)
 
     *dir = NULL;
     *file = NULL;
-    result = malloc(len);
-    if (!result) {
-        syserror(0, 0, "malloc failed!");
-        exit(1);
-    }
+    result = safe_malloc(len);
     if ((len2 = GetFullPathNameA(path, len, result, &filename)) <= len) {
         *dir = strdup(result);
         *file = strdup(filename);
@@ -925,7 +915,7 @@ int would_block_err()
 /**
  * Returns whether a connection reset error occured
  */
-int conn_reset_err()
+int conn_reset_err(void)
 {
 #ifdef WINDOWS
     return (WSAGetLastError() == WSAECONNRESET);
@@ -1035,7 +1025,7 @@ void memxor(void *p1, const void *p2, int len)
     int i;
 
     for (i = 0; i < len; i++) {
-        ((unsigned char *)p1)[i] ^= ((unsigned char *)p2)[i];
+        ((unsigned char *)p1)[i] ^= ((const unsigned char *)p2)[i];
     }
 }
 
@@ -1145,7 +1135,7 @@ int unauth_key(int keytype)
  * The decrypted message is returned without a uftp_h header.
  * Returns 1 on success, 0 on fail
  */
-int validate_and_decrypt(const unsigned char *encpacket, unsigned int enclen,
+int validate_and_decrypt(unsigned char *encpacket, unsigned int enclen,
                          unsigned char **decpacket, unsigned int *declen,
                          int keytype, const uint8_t *key,
                          const uint8_t *salt, int ivlen, int hashtype,
@@ -1190,13 +1180,9 @@ int validate_and_decrypt(const unsigned char *encpacket, unsigned int enclen,
         return 0;
     }
 
-    sigcopy = calloc(siglen, 1);
-    sigtest = calloc(siglen, 1);
-    iv = calloc(ivlen, 1);
-    if ((sigcopy == NULL) || (sigtest == NULL) || (iv == NULL)) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    sigcopy = safe_calloc(siglen, 1);
+    sigtest = safe_calloc(siglen, 1);
+    iv = safe_calloc(ivlen, 1);
 
     if (sigtype != SIG_AUTHENC) {
         memcpy(sigcopy, sig, hsiglen);
@@ -1234,11 +1220,7 @@ int validate_and_decrypt(const unsigned char *encpacket, unsigned int enclen,
     allocdec = 0;
     if (*decpacket == NULL) {
         allocdec = 1;
-        *decpacket = calloc(MAXMTU + KEYBLSIZE, 1);
-        if (*decpacket == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
+        *decpacket = safe_calloc(MAXMTU + KEYBLSIZE, 1);
     }
     ivctr = ntohl(encrypted->iv_ctr_lo);
     ivctr |= (uint64_t)ntohl(encrypted->iv_ctr_hi) << 32;
@@ -1296,17 +1278,9 @@ int encrypt_and_sign(const unsigned char *decpacket, unsigned char **encpacket,
     allocenc = 0;
     if (*encpacket == NULL) {
         allocenc = 1;
-        *encpacket = calloc(MAXMTU + KEYBLSIZE, 1);
-        if (*encpacket == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
+        *encpacket = safe_calloc(MAXMTU + KEYBLSIZE, 1);
     }
-    iv = calloc(ivlen, 1);
-    if (iv == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    iv = safe_calloc(ivlen, 1);
 
     mheader = decpacket + sizeof(struct uftp_h);
     header = (struct uftp_h *)*encpacket;
@@ -1352,11 +1326,7 @@ int encrypt_and_sign(const unsigned char *decpacket, unsigned char **encpacket,
     }
     *enclen = sizeof(struct encrypted_h) + payloadlen + siglen;
 
-    sigcopy = calloc(siglen, 1);
-    if (sigcopy == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    sigcopy = safe_calloc(siglen, 1);
     if (sigtype != SIG_AUTHENC) {
         memset(sig, 0, siglen);
     }
@@ -1407,7 +1377,7 @@ int encrypt_and_sign(const unsigned char *decpacket, unsigned char **encpacket,
  * Psedo-random function for an individual hashing algorithm
  * as defined in RFC 4346 and RFC 5246
  */
-static void P_hash(int hash, int bytes, 
+static void P_hash(int hashtype, int bytes, 
                    const unsigned char *secret, int secret_len, 
                    const char *label, const unsigned char *seed, int seed_len,
                    unsigned char *outbuf, int *outbuf_len)
@@ -1416,13 +1386,9 @@ static void P_hash(int hash, int bytes,
     unsigned newseed_len, inbuf_len;
     unsigned int tmpbuf_len, outbuf_len_new;
 
-    newseed = calloc(strlen(label) + seed_len, 1);
-    inbuf = calloc(get_hash_len(hash) + strlen(label) + seed_len, 1);
-    tmpbuf = calloc(get_hash_len(hash) + strlen(label) + seed_len, 1);
-    if ((newseed == NULL) || (inbuf == NULL) || (tmpbuf == NULL)) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    newseed = safe_calloc(strlen(label) + seed_len, 1);
+    inbuf = safe_calloc(get_hash_len(hashtype) + strlen(label) + seed_len, 1);
+    tmpbuf = safe_calloc(get_hash_len(hashtype) + strlen(label) + seed_len, 1);
 
     *outbuf_len = 0;
     newseed_len = 0;
@@ -1437,11 +1403,11 @@ static void P_hash(int hash, int bytes,
     {
         // TODO: create_hmac can fail under CrypoAPI.
         // Figure out how to handle this.
-        create_hmac(hash, secret, secret_len, inbuf, inbuf_len,
+        create_hmac(hashtype, secret, secret_len, inbuf, inbuf_len,
                     tmpbuf, &tmpbuf_len);
         memcpy(tmpbuf + tmpbuf_len, newseed, newseed_len);
         tmpbuf_len += newseed_len;
-        create_hmac(hash, secret, secret_len, tmpbuf, tmpbuf_len, 
+        create_hmac(hashtype, secret, secret_len, tmpbuf, tmpbuf_len, 
                     outbuf + *outbuf_len, &outbuf_len_new);
         *outbuf_len += outbuf_len_new;
         memcpy(inbuf,tmpbuf,tmpbuf_len);
@@ -1457,24 +1423,20 @@ static void P_hash(int hash, int bytes,
  * Psedo-random function
  * as defined in RFC 4346 and RFC 5246
  */
-void PRF(int hash, int bytes, const unsigned char *secret, int secret_len, 
+void PRF(int hashtype, int bytes, const unsigned char *secret, int secret_len, 
          const char *label, const unsigned char *seed, int seed_len,
          unsigned char *outbuf, int *outbuf_len)
 {
     int i, s_len, sha_buf_len, md5_buf_len;
     unsigned char *sha_buf, *md5_buf;
 
-    if (hash == HASH_SHA256) {
+    if (hashtype == HASH_SHA256) {
         P_hash(HASH_SHA256, bytes, secret, secret_len, label,
                seed, seed_len, outbuf, outbuf_len);
-    } else if (hash == HASH_SHA1) {
+    } else if (hashtype == HASH_SHA1) {
         // TLS 1.1 MD5/SHA1 combination
-        md5_buf = calloc(bytes + get_hash_len(HASH_MD5), 1);
-        sha_buf = calloc(bytes + get_hash_len(HASH_SHA1), 1);
-        if ((md5_buf == NULL) || (sha_buf == NULL)) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
+        md5_buf = safe_calloc(bytes + get_hash_len(HASH_MD5), 1);
+        sha_buf = safe_calloc(bytes + get_hash_len(HASH_SHA1), 1);
         // if secret_len is even integer division truncates the result
         // if secret_len is odd, the + 1 effectively rounds up
         s_len = (secret_len + 1) / 2;
@@ -1504,11 +1466,7 @@ const char *print_key_fingerprint(const union key_t key, int keytype)
     uint16_t bloblen;
     unsigned int fplen, i, cnt;
 
-    keyblob = calloc(PUBKEY_LEN, 1);
-    if (keyblob == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    keyblob = safe_calloc(PUBKEY_LEN, 1);
 
     if (keytype == KEYBLOB_RSA) {
         if (!export_RSA_key(key.rsa, keyblob, &bloblen)) {
@@ -1967,6 +1925,34 @@ uint32_t rand32()
     return((rand() & 0x7FFF) << 17) | ((rand() & 0x7FFF) << 2) | (rand() & 0x2);
 }
 
+/**
+ * Safe malloc routine that always returns non-NULL
+ * On error, exit()
+ */
+void *safe_malloc(size_t size)
+{
+    void *p = malloc(size);
+    if (p == NULL) {
+        syserror(0, 0, "malloc failed!");
+        exit(1);
+    }
+    return p;
+}
+
+/**
+ * Safe calloc routine that always returns non-NULL
+ * On error, exit()
+ */
+void *safe_calloc(size_t num, size_t size)
+{
+    void *p = calloc(num, size);
+    if (p == NULL) {
+        syserror(0, 0, "calloc failed!");
+        exit(1);
+    }
+    return p;
+}
+
 #define RTT_MIN 1.0e-6
 #define RTT_MAX 1000.0
 
@@ -1984,7 +1970,7 @@ uint8_t quantize_grtt(double rtt)
     if (rtt < (33.0 * RTT_MIN)) {
         return ((uint8_t)(rtt / RTT_MIN) - 1);
     } else {
-        return ((uint8_t)(ceil(255.0 - (13.0 * log(RTT_MAX/rtt)))));
+        return ((uint8_t)(0 + ceil(255.0 - (13.0 * log(RTT_MAX/rtt)))));
     }
 }
 

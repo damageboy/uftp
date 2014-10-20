@@ -320,17 +320,17 @@ void add_naks_to_pending(struct pr_group_list_t *group, int pendidx,
 void check_pending(struct pr_group_list_t *group, int hostidx,
                    const unsigned char *message)
 {
-    struct fileinfoack_h *fileinfoack;
-    struct status_h *status;
-    struct complete_h *complete;
+    const struct fileinfoack_h *fileinfoack;
+    const struct status_h *status;
+    const struct complete_h *complete;
     const uint8_t *func;
     struct pr_pending_info_t *pending;
     int match, pendidx, hlen;
 
     func = message;
-    fileinfoack = (struct fileinfoack_h *)message;
-    status = (struct status_h *)message;
-    complete = (struct complete_h *)message;
+    fileinfoack = (const struct fileinfoack_h *)message;
+    status = (const struct status_h *)message;
+    complete = (const struct complete_h *)message;
 
     log3(group->group_id, 0, "check_timeout: looking for pending %s",
             func_name(*func));
@@ -415,11 +415,7 @@ void check_pending(struct pr_group_list_t *group, int hostidx,
         pending->file_id = ntohs(status->file_id);
         pending->section = ntohs(status->section);
         if (!pending->naklist) {
-            pending->naklist = calloc(group->blocksize, 1);
-            if (pending->naklist == NULL) {
-                syserror(0, 0, "calloc failed!");
-                exit(1);
-            }
+            pending->naklist = safe_calloc(group->blocksize, 1);
         }
         add_naks_to_pending(group, pendidx, message);
         break;
@@ -454,7 +450,7 @@ void check_pending(struct pr_group_list_t *group, int hostidx,
  * If the abort parameter is set, send an ABORT to the server and client.
  * Returns 1 if any aren't fully registered, 0 if all are registered.
  */
-int check_unfinished_clients(struct pr_group_list_t *group, int abort)
+int check_unfinished_clients(struct pr_group_list_t *group, int abort_session)
 {
     int hostidx, found;
     struct pr_destinfo_t *dest;
@@ -468,7 +464,7 @@ int check_unfinished_clients(struct pr_group_list_t *group, int abort)
         dest = &group->destinfo[hostidx];
         if ((group->group_id != 0) &&
                 (dest->state != PR_CLIENT_READY)) {
-            if (abort) {
+            if (abort_session) {
                 send_downstream_abort(group, dest->id,
                         "Client not fully registered at proxy", 0);
                 send_upstream_abort(group, dest->id,
@@ -515,7 +511,7 @@ int load_pending(struct pr_group_list_t *group, int pendidx, int func,
  */
 void forward_message(struct pr_group_list_t *group,
                      const union sockaddr_u *src,
-                     const unsigned char *packet, int packetlen)
+                     unsigned char *packet, int packetlen)
 {
     struct uftp_h *header;
     struct encrypted_h *encrypted;
@@ -524,7 +520,7 @@ void forward_message(struct pr_group_list_t *group,
     union sockaddr_u dest;
     unsigned int meslen, siglen;
     int hostidx, rval, iplen, resign;
-    char destname[INET6_ADDRSTRLEN], portname[PORTNAME_LEN];
+    char destname[INET6_ADDRSTRLEN], destport[PORTNAME_LEN];
     uint8_t *sig, *sigcopy;
     union key_t key;
 
@@ -581,11 +577,7 @@ void forward_message(struct pr_group_list_t *group,
         resign = 1;
     }
     if (resign) {
-        sigcopy = calloc(siglen, 1);
-        if (sigcopy == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
+        sigcopy = safe_calloc(siglen, 1);
         memcpy(sigcopy, sig, siglen);
         memset(sig, 0, siglen);
         if ((group->keyextype == KEYEX_RSA) ||
@@ -628,11 +620,11 @@ void forward_message(struct pr_group_list_t *group,
                family_len(dest)) == SOCKET_ERROR) {
         sockerror(group->group_id, 0, "Error forwarding message");
         if ((rval = getnameinfo((struct sockaddr *)&dest, family_len(dest),
-                destname, sizeof(destname), portname, sizeof(portname),
+                destname, sizeof(destname), destport, sizeof(destport),
                 NI_NUMERICHOST | NI_NUMERICSERV)) != 0) {
             log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
         }
-        log2(group->group_id, 0, "Dest: %s:%s", destname, portname);
+        log2(group->group_id, 0, "Dest: %s:%s", destname, destport);
     }
     set_timeout(group, 0, 0);
 }
@@ -641,20 +633,20 @@ void forward_message(struct pr_group_list_t *group,
  * Process an HB_REQ message
  */
 void handle_hb_request(const union sockaddr_u *src,
-                       const unsigned char *packet, unsigned packetlen)
+                       unsigned char *packet, unsigned packetlen)
 {
     struct hb_req_h *hbreq;
     unsigned char *keyblob, *sig;
     union key_t key;
     unsigned char fingerprint[HMAC_LEN];
     unsigned int fplen, bloblen, siglen;
-    char destname[INET6_ADDRSTRLEN], portname[PORTNAME_LEN];
+    char destname[INET6_ADDRSTRLEN], destport[PORTNAME_LEN];
     int resp, rval;
 
     hbreq = (struct hb_req_h *)(packet + sizeof(struct uftp_h));
 
-    if ((rval = getnameinfo((struct sockaddr *)src, family_len(*src),
-            destname, sizeof(destname), portname, sizeof(portname),
+    if ((rval = getnameinfo((const struct sockaddr *)src, family_len(*src),
+            destname, sizeof(destname), destport, sizeof(destport),
             NI_NUMERICHOST | NI_NUMERICSERV)) != 0) {
         log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
     }
@@ -722,7 +714,7 @@ void handle_hb_request(const union sockaddr_u *src,
 
             down_addr = *src;
             log2(0, 0, "Using %s:%s as downstream address:port",
-                       destname, portname);
+                       destname, destport);
             down_nonce = rand32();
             resp = HB_AUTH_OK;
         }
@@ -740,14 +732,14 @@ end:
 void handle_key_req(const union sockaddr_u *src,
                     const unsigned char *packet, unsigned packetlen)
 {
-    struct key_req_h *keyreq;
+    const struct key_req_h *keyreq;
     struct timeval current_timestamp;
     char destname[INET6_ADDRSTRLEN];
     int rval;
 
-    keyreq = (struct key_req_h *)(packet + sizeof(struct uftp_h));
+    keyreq = (const struct key_req_h *)(packet + sizeof(struct uftp_h));
 
-    if ((rval = getnameinfo((struct sockaddr *)src, family_len(*src),
+    if ((rval = getnameinfo((const struct sockaddr *)src, family_len(*src),
             destname, sizeof(destname), NULL, 0, NI_NUMERICHOST)) != 0) {
         log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
     }
@@ -772,14 +764,10 @@ void send_hb_response(const union sockaddr_u *src, int response)
     unsigned char *packet;
     struct uftp_h *header;
     struct hb_resp_h *hbresp;
-    char destname[INET6_ADDRSTRLEN], portname[PORTNAME_LEN];
+    char destname[INET6_ADDRSTRLEN], destport[PORTNAME_LEN];
     int meslen, rval;
 
-    packet = calloc(sizeof(struct uftp_h) + sizeof(struct hb_resp_h), 1);
-    if (packet == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    packet = safe_calloc(sizeof(struct uftp_h) + sizeof(struct hb_resp_h), 1);
 
     header = (struct uftp_h *)packet;
     hbresp = (struct hb_resp_h *)(packet + sizeof(struct uftp_h));
@@ -794,16 +782,16 @@ void send_hb_response(const union sockaddr_u *src, int response)
     }
 
     meslen = sizeof(struct uftp_h) + sizeof(struct hb_resp_h);
-    if (nb_sendto(listener, packet, meslen, 0, (struct sockaddr *)src,
+    if (nb_sendto(listener, packet, meslen, 0, (const struct sockaddr *)src,
                   family_len(*src)) == SOCKET_ERROR) {
         sockerror(0, 0, "Error sending HB_RESP");
     } else {
-        if ((rval = getnameinfo((struct sockaddr *)src,
-                family_len(*src), destname, sizeof(destname), portname,
-                sizeof(portname), NI_NUMERICHOST | NI_NUMERICSERV)) != 0) {
+        if ((rval = getnameinfo((const struct sockaddr *)src,
+                family_len(*src), destname, sizeof(destname), destport,
+                sizeof(destport), NI_NUMERICHOST | NI_NUMERICSERV)) != 0) {
             log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
         }
-        log2(0, 0, "Sent HB_RESP to %s:%s", destname, portname);
+        log2(0, 0, "Sent HB_RESP to %s:%s", destname, destport);
     }
     free(packet);
 }
@@ -822,12 +810,8 @@ void send_proxy_key()
     char pubname[INET6_ADDRSTRLEN];
     int rval;
 
-    packet = calloc(sizeof(struct uftp_h) + sizeof(struct hb_req_h) +
+    packet = safe_calloc(sizeof(struct uftp_h) + sizeof(struct hb_req_h) +
                     (PUBKEY_LEN * 3) , 1);
-    if (packet == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
 
     header = (struct uftp_h *)packet;
     proxykey = (struct proxy_key_h *)(packet + sizeof(struct uftp_h));
@@ -907,26 +891,22 @@ void send_upstream_abort(struct pr_group_list_t *group, uint32_t addr,
 {
     unsigned char *buf;
     struct uftp_h *header;
-    struct abort_h *abort;
+    struct abort_h *abort_hdr;
     int payloadlen;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
 
     header = (struct uftp_h *)buf;
-    abort = (struct abort_h *)(buf + sizeof(struct uftp_h));
+    abort_hdr = (struct abort_h *)(buf + sizeof(struct uftp_h));
 
     set_uftp_header(header, ABORT, group);
     header->seq = group->send_seq_up++;
     header->src_id = uid;
-    abort->func = ABORT;
-    abort->hlen = sizeof(struct abort_h) / 4;
-    abort->flags = 0;
-    abort->host = addr;
-    strncpy(abort->message, message, sizeof(abort->message) - 1);
+    abort_hdr->func = ABORT;
+    abort_hdr->hlen = sizeof(struct abort_h) / 4;
+    abort_hdr->flags = 0;
+    abort_hdr->host = addr;
+    strncpy(abort_hdr->message, message, sizeof(abort_hdr->message) - 1);
     payloadlen = sizeof(struct uftp_h) + sizeof(struct abort_h);
 
     // Proxies should never need to send an encrypted ABORT
@@ -951,28 +931,24 @@ void send_downstream_abort(struct pr_group_list_t *group, uint32_t dest_id,
 {
     unsigned char *buf;
     struct uftp_h *header;
-    struct abort_h *abort;
+    struct abort_h *abort_hdr;
     int payloadlen;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
 
     header = (struct uftp_h *)buf;
-    abort = (struct abort_h *)(buf + sizeof(struct uftp_h));
+    abort_hdr = (struct abort_h *)(buf + sizeof(struct uftp_h));
 
     set_uftp_header(header, ABORT, group);
     header->seq = group->send_seq_down++;
     header->src_id = uid;
-    abort->func = ABORT;
-    abort->hlen = sizeof(struct abort_h) / 4;
+    abort_hdr->func = ABORT;
+    abort_hdr->hlen = sizeof(struct abort_h) / 4;
     if ((dest_id == 0) && current) {
-        abort->flags |= FLAG_CURRENT_FILE;
+        abort_hdr->flags |= FLAG_CURRENT_FILE;
     }
-    abort->host = dest_id;
-    strncpy(abort->message, message, sizeof(abort->message) - 1);
+    abort_hdr->host = dest_id;
+    strncpy(abort_hdr->message, message, sizeof(abort_hdr->message) - 1);
     payloadlen = sizeof(struct uftp_h) + sizeof(struct abort_h);
 
     // Proxies should never need to send an encrypted ABORT
@@ -994,43 +970,44 @@ void handle_abort(struct pr_group_list_t *group, const union sockaddr_u *src,
                   const unsigned char *message, unsigned meslen,
                   uint32_t src_id)
 {
-    struct abort_h *abort;
+    const struct abort_h *abort_hdr;
     int upstream, hostidx, current;
 
-    abort = (struct abort_h *)message;
+    abort_hdr = (const struct abort_h *)message;
 
     upstream = (addr_equal(&group->up_addr, src));
-    if (meslen < (abort->hlen * 4U) ||
-            ((abort->hlen * 4U) < sizeof(struct abort_h))) {
+    if (meslen < (abort_hdr->hlen * 4U) ||
+            ((abort_hdr->hlen * 4U) < sizeof(struct abort_h))) {
         log2(group->group_id,0, "Rejecting ABORT from %s: invalid message size",
                 upstream ? "server" : "client");
     }
 
     if (upstream) {
-        if ((abort->host == 0) || abort->host == uid ) {
+        if ((abort_hdr->host == 0) || abort_hdr->host == uid ) {
             log2(group->group_id, 0,
-                    "Transfer aborted by server: %s", abort->message);
-            current = ((abort->flags & FLAG_CURRENT_FILE) != 0);
+                    "Transfer aborted by server: %s", abort_hdr->message);
+            current = ((abort_hdr->flags & FLAG_CURRENT_FILE) != 0);
             if (proxy_type != RESPONSE_PROXY) {
-                send_downstream_abort(group, 0, abort->message, current);
+                send_downstream_abort(group, 0, abort_hdr->message, current);
             }
             if (!current) {
                 group_cleanup(group);
             }
         } else {
             if (proxy_type != RESPONSE_PROXY) {
-                send_downstream_abort(group, abort->host, abort->message, 0);
+                send_downstream_abort(group, abort_hdr->host,
+                                      abort_hdr->message, 0);
             }
         }
     } else {
         if ((hostidx = find_client(group, src_id)) != -1) {
             log2(group->group_id, 0, "Transfer aborted by %s: %s",
-                    group->destinfo[hostidx].name, abort->message);
+                    group->destinfo[hostidx].name, abort_hdr->message);
         } else {
             log2(group->group_id, 0, "Transfer aborted by %08X: %s",
-                    ntohl(src_id), abort->message);
+                    ntohl(src_id), abort_hdr->message);
         }
-        send_upstream_abort(group, src_id, abort->message);
+        send_upstream_abort(group, src_id, abort_hdr->message);
     }
 }
 
@@ -1092,18 +1069,14 @@ uint8_t *build_verify_data(struct pr_group_list_t *group, int hostidx,
     }
     *verifylen = 0;
     if (!full) {
-        verifydata = calloc(sizeof(group->group_id) +
+        verifydata = safe_calloc(sizeof(group->group_id) +
                 iplen + sizeof(group->rand1) +
                 sizeof(group->rand2) + sizeof(group->premaster), 1);
     } else {
-        verifydata = calloc(sizeof(group->group_id) +
+        verifydata = safe_calloc(sizeof(group->group_id) +
                 iplen + sizeof(group->rand1) +
                 sizeof(group->rand2) + sizeof(group->premaster) +
                 PUBKEY_LEN + sizeof(group->groupmaster), 1);
-    }
-    if (verifydata == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
     }
 
     group_id = htonl(group->group_id);

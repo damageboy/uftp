@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2010   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,9 +31,9 @@
 #ifndef _PROXY_INIT_H
 #define _PROXY_INIT_H
 
-void pre_initialize();
+void pre_initialize(void);
 
-void initialize();
+void initialize(void);
 
 #endif  // _PROXY_INIT_H
 

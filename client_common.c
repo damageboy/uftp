@@ -83,7 +83,7 @@ struct group_list_t *find_group(uint32_t group_id, uint8_t group_inst)
  * Looks for the uid in a list of addresses.
  * Returns 1 if found, 0 if not found
  */
-int uid_in_list(uint32_t *addrlist, int size)
+int uid_in_list(const uint32_t *addrlist, int size)
 {
     int i;
 
@@ -130,11 +130,7 @@ void read_restart_file(struct group_list_t *group)
     }
 
     // Read header
-    restart = calloc(sizeof(struct client_restart_t), 1);
-    if (restart == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    restart = safe_calloc(sizeof(struct client_restart_t), 1);
     if ((rval = file_read(fd, restart, sizeof(struct client_restart_t),
                           0)) == -1) {
         log0(group->group_id, 0, "Failed to read header for restart file");
@@ -149,11 +145,7 @@ void read_restart_file(struct group_list_t *group)
 
     // Read NAK list
     if (restart->blocks) {
-        restart->naklist = calloc(restart->blocks, 1);
-        if (restart->naklist == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
+        restart->naklist = safe_calloc(restart->blocks, 1);
         if (file_read(fd, restart->naklist, restart->blocks, 0) == -1) {
             log0(group->group_id,0, "Failed to read NAK list for restart file");
             goto err2;
@@ -162,11 +154,7 @@ void read_restart_file(struct group_list_t *group)
 
     // Read section_done list
     if (restart->sections) {
-        restart->section_done = calloc(restart->sections, 1);
-        if (restart->section_done == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
+        restart->section_done = safe_calloc(restart->sections, 1);
         if (file_read(fd, restart->section_done, restart->sections, 0) == -1) {
             log0(group->group_id, 0,
                     "Failed to read section_done list for restart file");
@@ -287,11 +275,7 @@ void run_postreceive_multi(struct group_list_t *group, char *const *files,
         return;
     }
 
-    params = calloc(count + 4, sizeof(char *));
-    if (params == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    params = safe_calloc(count + 4, sizeof(char *));
 
     snprintf(gid_str, sizeof(gid_str), "%08X", group->group_id);
 
@@ -395,9 +379,9 @@ void run_postreceive_multi(struct group_list_t *group, char *const *files,
 /**
  * Run the postreceive script on a received file
  */
-void run_postreceive(struct group_list_t *group, const char *file)
+void run_postreceive(struct group_list_t *group, char *file)
 {
-    char *files[] = { (char *)file };
+    char *files[] = { file };
     run_postreceive_multi(group, files, 1);
 }
 
@@ -406,14 +390,14 @@ void run_postreceive(struct group_list_t *group, const char *file)
  * free malloc'ed structures, drop the multicast group
  * (if no one else is using it) and free the slot.
  */
-void file_cleanup(struct group_list_t *group, int abort)
+void file_cleanup(struct group_list_t *group, int abort_session)
 {
     if (group->fileinfo.fd >= 0) {
         log2(group->group_id, group->file_id, "starting file close");
         close(group->fileinfo.fd);
         log2(group->group_id, group->file_id, "done file close");
         group->fileinfo.fd = -1;
-        if (abort && !strcmp(tempdir, "")) {
+        if (abort_session && !strcmp(tempdir, "")) {
             if (tempfile) {
                 unlink(group->fileinfo.temppath);
             } else {
@@ -440,7 +424,7 @@ void file_cleanup(struct group_list_t *group, int abort)
         }
     }
 
-    if (abort || (group->file_id == 0)) {
+    if (abort_session || (group->file_id == 0)) {
         if (!addr_blank(&group->multi) && !other_mcast_users(group) &&
                 group->multi_join) {
             if (server_count > 0) {
@@ -476,7 +460,7 @@ void file_cleanup(struct group_list_t *group, int abort)
                      group->restartinfo->name);
             unlink(filepath);
         }
-        if (abort) {
+        if (abort_session) {
             write_restart_file(group);
         }
 
@@ -552,23 +536,19 @@ void send_abort(struct group_list_t *group, const char *message)
 {
     unsigned char *buf, *encrypted, *outpacket;
     struct uftp_h *header;
-    struct abort_h *abort;
+    struct abort_h *abort_hdr;
     int payloadlen, enclen;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
 
     header = (struct uftp_h *)buf;
-    abort = (struct abort_h *)(buf + sizeof(struct uftp_h));
+    abort_hdr = (struct abort_h *)(buf + sizeof(struct uftp_h));
 
     set_uftp_header(header, ABORT, group);
-    abort->func = ABORT;
-    abort->hlen = sizeof(struct abort_h) / 4;
-    abort->host = 0;
-    strncpy(abort->message, message, sizeof(abort->message) - 1);
+    abort_hdr->func = ABORT;
+    abort_hdr->hlen = sizeof(struct abort_h) / 4;
+    abort_hdr->host = 0;
+    strncpy(abort_hdr->message, message, sizeof(abort_hdr->message) - 1);
 
     payloadlen = sizeof(struct abort_h);
     if ((group->phase != PHASE_REGISTERED) &&
@@ -608,32 +588,32 @@ void send_abort(struct group_list_t *group, const char *message)
 void handle_abort(struct group_list_t *group, const unsigned char *message,
                   unsigned meslen)
 {
-    struct abort_h *abort;
+    const struct abort_h *abort_hdr;
     int found;
 
-    abort = (struct abort_h *)message;
-    if (meslen < (abort->hlen * 4U) ||
-            ((abort->hlen * 4U) < sizeof(struct abort_h))) {
+    abort_hdr = (const struct abort_h *)message;
+    if (meslen < (abort_hdr->hlen * 4U) ||
+            ((abort_hdr->hlen * 4U) < sizeof(struct abort_h))) {
         log1(group->group_id, group->file_id,
                 "Rejecting ABORT from server: invalid message size");
         return;
     }
 
     found = 0;
-    if (abort->host == 0) {
-        if (((abort->flags & FLAG_CURRENT_FILE) != 0) &&
+    if (abort_hdr->host == 0) {
+        if (((abort_hdr->flags & FLAG_CURRENT_FILE) != 0) &&
                 (group->phase == PHASE_MIDGROUP)) {
             found = 0;
         } else {
             found = 1;
         }
-    } else if (abort->host == uid) {
+    } else if (abort_hdr->host == uid) {
         found = 1;
     }
 
     if (found) {
         log0(group->group_id, group->file_id,
-                "Transfer aborted by server: %s", abort->message);
+                "Transfer aborted by server: %s", abort_hdr->message);
         file_cleanup(group, 1);
     }
 }
@@ -650,11 +630,7 @@ void send_key_req()
     char addrname[INET6_ADDRSTRLEN];
     int meslen, rval;
 
-    packet = calloc(sizeof(struct uftp_h) + sizeof(struct key_req_h), 1);
-    if (packet == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    packet = safe_calloc(sizeof(struct uftp_h) + sizeof(struct key_req_h), 1);
 
     header = (struct uftp_h *)packet;
     keyreq = (struct key_req_h *)(packet + sizeof(struct uftp_h));
@@ -689,7 +665,7 @@ void send_key_req()
  * Process a PROXY_KEY message
  */
 void handle_proxy_key(const union sockaddr_u *src,
-                      const unsigned char *message, unsigned meslen)
+                      unsigned char *message, unsigned meslen)
 {
     struct proxy_key_h *proxykey;
     unsigned char *keyblob, *dhblob, *sig;
@@ -708,7 +684,7 @@ void handle_proxy_key(const union sockaddr_u *src,
         return;
     }
 
-    if ((rval = getnameinfo((struct sockaddr *)src,
+    if ((rval = getnameinfo((const struct sockaddr *)src,
             family_len(*src), addrname, sizeof(addrname),
             NULL, 0, NI_NUMERICHOST)) != 0) {
         log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
@@ -1084,9 +1060,9 @@ void update_loss_history(struct group_list_t *group, uint16_t txseq, int size)
                                 "rate = %d", rate);
                         avgbytes= bytes / ((int16_t)(group->max_txseq - count));
                         group->loss_events[0].len = (group->rtt != 0)
-                                ? (int)(pow((rate * group->rtt) /
+                                ? (int)(0 + pow((rate * group->rtt) /
                                         (sqrt(1.5) * 8 * avgbytes), 2))
-                                : (int)(pow((rate * group->grtt) /
+                                : (int)(0 + pow((rate * group->grtt) /
                                         (sqrt(1.5) * 8 * avgbytes), 2));
                         log4(group->group_id, 0, "Calculated prior "
                                 "event len = %d (rtt=%f, avgbytes=%d)",

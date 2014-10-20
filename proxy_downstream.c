@@ -80,12 +80,8 @@ void calculate_client_keys(struct pr_group_list_t *group, int hostidx)
     explen = group->keylen + group->ivlen +
              group->hmaclen;
     seedlen = sizeof(group->rand1) * 2;
-    seed = calloc(seedlen, 1);
-    prf_buf = calloc(MASTER_LEN + explen + group->hmaclen, 1);
-    if ((seed == NULL) || (prf_buf == NULL)) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    seed = safe_calloc(seedlen, 1);
+    prf_buf = safe_calloc(MASTER_LEN + explen + group->hmaclen, 1);
 
     memcpy(seed, group->rand1, sizeof(group->rand1));
     memcpy(seed + sizeof(group->rand1), dest->rand2,
@@ -208,13 +204,13 @@ void handle_register(struct pr_group_list_t *group, int hostidx,
                      const unsigned char *message, unsigned meslen,
                      uint32_t src)
 {
-    struct register_h *reg;
-    unsigned char *enckey;
+    const struct register_h *reg;
+    const unsigned char *enckey;
     struct pr_destinfo_t *dest;
     int dupmsg;
 
-    reg = (struct register_h *)message;
-    enckey = (unsigned char *)reg + sizeof(struct register_h);
+    reg = (const struct register_h *)message;
+    enckey = (const unsigned char *)reg + sizeof(struct register_h);
 
     if (group->destcount == MAXPROXYDEST) {
         log2(group->group_id, 0, "Rejecting REGISTER from %08X: "
@@ -265,13 +261,13 @@ void handle_clientkey(struct pr_group_list_t *group, int hostidx,
                       const unsigned char *message, unsigned meslen,
                       uint32_t src)
 {
-    struct client_key_h *clientkey;
-    unsigned char *keyblob, *verify;
+    const struct client_key_h *clientkey;
+    const unsigned char *keyblob, *verify;
     struct pr_destinfo_t *dest;
     int dupmsg;
 
-    clientkey = (struct client_key_h *)message;
-    keyblob = (unsigned char *)clientkey + sizeof(struct client_key_h);
+    clientkey = (const struct client_key_h *)message;
+    keyblob = (const unsigned char *)clientkey + sizeof(struct client_key_h);
     verify = keyblob + ntohs(clientkey->bloblen);
 
     if (group->destcount == MAXPROXYDEST) {
@@ -363,13 +359,13 @@ void handle_clientkey(struct pr_group_list_t *group, int hostidx,
 void handle_keyinfo_ack(struct pr_group_list_t *group, int hostidx,
                         const unsigned char *message, unsigned meslen)
 {
-    struct keyinfoack_h *keyinfoack;
+    const struct keyinfoack_h *keyinfoack;
     unsigned char *verifydata, *verify_hash, *verify_test;
     int verifylen, len, dupmsg;
     unsigned int hashlen;
     struct pr_destinfo_t *dest;
 
-    keyinfoack = (struct keyinfoack_h *)message;
+    keyinfoack = (const struct keyinfoack_h *)message;
     dest = &group->destinfo[hostidx];
 
     if ((meslen < (keyinfoack->hlen * 4U)) ||
@@ -385,12 +381,8 @@ void handle_keyinfo_ack(struct pr_group_list_t *group, int hostidx,
                 "error exporting client public key", dest->name);
         return;
     }
-    verify_hash = calloc(group->hmaclen, 1);
-    verify_test = calloc(VERIFY_LEN + group->hmaclen, 1);
-    if ((verify_hash == NULL) || (verify_test == NULL)){
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    verify_hash = safe_calloc(group->hmaclen, 1);
+    verify_test = safe_calloc(VERIFY_LEN + group->hmaclen, 1);
     hash(group->hashtype, verifydata, verifylen, verify_hash, &hashlen);
     PRF(group->hashtype, VERIFY_LEN, group->groupmaster,
             sizeof(group->groupmaster), "client finished",
@@ -423,10 +415,10 @@ void handle_keyinfo_ack(struct pr_group_list_t *group, int hostidx,
 void handle_fileinfo_ack(struct pr_group_list_t *group, int hostidx,
                          const unsigned char *message, unsigned meslen)
 {
-    struct fileinfoack_h *fileinfoack;
+    const struct fileinfoack_h *fileinfoack;
     struct pr_destinfo_t *dest;
 
-    fileinfoack = (struct fileinfoack_h *)message;
+    fileinfoack = (const struct fileinfoack_h *)message;
     dest = &group->destinfo[hostidx];
 
     if ((meslen < (fileinfoack->hlen * 4U)) ||
@@ -445,12 +437,12 @@ void handle_fileinfo_ack(struct pr_group_list_t *group, int hostidx,
 /**
  * Sends a KEYINFO to each client that the server sent a REG_CONF for.
  */
-void send_keyinfo(struct pr_group_list_t *group, uint32_t *addrlist,
+void send_keyinfo(struct pr_group_list_t *group, const uint32_t *addrlist,
                   int addrlen)
 {
     unsigned char *buf, *iv;
     struct uftp_h *header;
-    struct keyinfo_h *keyinfo;
+    struct keyinfo_h *keyinfo_hdr;
     struct destkey *keylist;
     unsigned int payloadlen, len;
     int maxdest, packetcnt, dests, iv_init, foundaddr, i, j;
@@ -461,22 +453,18 @@ void send_keyinfo(struct pr_group_list_t *group, uint32_t *addrlist,
     unauth_keytype = unauth_key(group->keytype);
     get_key_info(unauth_keytype, &unauth_keylen, &unauth_ivlen);
 
-    buf = calloc(MAXMTU, 1);
-    iv = calloc(unauth_ivlen, 1);
-    if ((buf == NULL) || (iv == NULL)) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
+    iv = safe_calloc(unauth_ivlen, 1);
     header = (struct uftp_h *)buf;
-    keyinfo = (struct keyinfo_h *)(buf + sizeof(struct uftp_h));
-    keylist = (struct destkey *)((char *)keyinfo + sizeof(struct keyinfo_h));
+    keyinfo_hdr = (struct keyinfo_h *)(buf + sizeof(struct uftp_h));
+    keylist= (struct destkey *)((char *)keyinfo_hdr + sizeof(struct keyinfo_h));
 
     set_uftp_header(header, KEYINFO, group);
-    keyinfo->func = KEYINFO;
-    keyinfo->hlen = sizeof(struct keyinfo_h) / 4;
+    keyinfo_hdr->func = KEYINFO;
+    keyinfo_hdr->hlen = sizeof(struct keyinfo_h) / 4;
 
     iv_init = 0;
-    maxdest = max_msg_dest(group, KEYINFO, keyinfo->hlen * 4);
+    maxdest = max_msg_dest(group, KEYINFO, keyinfo_hdr->hlen * 4);
     packetcnt = 1;
     for (i = 0, dests = 0; i < group->destcount; i++) {
         dest = &group->destinfo[i];
@@ -494,9 +482,9 @@ void send_keyinfo(struct pr_group_list_t *group, uint32_t *addrlist,
             if (foundaddr) {
                 if (!iv_init) {
                     group->ivctr++;
-                    keyinfo->iv_ctr_hi =
+                    keyinfo_hdr->iv_ctr_hi =
                             htonl((group->ivctr & 0xFFFFFFFF00000000LL) >> 32);
-                    keyinfo->iv_ctr_lo =
+                    keyinfo_hdr->iv_ctr_lo =
                             htonl(group->ivctr & 0x00000000FFFFFFFFLL);
                     iv_init = 1;
                 }
@@ -552,11 +540,11 @@ void send_keyinfo(struct pr_group_list_t *group, uint32_t *addrlist,
 void handle_status(struct pr_group_list_t *group, int hostidx,
                    const unsigned char *message, unsigned meslen)
 {
-    struct status_h *status;
+    const struct status_h *status;
     int mes_section;
     struct pr_destinfo_t *dest;
 
-    status = (struct status_h *)message;
+    status = (const struct status_h *)message;
     mes_section = ntohs(status->section);
     dest = &group->destinfo[hostidx];
 
@@ -579,12 +567,12 @@ void handle_status(struct pr_group_list_t *group, int hostidx,
 void handle_complete(struct pr_group_list_t *group, int hostidx,
                      const unsigned char *message, unsigned meslen)
 {
-    struct complete_h *complete;
+    const struct complete_h *complete;
     struct pr_destinfo_t *dest;
     int alldone, i;
     char status[20];
 
-    complete = (struct complete_h *)message;
+    complete = (const struct complete_h *)message;
     dest = &group->destinfo[hostidx];
 
     if ((meslen < (complete->hlen * 4U)) ||

@@ -151,7 +151,7 @@ BOOL WINAPI winsig(DWORD event)
 /**
  * Do initial setup before parsing arguments, including getting interface list
  */
-void pre_initialize()
+void pre_initialize(void)
 {
 #ifdef WINDOWS
     struct WSAData data;
@@ -171,7 +171,7 @@ void pre_initialize()
 /**
  * Do all socket creation and initialization
  */
-void create_sockets()
+void create_sockets(void)
 {
     struct addrinfo ai_hints, *ai_rval;
     char *p, tmp_multi[INET6_ADDRSTRLEN];
@@ -415,7 +415,7 @@ void create_sockets()
 /**
  * Initialize crypto library, generate keys
  */
-void key_init()
+void key_init(void)
 {
     unsigned char *prf_buf;
     time_t t;
@@ -449,11 +449,7 @@ void key_init()
     *(uint32_t *)rand1 = t2;
 
     explen = hmaclen + keylen + SALT_LEN;
-    prf_buf = calloc(explen + hmaclen, 1);
-    if (prf_buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    prf_buf = safe_calloc(explen + hmaclen, 1);
     PRF(hashtype, explen, groupmaster, sizeof(groupmaster), "key expansion",
             rand1, sizeof(rand1), prf_buf, &len);
     memcpy(grouphmackey, prf_buf, hmaclen);
@@ -497,7 +493,7 @@ void key_init()
 /**
  * Initialization based on command line args
  */
-void initialize()
+void initialize(void)
 {
     atexit(cleanup);
     init_log_mux = 1;

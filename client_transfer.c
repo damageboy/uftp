@@ -59,7 +59,7 @@
 #include "client_transfer.h"
 
 void move_files_individual(struct group_list_t *group, const char *local_temp,
-                           const char *local_dest);
+                           char *local_dest);
 
 /**
  * Moves a file from the temp to the destination directory
@@ -134,7 +134,7 @@ void move_file_individual(struct group_list_t *group, const char *local_temp,
  * Called recursively to move each file individually.
  */
 void move_files_individual(struct group_list_t *group, const char *local_temp,
-                           const char *local_dest)
+                           char *local_dest)
 {
     int emptydir;
 
@@ -383,11 +383,7 @@ void send_status(struct group_list_t *group, unsigned int section,
     unsigned char *sent_naks;
     int payloadlen, enclen;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
 
     header = (struct uftp_h *)buf;
     status = (struct status_h *)(buf + sizeof(struct uftp_h));
@@ -484,11 +480,7 @@ void send_complete(struct group_list_t *group, int set_freespace)
         file_cleanup(group, 0);
         return;
     }
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
 
     header = (struct uftp_h *)buf;
     complete = (struct complete_h *)(buf + sizeof(struct uftp_h));
@@ -553,11 +545,7 @@ void send_cc_ack(struct group_list_t *group)
     struct tfmcc_ack_info_he *tfmcc;
     int payloadlen, enclen;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
 
     header = (struct uftp_h *)buf;
     cc_ack = (struct cc_ack_h *)(buf + sizeof(struct uftp_h));
@@ -611,7 +599,7 @@ void init_tfmcc_fb_round(struct group_list_t *group, uint16_t new_ccseq)
     double urand, backoff;
     group->ccseq = new_ccseq;
 
-    urand = (double)rand32() / 0xFFFFFFFF;
+    urand = (double)(rand32() + 0.0) / 0xFFFFFFFF;
     if (urand == 0.0) urand = 1.0;
     backoff = 6 * group->grtt * (1 + log(urand) / log(group->gsize));
     if (backoff < 0) backoff = 0.0;
@@ -627,7 +615,7 @@ void init_tfmcc_fb_round(struct group_list_t *group, uint16_t new_ccseq)
  * Reads a EXT_TFMCC_DATA_INFO extension in a FILESEG message
  */
 void handle_tfmcc_data_info(struct group_list_t *group,
-                            struct tfmcc_data_info_he *tfmcc)
+                            const struct tfmcc_data_info_he *tfmcc)
 {
     uint32_t ccrate;
     uint16_t new_ccseq;
@@ -651,10 +639,10 @@ void handle_tfmcc_data_info(struct group_list_t *group,
 void handle_fileseg(struct group_list_t *group, const unsigned char *message,
                     unsigned meslen, uint16_t txseq)
 {
-    struct fileseg_h *fileseg;
-    struct tfmcc_data_info_he *tfmcc;
+    const struct fileseg_h *fileseg;
+    const struct tfmcc_data_info_he *tfmcc;
     const unsigned char *data;
-    uint8_t *he;
+    const uint8_t *he;
     int datalen, section, seq, wrote_len;
     unsigned extlen;
     f_offset_t offset, seek_rval;
@@ -664,7 +652,7 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
                 "Rejecting FILESEG: not a regular file");
         return;
     }
-    fileseg = (struct fileseg_h *)message;
+    fileseg = (const struct fileseg_h *)message;
     data = message + (fileseg->hlen * 4);
     datalen = meslen - (fileseg->hlen * 4);
 
@@ -683,9 +671,9 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
 
     tfmcc = NULL;
     if (fileseg->hlen * 4U > sizeof(struct fileseg_h)) {
-        he = (uint8_t *)fileseg + sizeof(struct fileseg_h);
+        he = (const uint8_t *)fileseg + sizeof(struct fileseg_h);
         if (*he == EXT_TFMCC_DATA_INFO) {
-            tfmcc = (struct tfmcc_data_info_he *)he;
+            tfmcc = (const struct tfmcc_data_info_he *)he;
             extlen = tfmcc->extlen * 4U;
             if ((extlen > (fileseg->hlen * 4U) - sizeof(struct fileseg_h)) ||
                     extlen < sizeof(struct tfmcc_data_info_he)) {
@@ -846,11 +834,7 @@ unsigned int get_naks(struct group_list_t *group,
             "getting naks: section: %d, offset: %d, blocks: %d",
             section, section_offset, blocks_this_sec);
 
-    *naks = calloc(group->blocksize, 1);
-    if (*naks == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    *naks = safe_calloc(group->blocksize, 1);
 
     // Build NAK list
     numnaks = 0;
@@ -887,13 +871,13 @@ unsigned int get_naks(struct group_list_t *group,
 void handle_done(struct group_list_t *group, const unsigned char *message,
                  unsigned meslen)
 {
-    struct done_h *done;
-    uint32_t *addrlist;
+    const struct done_h *done;
+    const uint32_t *addrlist;
     unsigned int section, listlen;
 
-    done = (struct done_h *)message;
-    addrlist = (uint32_t *)(message + (done->hlen * 4));
-    listlen = meslen - (done->hlen * 4);
+    done = (const struct done_h *)message;
+    addrlist = (const uint32_t *)(message + (done->hlen * 4));
+    listlen = (meslen - (done->hlen * 4)) / 4;
 
     if ((meslen < (done->hlen * 4U)) ||
             ((done->hlen * 4U) < sizeof(struct done_h))) {
@@ -979,13 +963,13 @@ void handle_done(struct group_list_t *group, const unsigned char *message,
 void handle_done_conf(struct group_list_t *group, const unsigned char *message,
                       unsigned meslen)
 {
-    struct doneconf_h *doneconf;
-    uint32_t *addrlist;
+    const struct doneconf_h *doneconf;
+    const uint32_t *addrlist;
     int listlen;
 
-    doneconf = (struct doneconf_h *)message;
-    addrlist = (uint32_t *)(message + sizeof(struct doneconf_h));
-    listlen = meslen - (doneconf->hlen * 4);
+    doneconf = (const struct doneconf_h *)message;
+    addrlist = (const uint32_t *)(message + sizeof(struct doneconf_h));
+    listlen = (meslen - (doneconf->hlen * 4)) / 4;
 
     if ((meslen < (doneconf->hlen * 4U)) ||
             ((doneconf->hlen * 4U) < sizeof(struct doneconf_h))) {
@@ -1008,16 +992,16 @@ void handle_done_conf(struct group_list_t *group, const unsigned char *message,
 void handle_cong_ctrl(struct group_list_t *group, const unsigned char *message,
                       unsigned meslen, struct timeval rxtime)
 {
-    struct cong_ctrl_h *cong_ctrl;
-    struct cc_item *cc_list;
+    const struct cong_ctrl_h *cong_ctrl;
+    const struct cc_item *cc_list;
     int listlen, i, ccidx, clridx;
     uint32_t ccrate;
     uint16_t new_ccseq;
     double new_rtt;
 
-    cong_ctrl = (struct cong_ctrl_h *)message;
-    cc_list = (struct cc_item *)(message + sizeof(struct cong_ctrl_h));
-    listlen = meslen - (cong_ctrl->hlen * 4);
+    cong_ctrl = (const struct cong_ctrl_h *)message;
+    cc_list = (const struct cc_item *)(message + sizeof(struct cong_ctrl_h));
+    listlen = (meslen - (cong_ctrl->hlen * 4)) / sizeof(struct cc_item);
 
     if ((meslen < (cong_ctrl->hlen * 4U)) ||
             ((cong_ctrl->hlen * 4U) < sizeof(struct cong_ctrl_h))) {

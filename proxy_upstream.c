@@ -59,7 +59,7 @@
  * Finds next open slot in the global group list.
  * Returns a pointer to the open slot, or NULL if none found.
  */
-struct pr_group_list_t *find_open_slot()
+struct pr_group_list_t *find_open_slot(void)
 {
     int i;
 
@@ -116,12 +116,8 @@ int calculate_server_keys(struct pr_group_list_t *group,
 
     explen = group->keylen + SALT_LEN + group->hmaclen;
     seedlen = RAND_LEN * 2;
-    seed = calloc(seedlen, 1);
-    prf_buf = calloc(MASTER_LEN + explen + group->hmaclen, 1);
-    if ((seed == NULL) || (prf_buf == NULL)) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    seed = safe_calloc(seedlen, 1);
+    prf_buf = safe_calloc(MASTER_LEN + explen + group->hmaclen, 1);
 
     memcpy(seed, group->rand1, sizeof(group->rand1));
     memcpy(seed + sizeof(group->rand1), group->rand2, sizeof(group->rand2));
@@ -274,11 +270,7 @@ int read_announce_encryption(struct pr_group_list_t *group,
         }
 
         siglen = ntohs(encinfo->siglen);
-        sigcopy = calloc(siglen, 1);
-        if (sigcopy == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
+        sigcopy = safe_calloc(siglen, 1);
         memcpy(sigcopy, sig, siglen);
         memset(sig, 0, siglen);
         if (keytype == KEYBLOB_RSA) {
@@ -312,14 +304,14 @@ int read_announce_encryption(struct pr_group_list_t *group,
 /**
  * Read in the contents of an ANNOUNCE.
  */
-int read_announce(struct pr_group_list_t *group, const unsigned char *packet,
+int read_announce(struct pr_group_list_t *group, unsigned char *packet,
                   const union sockaddr_u *src, int packetlen)
 {
     struct uftp_h *header;
     struct announce_h *announce;
     struct enc_info_he *encinfo;
     uint8_t *publicmcast, *privatemcast;
-    const uint8_t *he;
+    uint8_t *he;
     unsigned int iplen, extlen;
 
     header = (struct uftp_h *)packet;
@@ -429,7 +421,7 @@ int insert_pubkey_in_announce(struct pr_group_list_t *group,
 {
     struct announce_h *announce;
     struct enc_info_he *encinfo;
-    unsigned char *keyblob, *dhkey;
+    unsigned char *keyblob, *dhkeyblob;
     uint16_t bloblen;
     unsigned int iplen;
 
@@ -438,7 +430,7 @@ int insert_pubkey_in_announce(struct pr_group_list_t *group,
     encinfo = (struct enc_info_he *)
             ((uint8_t *)announce + sizeof(struct announce_h) + (2U * iplen));
     keyblob = ((unsigned char *)encinfo + sizeof(struct enc_info_he));
-    dhkey = keyblob + ntohs(encinfo->keylen);
+    dhkeyblob = keyblob + ntohs(encinfo->keylen);
 
     if ((group->keytype != KEY_NONE) && (proxy_type == CLIENT_PROXY)) {
         // Plug in proxy's public key for server's
@@ -460,7 +452,7 @@ int insert_pubkey_in_announce(struct pr_group_list_t *group,
         }
         if ((group->keyextype == KEYEX_ECDH_ECDSA) ||
                 (group->keyextype == KEYEX_ECDH_RSA)) {
-            if (!export_EC_key(group->proxy_dhkey.ec, dhkey, &bloblen)) {
+            if (!export_EC_key(group->proxy_dhkey.ec, dhkeyblob, &bloblen)) {
                 log2(group->group_id,0,"Error exporting proxy ECDH public key");
                 return 0;
             }
@@ -563,13 +555,13 @@ void handle_announce(struct pr_group_list_t *group,
 void handle_regconf(struct pr_group_list_t *group, const unsigned char *message,
                     unsigned meslen)
 {
-    struct regconf_h *regconf;
-    uint32_t *addrlist;
+    const struct regconf_h *regconf;
+    const uint32_t *addrlist;
     int hostidx, idx, addrcnt;
     struct pr_destinfo_t *dest;
 
-    regconf = (struct regconf_h *)message;
-    addrlist = (uint32_t *)(message + (regconf->hlen * 4));
+    regconf = (const struct regconf_h *)message;
+    addrlist = (const uint32_t *)(message + (regconf->hlen * 4));
     addrcnt = (meslen - (regconf->hlen * 4)) / 4;
 
     if ((meslen < (regconf->hlen * 4U)) ||
@@ -602,22 +594,22 @@ void handle_regconf(struct pr_group_list_t *group, const unsigned char *message,
  * Expected in response to a REGISTER when encryption is enabled.  The proxy
  * itself should be specified, not any clients behind it.
  */
-void handle_keyinfo(struct pr_group_list_t *group, const unsigned char *message,
+void handle_keyinfo(struct pr_group_list_t *group, unsigned char *message,
                     unsigned meslen, uint32_t src_id)
 {
-    struct keyinfo_h *keyinfo;
+    struct keyinfo_h *keyinfo_hdr;
     struct destkey *keylist;
     unsigned explen, declen;
     int i, keyidx, len, keycount, unauth_keytype, unauth_keylen, unauth_ivlen;
     uint8_t decgroupmaster[MASTER_LEN], *prf_buf, *iv;
     uint64_t ivctr;
 
-    keyinfo = (struct keyinfo_h *)message;
-    keylist = (struct destkey *)(message + (keyinfo->hlen * 4));
-    keycount = (meslen - (keyinfo->hlen * 4)) / sizeof(struct destkey);
+    keyinfo_hdr = (struct keyinfo_h *)message;
+    keylist = (struct destkey *)(message + (keyinfo_hdr->hlen * 4));
+    keycount = (meslen - (keyinfo_hdr->hlen * 4)) / sizeof(struct destkey);
 
-    if ((meslen < (keyinfo->hlen * 4U)) ||
-            ((keyinfo->hlen * 4U) < sizeof(struct keyinfo_h))) {
+    if ((meslen < (keyinfo_hdr->hlen * 4U)) ||
+            ((keyinfo_hdr->hlen * 4U) < sizeof(struct keyinfo_h))) {
         log1(group->group_id, 0,
                 "Rejecting KEYINFO from server: invalid message size");
         return;
@@ -646,13 +638,9 @@ void handle_keyinfo(struct pr_group_list_t *group, const unsigned char *message,
             send_keyinfo_ack(group);
             return;
         }
-        iv = calloc(unauth_ivlen, 1);
-        if (iv == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
-        ivctr = ntohl(keyinfo->iv_ctr_lo);
-        ivctr |= (uint64_t)ntohl(keyinfo->iv_ctr_hi) << 32;
+        iv = safe_calloc(unauth_ivlen, 1);
+        ivctr = ntohl(keyinfo_hdr->iv_ctr_lo);
+        ivctr |= (uint64_t)ntohl(keyinfo_hdr->iv_ctr_hi) << 32;
         build_iv(iv, group->salt, unauth_ivlen, uftp_htonll(ivctr), src_id);
         if (!decrypt_block(unauth_keytype, iv, group->key, NULL, 0,
                     keylist[keyidx].groupmaster, MASTER_LEN,
@@ -668,11 +656,7 @@ void handle_keyinfo(struct pr_group_list_t *group, const unsigned char *message,
         memcpy(&group->groupmaster[1], decgroupmaster, declen);
 
         explen = group->keylen + SALT_LEN + group->hmaclen;
-        prf_buf = calloc(explen + group->hmaclen, 1);
-        if (prf_buf == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
+        prf_buf = safe_calloc(explen + group->hmaclen, 1);
         PRF(group->hashtype, explen, group->groupmaster,
                 sizeof(group->groupmaster), "key expansion",
                 group->rand1, sizeof(group->rand1), prf_buf, &len);
@@ -696,20 +680,16 @@ void send_register(struct pr_group_list_t *group, int pendidx)
 {
     struct uftp_h *header;
     struct register_h *reg;
-    unsigned char *buf, *keyinfo;
+    unsigned char *buf, *keydata;
     uint32_t *addrlist;
     unsigned int len, meslen, destcount;
     struct timeval now, send_time;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
 
     header = (struct uftp_h *)buf;
     reg = (struct register_h *)(buf + sizeof(struct uftp_h));
-    keyinfo = (unsigned char *)reg + sizeof(struct register_h);
+    keydata = (unsigned char *)reg + sizeof(struct register_h);
 
     set_uftp_header(header, REGISTER, group);
     reg->func = REGISTER;
@@ -717,7 +697,7 @@ void send_register(struct pr_group_list_t *group, int pendidx)
         memcpy(reg->rand2, group->rand2, RAND_LEN);
         if (group->keyextype == KEYEX_RSA) {
             if (!RSA_encrypt(group->server_pubkey.rsa, group->premaster,
-                             group->premaster_len, keyinfo, &len)) {
+                             group->premaster_len, keydata, &len)) {
                 log2(group->group_id, 0, "Error encrypting premaster secret");
                 send_upstream_abort(group, 0,
                         "Error encrypting premaster secret");
@@ -726,7 +706,7 @@ void send_register(struct pr_group_list_t *group, int pendidx)
             }
         } else {
             uint16_t keylen;
-            if (!export_EC_key(group->proxy_dhkey.ec, keyinfo, &keylen)) {
+            if (!export_EC_key(group->proxy_dhkey.ec, keydata, &keylen)) {
                 log2(group->group_id, 0, "Error exporting ECDH public key");
                 send_upstream_abort(group,0, "Error exporting ECDH public key");
                 free(buf);
@@ -749,7 +729,7 @@ void send_register(struct pr_group_list_t *group, int pendidx)
     reg->tstamp_sec = htonl((uint32_t)send_time.tv_sec);
     reg->tstamp_usec = htonl((uint32_t)send_time.tv_usec);
 
-    addrlist = (uint32_t *)(keyinfo + len);
+    addrlist = (uint32_t *)(keydata + len);
     reg->hlen = (sizeof(struct register_h) + len) / 4;
     destcount = load_pending(group, pendidx, REGISTER, addrlist,
                              max_msg_dest(group, REGISTER, reg->hlen * 4));
@@ -782,11 +762,7 @@ void send_clientkey(struct pr_group_list_t *group)
     uint16_t bloblen;
     int verifylen;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
 
     header = (struct uftp_h *)buf;
     client_key = (struct client_key_h *)(buf + sizeof(struct uftp_h));
@@ -861,11 +837,7 @@ void send_keyinfo_ack(struct pr_group_list_t *group)
     unsigned int payloadlen, hashlen;
     int verifylen, len, enclen;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
 
     header = (struct uftp_h *)buf;
     keyinfo_ack = (struct keyinfoack_h *)(buf + sizeof(struct uftp_h));
@@ -882,12 +854,8 @@ void send_keyinfo_ack(struct pr_group_list_t *group)
         return;
     }
 
-    verify_hash = calloc(group->hmaclen, 1);
-    verify_val = calloc(VERIFY_LEN + group->hmaclen, 1);
-    if ((verify_hash == NULL) || (verify_val == NULL)){
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    verify_hash = safe_calloc(group->hmaclen, 1);
+    verify_val = safe_calloc(VERIFY_LEN + group->hmaclen, 1);
     hash(group->hashtype, verifydata, verifylen, verify_hash, &hashlen);
     PRF(group->hashtype, VERIFY_LEN, group->groupmaster,
             sizeof(group->groupmaster), "client finished",
@@ -936,11 +904,7 @@ void send_fileinfo_ack(struct pr_group_list_t *group, int pendidx)
     uint32_t *addrlist;
     struct timeval now, send_time;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
 
     pending = &group->pending[pendidx];
 
@@ -1040,11 +1004,7 @@ void send_status(struct pr_group_list_t *group, int pendidx)
     struct pr_destinfo_t *dest;
     int hostidx, payloadlen, enclen, nak_count;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
     pending = &group->pending[pendidx];
 
     // Since a STATUS doesn't contain a host list, we do this simplified
@@ -1118,11 +1078,7 @@ void send_complete(struct pr_group_list_t *group, int pendidx)
     struct pr_pending_info_t *pending;
     int payloadlen, destcount, enclen;
 
-    buf = calloc(MAXMTU, 1);
-    if (buf == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
+    buf = safe_calloc(MAXMTU, 1);
     pending = &group->pending[pendidx];
 
     header = (struct uftp_h *)buf;

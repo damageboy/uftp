@@ -58,8 +58,8 @@ extern f_offset_t log_size, max_log_size;
 extern mux_t log_mux;
 
 void init_log(int _debug);
-void close_log();
-void roll_log();
+void close_log(void);
+void roll_log(void);
 void logfunc(uint32_t group_id, uint16_t file_id, int level, int _showtime,
              int newline, int err, int sockerr, const char *str, ...);
 
@@ -156,7 +156,7 @@ uint64_t uftp_htonll(uint64_t val);
 uint64_t uftp_ntohll(uint64_t val);
 
 int family_len(union sockaddr_u addr);
-int would_block_err();
+int would_block_err(void);
 int nb_sendto(SOCKET s, const void *msg, int len, int flags,
               const struct sockaddr *to, int tolen);
 int read_packet(SOCKET sock, union sockaddr_u *sa, unsigned char *buffer,
@@ -174,13 +174,13 @@ int encrypt_and_sign(const unsigned char *decpacket, unsigned char **encpacket,
                      int hashtype, uint8_t *hmackey, uint8_t hmaclen,
                      int sigtype, int keyextype, union key_t privkey,
                      int privkeylen);
-int validate_and_decrypt(const unsigned char *encpacket, unsigned int enclen,
+int validate_and_decrypt(unsigned char *encpacket, unsigned int enclen,
                          unsigned char **decpacket, unsigned int *declen,
                          int keytype, const uint8_t *key,
                          const uint8_t *salt, int ivlen, int hashtype,
                          const uint8_t *hmackey, uint8_t hmaclen, int sigtype,
                          int keyextype, union key_t pubkey, int pubkeylen);
-void PRF(int hash, int bytes, const unsigned char *secret, int secret_len,
+void PRF(int hashtype, int bytes, const unsigned char *secret, int secret_len,
          const char *label, const unsigned char *seed, int seed_len,
          unsigned char *outbuf, int *outbuf_len);
 const char *print_key_fingerprint(const union key_t key, int keytype);
@@ -210,7 +210,9 @@ int file_write(int fd, const void *buf, int buflen);
 int64_t free_space(const char *dir);
 
 int valid_priority(int priority);
-uint32_t rand32();
+uint32_t rand32(void);
+void *safe_malloc(size_t size);
+void *safe_calloc(size_t num, size_t size);
 
 uint8_t quantize_grtt(double rtt);
 double unquantize_grtt(uint8_t rtt);

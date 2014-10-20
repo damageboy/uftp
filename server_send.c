@@ -78,7 +78,7 @@ int file_excluded(const char *filename)
  * specified, get the list of files and call recursively for each.
  * Returns 0 if a file was sent and none received it, 1 otherwise
  */
-int send_file(const char *basedir, const char *filename,
+int send_file(const char *f_basedir, const char *filename,
               const char *n_destfname, uint32_t group_id, uint8_t group_inst,
               int delete, int freespace)
 {
@@ -88,11 +88,11 @@ int send_file(const char *basedir, const char *filename,
     char path[MAXPATHNAME], destpath[MAXPATHNAME];
     int len, rval, fd, emptydir, maxsecsize;
 
-    log1(0, 0, "----- %s -----", filename);
-    len = snprintf(path, sizeof(path), "%s%c%s", basedir, PATH_SEP, filename);
+    log1(group_id, 0, "----- %s -----", filename);
+    len = snprintf(path, sizeof(path), "%s%c%s", f_basedir, PATH_SEP, filename);
     if ((len >= sizeof(path)) || (len == -1)) {
-        log1(0, 0, "Max pathname length exceeded: %s%c%s",
-                    basedir, PATH_SEP, filename);
+        log1(group_id, 0, "Max pathname length exceeded: %s%c%s",
+                    f_basedir, PATH_SEP, filename);
         return 1;
     }
     if (!delete && !freespace) {
@@ -102,19 +102,19 @@ int send_file(const char *basedir, const char *filename,
             rval = lstat_func(path, &statbuf);
         }
         if (rval == -1) {
-            syserror(0, 0, "Error getting file status for %s", filename);
+            syserror(group_id, 0, "Error getting file status for %s", filename);
             return 1;
         }
     }
     if (file_excluded(filename)) {
-        log0(0, 0, "Skipping %s", filename);
+        log0(group_id, 0, "Skipping %s", filename);
         return 1;
     }
     rval = 1;
     if (freespace) {
         memset(&finfo, 0, sizeof(struct finfo_t));
         finfo.ftype = FTYPE_FREESPACE;
-        finfo.basedir = basedir;
+        finfo.basedir = f_basedir;
         finfo.filename = n_destfname;
         finfo.destfname = n_destfname;
         finfo.group_id = group_id;
@@ -123,12 +123,8 @@ int send_file(const char *basedir, const char *filename,
         if (file_id == 0) {
             file_id = 1;
         }
-        finfo.deststate = calloc(destcount ? destcount : MAXDEST,
+        finfo.deststate = safe_calloc(destcount ? destcount : MAXDEST,
                 sizeof(struct deststate_t));
-        if (finfo.deststate == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
 
         rval = announce_phase(&finfo);
         if (rval) {
@@ -138,7 +134,7 @@ int send_file(const char *basedir, const char *filename,
     } else if (delete) {
         memset(&finfo, 0, sizeof(struct finfo_t));
         finfo.ftype = FTYPE_DELETE;
-        finfo.basedir = basedir;
+        finfo.basedir = f_basedir;
         finfo.filename = filename;
         finfo.destfname = n_destfname;
         finfo.group_id = group_id;
@@ -148,12 +144,8 @@ int send_file(const char *basedir, const char *filename,
             file_id = 1;
         }
 
-        finfo.deststate = calloc(destcount ? destcount : MAXDEST,
+        finfo.deststate = safe_calloc(destcount ? destcount : MAXDEST,
                 sizeof(struct deststate_t));
-        if (finfo.deststate == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
         rval = announce_phase(&finfo);
         if (rval) {
             rval = transfer_phase(&finfo);
@@ -161,13 +153,13 @@ int send_file(const char *basedir, const char *filename,
         free(finfo.deststate);
     } else if (S_ISREG(statbuf.st_mode)) {
         if ((fd = open(path, OPENREAD, 0)) == -1) {
-            syserror(0, 0, "Error reading file %s", filename);
+            syserror(group_id, 0, "Error reading file %s", filename);
             return 1;
         }
         close(fd);
         memset(&finfo, 0, sizeof(struct finfo_t));
         finfo.ftype = FTYPE_REG;
-        finfo.basedir = basedir;
+        finfo.basedir = f_basedir;
         finfo.filename = filename;
         finfo.destfname = n_destfname;
         finfo.group_id = group_id;
@@ -198,13 +190,9 @@ int send_file(const char *basedir, const char *filename,
             finfo.big_sections = 0;
         }
 
-        finfo.naklist = calloc(finfo.blocks, 1);
-        finfo.deststate = calloc(destcount ? destcount : MAXDEST,
+        finfo.naklist = safe_calloc(finfo.blocks, 1);
+        finfo.deststate = safe_calloc(destcount ? destcount : MAXDEST,
                 sizeof(struct deststate_t));
-        if ((finfo.naklist == NULL) || (finfo.deststate == NULL)) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
         finfo.partial = 1;
         rval = announce_phase(&finfo);
         if (rval) {
@@ -218,18 +206,18 @@ int send_file(const char *basedir, const char *filename,
 
         memset(linkname, 0, sizeof(linkname));
         if (readlink(path, linkname, sizeof(linkname)-1) == -1) {
-            syserror(0, 0, "Failed to read symbolic link %s", path);
+            syserror(group_id, 0, "Failed to read symbolic link %s", path);
             return 1;
         }
         // Both the file name and the link have to fit into a fileinfo_h.name
         if (strlen(linkname) + strlen(filename) + 2 > MAXPATHNAME) {
-            log0(0, 0, "Combined file name %s and link %s too long",
+            log0(group_id, 0, "Combined file name %s and link %s too long",
                         filename, linkname);
             return 1;
         }
         memset(&finfo, 0, sizeof(struct finfo_t));
         finfo.ftype = FTYPE_LINK;
-        finfo.basedir = basedir;
+        finfo.basedir = f_basedir;
         finfo.filename = filename;
         finfo.destfname = n_destfname;
         finfo.linkname = linkname;
@@ -239,12 +227,8 @@ int send_file(const char *basedir, const char *filename,
         if (file_id == 0) {
             file_id = 1;
         }
-        finfo.deststate = calloc(destcount ? destcount : MAXDEST,
+        finfo.deststate = safe_calloc(destcount ? destcount : MAXDEST,
                 sizeof(struct deststate_t));
-        if (finfo.deststate == NULL) {
-            syserror(0, 0, "calloc failed!");
-            exit(1);
-        }
         finfo.partial = 1;
         rval = announce_phase(&finfo);
         if (rval) {
@@ -259,32 +243,32 @@ int send_file(const char *basedir, const char *filename,
         struct _finddatai64_t ffinfo;
         char dirglob[MAXPATHNAME];
 
-        snprintf(dirglob, sizeof(dirglob), "%s%c%s%c*", basedir, PATH_SEP,
+        snprintf(dirglob, sizeof(dirglob), "%s%c%s%c*", f_basedir, PATH_SEP,
                                                         filename, PATH_SEP);
         if ((ffhandle = _findfirsti64(dirglob, &ffinfo)) == -1) {
-            syserror(0, 0, "Failed to open directory %s%c%s", basedir, PATH_SEP,
-                                                              filename);
+            syserror(group_id, 0, "Failed to open directory %s%c%s", f_basedir,
+                        PATH_SEP, filename);
             return 1;
         }
         emptydir = 1;
         do {
             len = snprintf(path, sizeof(path), "%s/%s", filename, ffinfo.name);
-            log3(0, 0, "Checking file %s", path);
+            log3(group_id, 0, "Checking file %s", path);
             if ((len >= sizeof(path)) || (len == -1)) {
-                log0(0, 0, "Max pathname length exceeded: %s/%s",
+                log0(group_id, 0, "Max pathname length exceeded: %s/%s",
                             filename, ffinfo.name);
                 continue;
             }
             len = snprintf(destpath, sizeof(destpath), "%s/%s",
                            n_destfname, ffinfo.name);
             if ((len >= sizeof(destpath)) || (len == -1)) {
-                log0(0, 0, "Max pathname length exceeded: %s/%s",
+                log0(group_id, 0, "Max pathname length exceeded: %s/%s",
                             n_destfname, ffinfo.name);
                 continue;
             }
             if (strcmp(ffinfo.name, ".") && strcmp(ffinfo.name, "..")) {
                 emptydir = 0;
-                if (!send_file(basedir, path, destpath,
+                if (!send_file(f_basedir, path, destpath,
                                group_id, group_inst, 0, 0)) {
                     rval = 0;
                     break;
@@ -297,9 +281,10 @@ int send_file(const char *basedir, const char *filename,
         struct dirent *de;
         char dirname[MAXPATHNAME];
 
-        snprintf(dirname, sizeof(dirname), "%s%c%s", basedir,PATH_SEP,filename);
+        snprintf(dirname, sizeof(dirname), "%s%c%s", f_basedir, PATH_SEP,
+                 filename);
         if ((dir = opendir(dirname)) == NULL) {
-            syserror(0, 0, "Failed to open directory %s", dirname);
+            syserror(group_id, 0, "Failed to open directory %s", dirname);
             return 1;
         }
         // errno needs to be set to 0 before calling readdir, otherwise
@@ -308,20 +293,20 @@ int send_file(const char *basedir, const char *filename,
         while ((errno = 0, de = readdir(dir)) != NULL) {
             len = snprintf(path, sizeof(path), "%s/%s", filename, de->d_name);
             if ((len >= sizeof(path)) || (len == -1)) {
-                log0(0, 0, "Max pathname length exceeded: %s/%s",
+                log0(group_id, 0, "Max pathname length exceeded: %s/%s",
                             filename, de->d_name);
                 continue;
             }
             len = snprintf(destpath, sizeof(destpath), "%s/%s",
                            n_destfname, de->d_name);
             if ((len >= sizeof(destpath)) || (len == -1)) {
-                log0(0, 0, "Max pathname length exceeded: %s/%s",
+                log0(group_id, 0, "Max pathname length exceeded: %s/%s",
                             n_destfname, de->d_name);
                 continue;
             }
             if (strcmp(de->d_name, ".") && strcmp(de->d_name, "..")) {
                 emptydir = 0;
-                if (!send_file(basedir, path, destpath,
+                if (!send_file(f_basedir, path, destpath,
                                group_id, group_inst, 0, 0)) {
                     rval = 0;
                     break;
@@ -329,14 +314,14 @@ int send_file(const char *basedir, const char *filename,
             }
         }
         if (errno && (errno != ENOENT)) {
-            syserror(0, 0, "Failed to read directory %s", filename);
+            syserror(group_id, 0, "Failed to read directory %s", filename);
         }
         closedir(dir);
 #endif
         if (emptydir) {
             memset(&finfo, 0, sizeof(struct finfo_t));
             finfo.ftype = FTYPE_DIR;
-            finfo.basedir = basedir;
+            finfo.basedir = f_basedir;
             finfo.filename = filename;
             finfo.destfname = n_destfname;
             finfo.group_id = group_id;
@@ -345,12 +330,8 @@ int send_file(const char *basedir, const char *filename,
             if (file_id == 0) {
                 file_id = 1;
             }
-            finfo.deststate = calloc(destcount ? destcount : MAXDEST,
+            finfo.deststate = safe_calloc(destcount ? destcount : MAXDEST,
                     sizeof(struct deststate_t));
-            if (finfo.deststate == NULL) {
-                syserror(0, 0, "calloc failed!");
-                exit(1);
-            }
             finfo.partial = 1;
             rval = announce_phase(&finfo);
             if (rval) {
@@ -359,7 +340,7 @@ int send_file(const char *basedir, const char *filename,
             free(finfo.deststate);
         }
     } else {
-        log0(0, 0, "Skipping special file %s", filename);
+        log0(group_id, 0, "Skipping special file %s", filename);
     }
     return rval;
 }
@@ -368,7 +349,7 @@ int send_file(const char *basedir, const char *filename,
  * Write a restart file entry for a particular client.
  * Returns 1 on success, o on fail.
  */
-int write_restart_host(int fd, int i)
+int write_restart_host(uint32_t group_id, int fd, int i)
 {
     struct server_restart_host_t host;
 
@@ -383,7 +364,7 @@ int write_restart_host(int fd, int i)
     }
     host.is_proxy = (destlist[i].clientcnt != -1);
     if (file_write(fd, &host, sizeof(host)) == -1) {
-        log0(0, 0, "Failed to write host for restart file");
+        log0(group_id, 0, "Failed to write host for restart file");
         return 0;
     }
     return 1;
@@ -409,7 +390,7 @@ void write_restart_file(uint32_t group_id, uint8_t group_inst)
                          "_group_%08X_restart", group_id);
                 if ((fd = open(restart_name, OPENWRITE | O_CREAT | O_TRUNC,
                                0644)) == -1) {
-                    syserror(0, 0, "Failed to create restart file");
+                    syserror(group_id, 0, "Failed to create restart file");
                     return;
                 }
 
@@ -418,20 +399,21 @@ void write_restart_file(uint32_t group_id, uint8_t group_inst)
                 header.group_inst = group_inst;
                 header.filecount = filecount;
                 if (file_write(fd, &header, sizeof(header)) == -1) {
-                    log0(0, 0, "Failed to write header for restart file");
+                    log0(group_id,0, "Failed to write header for restart file");
                     goto errexit;
                 }
 
                 // Write file list
                 for (j = 0; j < filecount; j++) {
                     if (file_write(fd, filelist[j],sizeof(filelist[j])) == -1) {
-                        log0(0, 0, "Failed to write filename for restart file");
+                        log0(group_id, 0,
+                                "Failed to write filename for restart file");
                         goto errexit;
                     }
                 }
                 opened = 1;
             }
-            if (!write_restart_host(fd, i)) {
+            if (!write_restart_host(group_id, fd, i)) {
                 goto errexit;
             }
             if (destlist[i].proxyidx != -1) {
@@ -441,7 +423,8 @@ void write_restart_file(uint32_t group_id, uint8_t group_inst)
                     }
                 }
                 if (!found) {
-                    if (!write_restart_host(fd, destlist[i].proxyidx)) {
+                    if (!write_restart_host(group_id, fd,
+                                            destlist[i].proxyidx)) {
                         goto errexit;
                     }
                     proxy_listed[proxycnt++] = destlist[i].proxyidx;
@@ -464,7 +447,7 @@ errexit:
  * The main sending function.  Goes through all files/diectories specified on
  * the command line and initializes the group for multiple files.
  */
-int send_files()
+int send_files(void)
 {
     int i, j, rval, len, found_base, delete;
     struct finfo_t group_info;
@@ -479,37 +462,6 @@ int send_files()
     ncmp = strncmp;
 #endif
 
-    t = time(NULL);
-    if (!showtime) slog0("");
-    log0(0, 0, "%s", VERSIONSTR);
-    if (!showtime) clog0(0, 0, "Starting at %s", ctime(&t));
-    if (privkey.key) {
-        if ((keyextype == KEYEX_RSA) || (keyextype == KEYEX_ECDH_RSA)) {
-            log1(0, 0, "Loaded %d bit RSA key with fingerprint %s",
-                       RSA_keylen(privkey.rsa) * 8,
-                       print_key_fingerprint(privkey, KEYBLOB_RSA));
-        } else {
-            log1(0, 0, "Loaded ECDSA key with curve %s and fingerprint %s",
-                       curve_name(get_EC_curve(privkey.ec)),
-                       print_key_fingerprint(privkey, KEYBLOB_EC));
-        }
-    }
-    if (dhkey.key) {
-        log1(0, 0, "Loaded ECDH key with curve %s",
-                   curve_name(get_EC_curve(dhkey.ec)));
-    }
-    if (cc_type == CC_NONE || cc_type == CC_UFTP3) {
-        if (rate == -1) {
-            log2(0, 0, "Transfer rate: full interface speed");
-        } else {
-            log2(0, 0, "Transfer rate: %d Kbps (%d KB/s)",
-                       rate * 8 / 1024, rate / 1024);
-            log2(0, 0, "Wait between packets: %d us", packet_wait);
-        }
-    } else if (cc_type == CC_TFMCC) {
-        log2(0, 0, "Transfer rate: dynamic via TFMCC");
-    }
-
     memset(&group_info, 0, sizeof(struct finfo_t));
     if (restart_groupid) {
         group_info.group_id = restart_groupid;
@@ -518,22 +470,53 @@ int send_files()
         group_info.group_id = rand32();
         group_info.group_inst = 0;
     }
-    group_info.deststate = calloc(destcount ? destcount : MAXDEST,
+    group_info.deststate = safe_calloc(destcount ? destcount : MAXDEST,
                                   sizeof(struct deststate_t));
-    if (group_info.deststate == NULL) {
-        syserror(0, 0, "calloc failed!");
-        exit(1);
-    }
     
+    t = time(NULL);
+    if (!showtime) slog0("");
+    log0(group_info.group_id, 0, "%s", VERSIONSTR);
+    if (!showtime) clog0(group_info.group_id, 0, "Starting at %s", ctime(&t));
+    if (privkey.key) {
+        if ((keyextype == KEYEX_RSA) || (keyextype == KEYEX_ECDH_RSA)) {
+            log1(group_info.group_id, 0,
+                    "Loaded %d bit RSA key with fingerprint %s",
+                       RSA_keylen(privkey.rsa) * 8,
+                       print_key_fingerprint(privkey, KEYBLOB_RSA));
+        } else {
+            log1(group_info.group_id, 0,
+                    "Loaded ECDSA key with curve %s and fingerprint %s",
+                       curve_name(get_EC_curve(privkey.ec)),
+                       print_key_fingerprint(privkey, KEYBLOB_EC));
+        }
+    }
+    if (dhkey.key) {
+        log1(group_info.group_id, 0, "Loaded ECDH key with curve %s",
+                   curve_name(get_EC_curve(dhkey.ec)));
+    }
+    if (cc_type == CC_NONE || cc_type == CC_UFTP3) {
+        if (rate == -1) {
+            log2(group_info.group_id, 0, "Transfer rate: full interface speed");
+        } else {
+            log2(group_info.group_id, 0, "Transfer rate: %d Kbps (%d KB/s)",
+                       rate * 8 / 1024, rate / 1024);
+            log2(group_info.group_id, 0,
+                    "Wait between packets: %d us", packet_wait);
+        }
+    } else if (cc_type == CC_TFMCC) {
+        log2(group_info.group_id, 0, "Transfer rate: dynamic via TFMCC");
+    }
+
     if (log_level >= 2) {
         rval = getnameinfo((struct sockaddr *)&receive_dest,
                 family_len(receive_dest), mcast, sizeof(mcast),
                 NULL, 0, NI_NUMERICHOST);
         if (rval) {
-            log2(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+            log2(group_info.group_id, 0,
+                    "getnameinfo failed: %s", gai_strerror(rval));
         }
-        log2(0, 0, "Using private multicast address %s  Group ID: %08X",
-                   mcast, group_info.group_id);
+        log2(group_info.group_id, 0, "Using private multicast address %s  "
+                "Group ID: %08X", mcast, group_info.group_id);
     }
     rval = announce_phase(&group_info);
     if (rval) {
@@ -562,8 +545,8 @@ int send_files()
                     }
                 }
                 if (!found_base) {
-                    log0(0, 0, "Skipping %s: doesn't match any base",
-                                filelist[i]);
+                    log0(group_info.group_id, 0, "Skipping %s: "
+                            "doesn't match any base", filelist[i]);
                     free(dir);
                     free(base);
                     continue;
@@ -587,8 +570,8 @@ int send_files()
                     len = snprintf(path, sizeof(path), "%s/%s",
                                    destfname, l_destfname);
                     if ((len >= sizeof(path)) || (len == -1)) {
-                        log0(0, 0, "Max pathname length exceeded: %s/%s",
-                                   destfname, base);
+                        log0(group_info.group_id, 0, "Max pathname length "
+                                "exceeded: %s/%s", destfname, base);
                         free(dir);
                         free(base);
                         continue;
@@ -610,7 +593,7 @@ int send_files()
             }
         }
         if (rval) {
-            log1(0, 0, "-----------------------------");
+            log1(group_info.group_id, 0, "-----------------------------");
             completion_phase(&group_info);
         }
     }
@@ -620,7 +603,8 @@ int send_files()
     free(group_info.deststate);
 
     t = time(NULL);
-    if (!showtime) clog0(0, 0, "uftp: Finishing at %s", ctime(&t));
+    if (!showtime) clog0(group_info.group_id, 0, "uftp: Finishing at %s",
+                         ctime(&t));
     return rval;
 }
 
