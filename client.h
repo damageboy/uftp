@@ -68,6 +68,7 @@ struct file_t {
     int fd;                     /// File descriptor for file
     uint32_t last_block;        /// Block number of last block received
     uint16_t last_section;      /// Section number of last block received
+    int got_data;               /// True if at least one data packet received
     struct timeval nak_time;    /// Time to send out NAKs
     uint16_t nak_section_first; /// First section number to send NAKs for
     uint16_t nak_section_last;  /// Last section number to send NAKs for

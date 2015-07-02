@@ -249,9 +249,6 @@ int other_mcast_users(struct group_list_t *group)
         }
     }
     for (i = 0; i < MAXLIST; i++) {
-        if (group_list[i].group_id == 0) {
-            return 0;
-        }
         if ((&group_list[i] != group) && (!memcmp(&group->multi,
                 &group_list[i].multi, sizeof(union sockaddr_u)))) {
             return 1;

@@ -1,3 +1,17 @@
+Version 4.6.1 - 3/15/2015
+  At the start of the transfer phase with congestion control enabled, the
+    server would sometimes select a client that had dropped out earlier in
+    the session as the initial CLR, slowing down the file transfer.  Fixed.
+  In restart mode for a partially sent file, the server sends a DONE right
+    away before sending data to get NAKs from the clients.  The clients
+    normally have a short delay before responding to a DONE to ensure that
+    out of order data packets arrive.  In this case, since no data has been
+    sent yet, the clients will now respond right away to avoid the unneeded
+    delay.
+  When the clients joins or leaves a multicast group, it checks to see if any
+    other active sessions are using that group before doing so.  Fixed a bug
+    that prevented the client from searching the whole list.
+
 Version 4.6 - 12/30/2014
   Added the -F option to the client to print status info to a file.  Like
     the server's -s option, passing in @LOG mixes this info with the regular
@@ -204,7 +218,7 @@ Version 3.5.1 - 7/10/2011
   Send COMPLETE(rejected) instead of ABORT for file/path issues.
   Allow server to send broadcast packets.
   Improved memory management in server.
-  Proxy wasn't propigating COMPLETE status upsteam.  Fixed.
+  Proxy wasn't propagating COMPLETE status upsteam.  Fixed.
   Filenames passed to server are no longer checked on startup.  They are
     instead checked as they are handled.
   Fixed proxy bug in open group mode where a client's address isn't detected.
@@ -224,7 +238,7 @@ Version 3.5 - 6/17/2011
   Allow clients to specify multiple destination directories.  The client will
     allow an incoming file with an absolute pathname if it matches at least
     one destination directory.
-  Added a simple congestion control method controled by a config file.
+  Added a simple congestion control method controlled by a config file.
     See the -C option to the server.
   Added backup directory option to client.  If an incoming file would overwrite
     an existing file, the existing file is backed up.  See -A on the client.
@@ -256,13 +270,13 @@ Version 3.4.1 - 2/21/2011
   Extended the late register and late done timers to 1.5 times the old values.
     This gives clients a little extra time to send responses.
   Clients now send a COMPLETE in response to a FILEINFO for a directory or
-    a symbolic link, elimitating an extra DONE/COMPLETE cycle.
+    a symbolic link, eliminating an extra DONE/COMPLETE cycle.
   Clients may now accept a FILEINFO in lieu of a REG_CONF.  This eliminates
     a timing issue when a REG_CONF gets lost.
 
 Version 3.4 - 12/18/2010
   Added new proxy mode: response proxy
-    Used when servers have direct multicast accessability to clients, but
+    Used when servers have direct multicast accessibility to clients, but
       response aggregation is still desired.
   Fixed overflow bug when calculating packet rate with jumbo frames.
   Fixed server bug when checking maximum size of file exclusion list.
@@ -299,14 +313,14 @@ Version 3.3 - 7/8/2010
 Version 3.2.1 - 6/16/2010
   Under Windows, setting the root directory of a drive (c:\, d:\, etc.) as
     the destination directory caused errors.  Fixed.
-  When trying to send unicast to a client beind a NAT, the client would
+  When trying to send unicast to a client behind a NAT, the client would
     reject the transfer because the IP specified by the server doesn't
     match the client's IP.  Clients will now always accept in unicast mode.
 
 Version 3.2 - 5/30/2010
   Fixed compile bug on OSX (cleaned up signal setup)
   Added detection of non-multicast interfaces
-  Added unique ID to clients and proxies.  This allows for distinguising
+  Added unique ID to clients and proxies.  This allows for distinguishing
     clients between different NATs that might have the same IP address.
 
 Version 3.1 - 4/6/2010
@@ -364,7 +378,7 @@ Version 2.10 - 7/16/2009
   Fixed some minor logging bugs.
 
 Version 2.9.2 - 6/20/2009
-  Getting the list of network interfaces is no longer manditory.  If
+  Getting the list of network interfaces is no longer mandatory.  If
     there's a problem getting the list, and you don't pass -I to the
     client, it just uses the clients hostname interface as before
   Fixed bounds checking on the server's -R and -c options, and 
@@ -376,7 +390,7 @@ Version 2.9.2 - 6/20/2009
 
 Version 2.9.1 - 6/13/2009
   Allow the full 10000 receivers for closed group membership as well as
-    open.  Multiple ANNOUNCE message are now sent to accomidate the
+    open.  Multiple ANNOUNCE message are now sent to accommodate the
     longer lists.
   Minor modifications to compile under OpenVMS.
   Fallback to listening on the client's hostname interface if interface
@@ -455,7 +469,7 @@ Version 2.6 - 2/25/2007
     better compatibility between 32 bit and 64 bit environments.
   Man pages added for Unix/Linux systems.
   The -I option to uftpd is now optional.  It defaults to the
-    interface assciated with the client's hostname.
+    interface associated with the client's hostname.
 
 Version 2.5.3 - 10/27/2006
   In version 2.5.1, a fix was applied to uftpd to only close a file 
@@ -523,7 +537,7 @@ Version 2.1 - 6/22/2006
     socket is bound to.  This causes a slew of "invalid txID" or "invalid
     function: ANNOUNCE" messages that otherwise shouldn't show up.  The -s
     option will suppress these messages.  NOTE: This option should ONLY be
-    used on Linux boxes (or other UNIX-like OS's that exibit this behavior),
+    used on Linux boxes (or other UNIX-like OS's that exhibit this behavior),
     as it could hide a real problem.  Windows and Solaris uses should NOT
     use this option.
 
@@ -532,7 +546,7 @@ Version 2.0 - 5/4/2006
     and Visual Studio .NET, and run on Windows 2000/XP.  No MFC or .NET 
     functionality was employed, only straight WIN32 calls.  A few major 
     changes under the hood made it possible to have one version of the 
-    code that compiles in both enivronments:
+    code that compiles in both environments:
   The receiver, uftpd, now uses multiple threads instead of multiple
     processes.  This was made necessary because Windows doesn't support
     the UNIX fork function, which makes an exact copy of the calling process.
@@ -548,7 +562,7 @@ Version 2.0 - 5/4/2006
     The Windows Sleep function only has millisecond timing, however it still
     allows for proper wait times between packet transmissions.
   Wrote my own versions of getopt and basename, since they don't exist in 
-    Windows.  When compliled for UNIX, the built in OS functions are used.
+    Windows.  When compiled for UNIX, the built in OS functions are used.
   Currently, the Windows version of uftpd does not put itself in the 
     background.  A Command Prompt window will remain open, even without the 
     -d option.  This was a consequence of using main instead of WinMain for 
@@ -597,7 +611,7 @@ Version 1.2 - 9/14/2005
 Version 1.1 - 8/15/2005
   All integers in UFTP header converted to network byte order before
     sending, and converted back upon receiving, allowing machines with 
-    different hardware architechtures to communicate
+    different hardware architectures to communicate
   Minor performance enhancements
 
 Version 1.0 

@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -1149,7 +1149,8 @@ int transfer_phase(struct finfo_t *finfo)
         slowstart = 1;
         // Pick an initial CLR based on who has the highest RTT
         for (tmp_rtt = 9999, clr = -1, i = 0; i < destcount; i++) {
-            if ((destlist[i].rtt < tmp_rtt) && (destlist[i].clientcnt == -1)) {
+            if (!client_error(i) && (destlist[i].clientcnt == -1) &&
+                    (destlist[i].rtt < tmp_rtt)) {
                 clr = i;
                 tmp_rtt = destlist[i].rtt;
             }

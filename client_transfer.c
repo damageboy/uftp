@@ -814,6 +814,7 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
         handle_tfmcc_data_info(group, tfmcc);
     }
 
+    group->fileinfo.got_data = 1;
     group->fileinfo.last_block = seq;
     if (txseq == group->max_txseq) {
         if ((section > group->fileinfo.last_section) &&
@@ -1050,10 +1051,17 @@ void handle_done(struct group_list_t *group, const unsigned char *message,
                 }
                 file_cleanup(group, 0);
             } else if (group->fileinfo.nak_time.tv_sec == 0) {
-                log4(group->group_id, group->file_id,
-                        "Setting nak_time to trigger in %.6f", group->grtt);
                 gettimeofday(&group->fileinfo.nak_time, NULL);
-                add_timeval_d(&group->fileinfo.nak_time, 1 * group->grtt);
+                if (group->fileinfo.restart && !group->fileinfo.got_data) {
+                    // send STATUS right away at start of restart mode
+                    log4(group->group_id, group->file_id,
+                            "First DONE for restart, set nak_time to now");
+                    group->fileinfo.got_data = 1;
+                } else {
+                    log4(group->group_id, group->file_id,
+                            "Setting nak_time to trigger in %.6f", group->grtt);
+                    add_timeval_d(&group->fileinfo.nak_time, 1 * group->grtt);
+                }
                 group->fileinfo.nak_section_first=group->fileinfo.last_section;
                 group->fileinfo.nak_section_last = section + 1;
                 group->fileinfo.got_done = 1;
