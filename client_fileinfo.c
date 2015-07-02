@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -92,8 +92,7 @@ int read_fileinfo(struct group_list_t *group, const unsigned char *message,
             ((fileinfo->linklen * 4) > MAXPATHNAME) ||
             ((fileinfo->hlen * 4) != sizeof(struct fileinfo_h) +
                 (fileinfo->namelen * 4) + (fileinfo->linklen * 4))) {
-        log1(group->group_id, group->file_id,
-                "Rejecting FILEINFO from server: invalid message size");
+        glog1(group, "Rejecting FILEINFO from server: invalid message size");
         send_abort(group, "Rejecting FILEINFO: invalid message size");
         return 0;
     }
@@ -157,23 +156,20 @@ int read_fileinfo(struct group_list_t *group, const unsigned char *message,
 
     // Run some checks on the filename
     if (strlen(group->fileinfo.name) == 0) {
-        log1(group->group_id, ntohs(fileinfo->file_id),
-                "Rejecting FILEINFO from server: blank file name");
+        glog1(group, "Rejecting FILEINFO from server: blank file name");
         early_complete(group, COMP_STAT_REJECTED, 0);
         return 0;
     }
     p = strstr(group->fileinfo.name, "..");
     if ((p != NULL) && ((p[2] == '\x0') || (p[2] == '/') || (p[2] == '\\')) &&
            ((p == group->fileinfo.name) || (p[-1] == '/') || (p[-1] == '\\'))) {
-        log1(group->group_id, ntohs(fileinfo->file_id),
-                "Rejecting FILEINFO from server: filename contains ..");
+        glog1(group, "Rejecting FILEINFO from server: filename contains ..");
         early_complete(group, COMP_STAT_REJECTED, 0);
         return 0;
     }
     if (fileinfo->ftype == FTYPE_LINK) {
         if (strlen(group->fileinfo.linkname) == 0) {
-            log1(group->group_id, group->file_id,
-                    "Rejecting FILEINFO from server: blank link name");
+            glog1(group, "Rejecting FILEINFO from server: blank link name");
             early_complete(group, COMP_STAT_REJECTED, 0);
             return 0;
         }
@@ -212,18 +208,16 @@ int setup_dest_file(struct group_list_t *group)
 
     if (isfullpath(group->fileinfo.name)) {
         if (strcmp(tempdir, "")) {
-            log1(group->group_id, group->file_id,
-                    "Rejecting file with absolute pathname: "
-                    "temp directory is in use");
+            glog1(group, "Rejecting file with absolute pathname: "
+                         "temp directory is in use");
             early_complete(group, COMP_STAT_REJECTED, 0);
             return 0;
         }
         for (found_dest_dir = 0, i = 0; i < destdircnt; i++) {
             if (!ncmp(group->fileinfo.name, destdir[i], strlen(destdir[i]))) {
                 if (!cmp(group->fileinfo.name, destdir[i])) {
-                    log1(group->group_id, group->file_id,
-                            "Rejecting file with absolute pathname: "
-                            "can't have the same name as a dest directory");
+                    glog1(group, "Rejecting file with absolute pathname: "
+                                "can't have the same name as a dest directory");
                     early_complete(group, COMP_STAT_REJECTED, 0);
                     return 0;
                 } else {
@@ -233,9 +227,8 @@ int setup_dest_file(struct group_list_t *group)
             }
         }
         if (!found_dest_dir) {
-            log1(group->group_id, group->file_id,
-                    "Rejecting file with absolute pathname: "
-                    "doesn't match any dest directory");
+            glog1(group, "Rejecting file with absolute pathname: "
+                         "doesn't match any dest directory");
             early_complete(group, COMP_STAT_REJECTED, 0);
             return 0;
         }
@@ -254,8 +247,7 @@ int setup_dest_file(struct group_list_t *group)
                     PATH_SEP, group->fileinfo.name);
         }
         if (len >= sizeof(group->fileinfo.filepath)) {
-            log1(group->group_id, group->file_id,
-                    "Rejecting file: max pathname length exceeded");
+            glog1(group, "Rejecting file: max pathname length exceeded");
             early_complete(group, COMP_STAT_REJECTED, 0);
             return 0;
         }
@@ -265,8 +257,7 @@ int setup_dest_file(struct group_list_t *group)
                    "%s.~uftp-%08X-%04X", group->fileinfo.filepath,
                    group->group_id, group->file_id);
     if (len >= sizeof(group->fileinfo.temppath)) {
-        log1(group->group_id, group->file_id,
-                "Rejecting file: max pathname length exceeded");
+        glog1(group, "Rejecting file: max pathname length exceeded");
         early_complete(group, COMP_STAT_REJECTED, 0);
         return 0;
     }
@@ -323,15 +314,14 @@ int handle_fileinfo_sync(struct group_list_t *group)
             skip = 0;
         }
         if (skip) {
-            log2(group->group_id, group->file_id, "skipping file, in sync");
+            glog2(group, "skipping file, in sync");
             early_complete(group, COMP_STAT_SKIPPED, 0);
             return 1;
         } else {
-            log2(group->group_id,group->file_id,"overwriting out of sync file");
+            glog2(group, "overwriting out of sync file");
             group->fileinfo.comp_status = COMP_STAT_OVERWRITE;
             if (group->sync_preview) {
-                log2(group->group_id, group->file_id,
-                        "Sync preview mode, skipping receive");
+                glog2(group, "Sync preview mode, skipping receive");
                 early_complete(group, COMP_STAT_OVERWRITE, 0);
                 return 1;
             }
@@ -340,10 +330,9 @@ int handle_fileinfo_sync(struct group_list_t *group)
             }
         }
     } else {
-        log2(group->group_id, group->file_id, "copying new file");
+        glog2(group, "copying new file");
         if (group->sync_preview) {
-            log2(group->group_id, group->file_id,
-                    "Sync preview mode, skipping receive");
+            glog2(group, "Sync preview mode, skipping receive");
             early_complete(group, COMP_STAT_NORMAL, 0);
             return 1;
         }
@@ -387,12 +376,12 @@ void handle_fileinfo_regular(struct group_list_t *group)
         group->fileinfo.fd = open(filename, OPENWRITE | O_CREAT | O_TRUNC,0644);
     }
     if (group->fileinfo.fd == -1) {
-        syserror(group->group_id, group->file_id, "Error opening data file");
+        gsyserror(group, "Error opening data file");
         early_complete(group, COMP_STAT_REJECTED, 0);
         return;
     }
     if (group->fileinfo.size > free_space(group->fileinfo.filepath)) {
-        log0(group->group_id,group->file_id, "Not enough disk space, aborting");
+        glog0(group, "Not enough disk space, aborting");
         send_abort(group, "Not enough disk space");
         return;
     }
@@ -429,10 +418,10 @@ void handle_fileinfo_regular(struct group_list_t *group)
 void handle_fileinfo_dir(struct group_list_t *group, int found_dir)
 {
     if (!found_dir && !group->sync_preview) {
-        log2(group->group_id, group->file_id, "Creating directory");
+        glog2(group, "Creating directory");
         if (mkdir(group->fileinfo.filepath, 0755) == -1) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to create directory %s", group->fileinfo.filepath);
+            gsyserror(group, "Failed to create directory %s",
+                             group->fileinfo.filepath);
             early_complete(group, COMP_STAT_REJECTED, 0);
             return;
         }
@@ -448,8 +437,8 @@ void handle_fileinfo_link(struct group_list_t *group)
 #ifndef WINDOWS
     if (!group->sync_preview) {
         if (symlink(group->fileinfo.linkname, group->fileinfo.filepath) == -1) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to create symlink %s", group->fileinfo.filepath);
+            gsyserror(group, "Failed to create symlink %s",
+                             group->fileinfo.filepath);
             early_complete(group, COMP_STAT_REJECTED, 0);
             return;
         }
@@ -491,35 +480,31 @@ void handle_fileinfo(struct group_list_t *group, const unsigned char *message,
         return;
     }
 
-    log2(group->group_id, group->file_id,
-         "Name of file to receive: %s", group->fileinfo.name);
+    glog2(group, "Name of file to receive: %s", group->fileinfo.name);
     switch (group->fileinfo.ftype) {
     case FTYPE_REG:
-        log2(group->group_id, group->file_id,
-                "Bytes: %s, Blocks: %d, Sections: %d",
-                printll(group->fileinfo.size),
-                group->fileinfo.blocks, group->fileinfo.sections);
-        log3(group->group_id, group->file_id, "small section size: %d, "
-                "big section size: %d, # big sections: %d",
-                group->fileinfo.secsize_small, group->fileinfo.secsize_big,
-                group->fileinfo.big_sections);
+        glog2(group, "Bytes: %s, Blocks: %d, Sections: %d",
+                     printll(group->fileinfo.size),
+                     group->fileinfo.blocks, group->fileinfo.sections);
+        glog3(group, "small section size: %d, "
+                     "big section size: %d, # big sections: %d",
+                     group->fileinfo.secsize_small, group->fileinfo.secsize_big,
+                     group->fileinfo.big_sections);
         break;
     case FTYPE_DIR:
-        log2(group->group_id, group->file_id, "Empty directory");
+        glog2(group, "Empty directory");
         break;
     case FTYPE_LINK:
-        log2(group->group_id, group->file_id,
-                "Symbolic link to %s", group->fileinfo.linkname);
+        glog2(group, "Symbolic link to %s", group->fileinfo.linkname);
         break;
     case FTYPE_DELETE:
-        log2(group->group_id, group->file_id, "Deleting file/directory");
+        glog2(group, "Deleting file/directory");
         break;
     case FTYPE_FREESPACE:
-        log2(group->group_id, group->file_id, "Get free space for path");
+        glog2(group, "Get free space for path");
         break;
     default:
-        log1(group->group_id, group->file_id,
-                 "Invalid file type: %d", group->fileinfo.ftype);
+        glog1(group, "Invalid file type: %d", group->fileinfo.ftype);
         send_abort(group, "Invalid file type");
         return;
     }
@@ -533,8 +518,7 @@ void handle_fileinfo(struct group_list_t *group, const unsigned char *message,
     // Make sure the path to the destination file exists and
     // remove or back up any existing file
     if (!create_path_to_file(group, group->fileinfo.filepath)) {
-        log0(group->group_id, group->file_id,
-                 "Error creating path to data file");
+        glog0(group, "Error creating path to data file");
         early_complete(group, COMP_STAT_REJECTED, 0);
         return;
     }
@@ -546,25 +530,24 @@ void handle_fileinfo(struct group_list_t *group, const unsigned char *message,
             (group->fileinfo.ftype != FTYPE_FREESPACE)) {
         // Don't do path checks for metafile commands
     } else if (lstat_func(group->fileinfo.filepath, &statbuf) != -1) {
-        log3(group->group_id, group->file_id, "checking existing file");
+        glog3(group, "checking existing file");
         if ((group->fileinfo.ftype != FTYPE_DIR) || !S_ISDIR(statbuf.st_mode)) {
             if ((group->fileinfo.ftype != FTYPE_REG) ||
                     !S_ISREG(statbuf.st_mode) ||
                     ((!group->restart) && (!group->sync_mode))) {
                 // Don't clear/backup if we're receiving a regular file
                 // and we're in either restart mode or sync mode
-                log3(group->group_id, group->file_id, "calling move_to_backup");
+                glog3(group, "calling move_to_backup");
                 if (!tempfile) {
                     move_to_backup(group);
                 }
             }
         } else {
-            log3(group->group_id, group->file_id, "found dir");
+            glog3(group, "found dir");
             found_dir = 1;
         }
     } else if (errno != ENOENT) {
-        syserror(group->group_id, group->file_id,
-                "Error checking file %s",group->fileinfo.filepath);
+        gsyserror(group, "Error checking file %s",group->fileinfo.filepath);
     }
 
     switch (group->fileinfo.ftype) {
@@ -584,7 +567,6 @@ void handle_fileinfo(struct group_list_t *group, const unsigned char *message,
         handle_fileinfo_freespace(group);
         break;
     default:
-        log0(group->group_id, group->file_id,
-                "Error handling FILEINFO: shouldn't get here!");
+        glog0(group, "Error handling FILEINFO: shouldn't get here!");
     }
 }

@@ -76,16 +76,16 @@ int handle_announce_phase(unsigned char *packet, unsigned char *decrypted,
     hostidx = find_client(header->src_id);
     if ((keytype != KEY_NONE) && (header->func == ENCRYPTED)) {
         if (hostidx == -1) {
-            log2(finfo->group_id, finfo->file_id, "Got encrypted packet "
-                    "from unknown receiver %08X", ntohl(header->src_id));
+            glog2(finfo, "Got encrypted packet from unknown receiver %08X",
+                         ntohl(header->src_id));
             return 0;
         }
         if (!validate_and_decrypt(packet, packetlen, &decrypted, &decryptlen,
                 keytype, groupkey, groupsalt, ivlen, hashtype, grouphmackey,
                 hmaclen, sigtype, keyextype, destlist[hostidx].encinfo->pubkey,
                 destlist[hostidx].encinfo->pubkeylen)) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting message from %s: "
-                    "decrypt/validate failed", destlist[hostidx].name);
+            glog1(finfo, "Rejecting message from %s: decrypt/validate failed",
+                         destlist[hostidx].name);
             return 0;
         }
         func = (uint8_t *)decrypted;
@@ -94,9 +94,8 @@ int handle_announce_phase(unsigned char *packet, unsigned char *decrypted,
     } else {
         if ((keytype != KEY_NONE) && ((header->func == KEYINFO_ACK) ||
                                       (header->func == FILEINFO_ACK))) {
-            log1(finfo->group_id, finfo->file_id,
-                    "Rejecting %s message from %08X: not encrypted",
-                    func_name(header->func), ntohl(header->src_id));
+            glog1(finfo, "Rejecting %s message from %08X: not encrypted",
+                         func_name(header->func), ntohl(header->src_id));
             return 0;
         }
         func = (uint8_t *)&header->func;
@@ -118,13 +117,11 @@ int handle_announce_phase(unsigned char *packet, unsigned char *decrypted,
                 handle_open_clientkey(message, meslen, finfo, receiver,
                                       header->src_id);
             } else {
-                log1(finfo->group_id, finfo->file_id, "Invalid function: "
-                        "expected REGISTER or CLIENT_KEY, got %s",
-                        func_name(*func));
+                glog1(finfo, "Invalid function: expected "
+                             "REGISTER or CLIENT_KEY, got %s",func_name(*func));
             }
         } else {
-            log1(finfo->group_id, finfo->file_id,
-                    "Host %08X not in host list", ntohl(header->src_id));
+            glog1(finfo, "Host %08X not in host list", ntohl(header->src_id));
             send_abort(finfo, "Not in host list", receiver, header->src_id,0,0);
         }
     } else {
@@ -136,9 +133,8 @@ int handle_announce_phase(unsigned char *packet, unsigned char *decrypted,
             } else if (*func == CLIENT_KEY) {
                 handle_clientkey(message, meslen, finfo, receiver, hostidx);
             } else {
-                log1(finfo->group_id, finfo->file_id, "Invalid function: "
-                        "expected REGISTER or CLIENT_KEY, got %s",
-                        func_name(*func));
+                glog1(finfo, "Invalid function: expected "
+                             "REGISTER or CLIENT_KEY, got %s",func_name(*func));
             }
             break;
         case DEST_REGISTERED:
@@ -150,14 +146,13 @@ int handle_announce_phase(unsigned char *packet, unsigned char *decrypted,
                 handle_register(message, meslen, finfo, receiver,
                                 hostidx, regconf, open_group);
             } else if (*func == CLIENT_KEY) {
-                log2(finfo->group_id, finfo->file_id, "Received CLIENT_KEY+ "
-                        "from %s", destlist[hostidx].name);
+                glog2(finfo, "Received CLIENT_KEY+ from %s",
+                             destlist[hostidx].name);
             } else if (!announce && (*func == COMPLETE)) {
                 handle_complete(message, meslen, finfo, hostidx);
             } else {
-                log1(finfo->group_id, finfo->file_id,
-                        "Received invalid message %s from %s",
-                        func_name(*func), destlist[hostidx].name);
+                glog1(finfo, "Received invalid message %s from %s",
+                             func_name(*func), destlist[hostidx].name);
             }
             break;
         case DEST_ACTIVE:
@@ -165,8 +160,8 @@ int handle_announce_phase(unsigned char *packet, unsigned char *decrypted,
                 handle_register(message, meslen, finfo, receiver,
                                 hostidx, regconf, open_group);
             } else if (*func == CLIENT_KEY) {
-                log2(finfo->group_id, finfo->file_id, "Received CLIENT_KEY+ "
-                        "from %s", destlist[hostidx].name);
+                glog2(finfo, "Received CLIENT_KEY+ from %s",
+                             destlist[hostidx].name);
             } else if (announce && (*func == KEYINFO_ACK)) {
                 finfo->deststate[hostidx].conf_sent = 0;
                 handle_keyinfo_ack(message, meslen, finfo, receiver, hostidx);
@@ -175,15 +170,13 @@ int handle_announce_phase(unsigned char *packet, unsigned char *decrypted,
             } else if (!announce && (*func == COMPLETE)) {
                 handle_complete(message, meslen, finfo, hostidx);
             } else {
-                log1(finfo->group_id, finfo->file_id,
-                        "Received invalid message %s from %s",
-                        func_name(*func), destlist[hostidx].name);
+                glog1(finfo, "Received invalid message %s from %s",
+                             func_name(*func), destlist[hostidx].name);
             }
             break;
         default:
-            log1(finfo->group_id, finfo->file_id,
-                    "Received invalid message %s from %s",
-                    func_name(*func), destlist[hostidx].name);
+            glog1(finfo, "Received invalid message %s from %s",
+                         func_name(*func), destlist[hostidx].name);
             break;
         }
     }
@@ -212,36 +205,31 @@ int announce_phase(struct finfo_t *finfo)
     uint8_t tos;
 
     if (finfo->file_id) {
-        log2(finfo->group_id, finfo->file_id,
-                "File ID: %04X  Name: %s", finfo->file_id, finfo->filename);
-        log2(finfo->group_id, finfo->file_id,
-                "  sending as: %s", finfo->destfname);
+        glog2(finfo, "File ID: %04X  Name: %s", finfo->file_id,finfo->filename);
+        glog2(finfo, "  sending as: %s", finfo->destfname);
         switch (finfo->ftype) {
         case FTYPE_REG:
-            log2(finfo->group_id, finfo->file_id,
-                    "Bytes: %s  Blocks: %d  Sections: %d", 
-                    printll(finfo->size), finfo->blocks, finfo->sections);
-            log3(finfo->group_id, finfo->file_id, "small section size: %d, "
+            glog2(finfo, "Bytes: %s  Blocks: %d  Sections: %d", 
+                        printll(finfo->size), finfo->blocks, finfo->sections);
+            glog3(finfo, "small section size: %d, "
                 "big section size: %d, " "# big sections: %d",
                 finfo->secsize_small, finfo->secsize_big, finfo->big_sections);
             break;
         case FTYPE_DIR:
-            log2(finfo->group_id, finfo->file_id, "Empty directory");
+            glog2(finfo, "Empty directory");
             break;
         case FTYPE_LINK:
-            log2(finfo->group_id, finfo->file_id,
-                    "Symbolic link to %s", finfo->linkname);
+            glog2(finfo, "Symbolic link to %s", finfo->linkname);
             break;
         case FTYPE_DELETE:
-            log2(finfo->group_id, finfo->file_id,
-                    "Delete file/directory with this name");
+            glog2(finfo, "Delete file/directory with this name");
             break;
         case FTYPE_FREESPACE:
-            log2(finfo->group_id, finfo->file_id, "Free disk space query");
+            glog2(finfo, "Free disk space query");
             break;
         }
     } else {
-        log2(finfo->group_id, finfo->file_id, "Initializing group");
+        glog2(finfo, "Initializing group");
     }
 
     rval = ERR_NONE;
@@ -259,7 +247,7 @@ int announce_phase(struct finfo_t *finfo)
         if (announce) {
             destlist[i].status = DEST_MUTE;
         } else if (!client_error(i)) {
-            if (destlist[i].clientcnt != -1) {
+            if (destlist[i].isproxy) {
                 destlist[i].status = DEST_ACTIVE;
             } else {
                 destlist[i].status = DEST_REGISTERED;
@@ -348,7 +336,7 @@ int announce_phase(struct finfo_t *finfo)
                 gettimeofday(&next_send, NULL);
                 add_timeval_d(&next_send, grtt);
                 if (!last_pass) {
-                    log2(finfo->group_id, finfo->file_id, "Late registers:");
+                    glog2(finfo, "Late registers:");
                 }
                 last_pass = 1;
                 send_regconf(finfo, attempt + 1, regconf);
@@ -363,14 +351,14 @@ int announce_phase(struct finfo_t *finfo)
     for (i = 0, gotone = 0, anyerror = 0; i < destcount; i++) {
         gotone = gotone || (((destlist[i].status == DEST_ACTIVE) || 
                              (destlist[i].status == DEST_DONE)) && 
-                            (destlist[i].clientcnt == -1));
+                            (!destlist[i].isproxy));
         if (destlist[i].status == DEST_REGISTERED) {
             if (announce) {
-                log1(finfo->group_id, finfo->file_id,
-                        "Couldn't get KEYINFO_ACK from %s", destlist[i].name);
+                glog1(finfo, "Couldn't get KEYINFO_ACK from %s",
+                             destlist[i].name);
             } else {
-                log1(finfo->group_id, finfo->file_id,
-                        "Couldn't get FILEINFO_ACK from %s", destlist[i].name);
+                glog1(finfo, "Couldn't get FILEINFO_ACK from %s",
+                             destlist[i].name);
             }
             destlist[i].status = DEST_LOST;
             anyerror = 1;
@@ -381,7 +369,7 @@ int announce_phase(struct finfo_t *finfo)
         }
     }
     if (anyerror && quit_on_error) {
-        log0(finfo->group_id, finfo->file_id, "Aboring all clients");
+        glog0(finfo, "Aboring all clients");
         send_abort(finfo, "A client dropped out, aborting all",
                 &receive_dest, 0, (keytype != KEY_NONE), 0);
         for (i = 0; i < destcount; i++) {
@@ -392,7 +380,7 @@ int announce_phase(struct finfo_t *finfo)
         rval = (announce ? ERR_NO_REGISTER : ERR_NO_FILEINFO);
     }
     if (!gotone) {
-        log0(finfo->group_id, finfo->file_id, "Announce timed out");
+        glog0(finfo, "Announce timed out");
         rval = (announce ? ERR_NO_REGISTER : ERR_NO_FILEINFO);
     }
     if (open_group) {
@@ -430,8 +418,7 @@ void handle_transfer_phase(unsigned char *packet,unsigned char *decrypted,
     hostidx = find_client(header->src_id);
     if ((keytype != KEY_NONE) && (header->func == ENCRYPTED)) {
         if (hostidx == -1) {
-            log1(finfo->group_id, finfo->file_id,
-                    "Host %08X not in host list", ntohl(header->src_id));
+            glog1(finfo, "Host %08X not in host list", ntohl(header->src_id));
             send_abort(finfo, "Not in host list", receiver, header->src_id,0,0);
             return;
         }
@@ -439,8 +426,8 @@ void handle_transfer_phase(unsigned char *packet,unsigned char *decrypted,
                 keytype, groupkey, groupsalt, ivlen, hashtype, grouphmackey,
                 hmaclen, sigtype, keyextype, destlist[hostidx].encinfo->pubkey,
                 destlist[hostidx].encinfo->pubkeylen)) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting message from %s: "
-                    "decrypt/validate failed", destlist[hostidx].name);
+            glog1(finfo, "Rejecting message from %s: decrypt/validate failed",
+                         destlist[hostidx].name);
             return;
         }
         func = (uint8_t *)decrypted;
@@ -449,9 +436,8 @@ void handle_transfer_phase(unsigned char *packet,unsigned char *decrypted,
     } else {
         if ((keytype != KEY_NONE) && ( (header->func == STATUS) ||
                 (header->func == COMPLETE) || (header->func == ABORT))) {
-            log1(finfo->group_id, finfo->file_id,
-                    "Rejecting %s message from %08X: not encrypted",
-                    func_name(header->func), ntohl(header->src_id));
+            glog1(finfo, "Rejecting %s message from %08X: not encrypted",
+                         func_name(header->func), ntohl(header->src_id));
             return;
         }
         func = (uint8_t *)&header->func;
@@ -462,8 +448,7 @@ void handle_transfer_phase(unsigned char *packet,unsigned char *decrypted,
     if (*func == ABORT) {
         handle_abort(message, meslen, hostidx, finfo, header->src_id);
     } else if (hostidx == -1) {
-        log1(finfo->group_id, finfo->file_id,
-                "Host %08X not in host list", ntohl(header->src_id));
+        glog1(finfo, "Host %08X not in host list", ntohl(header->src_id));
         send_abort(finfo, "Not in host list", receiver, header->src_id, 0, 0);
     } else {
         switch (destlist[hostidx].status) {
@@ -476,18 +461,16 @@ void handle_transfer_phase(unsigned char *packet,unsigned char *decrypted,
             } else if (*func == CC_ACK) {
                 handle_cc_ack(message, meslen, finfo, hostidx);
             } else {
-                log1(finfo->group_id, finfo->file_id,
-                        "Received invalid message %s from %s",
-                        func_name(*func), destlist[hostidx].name);
+                glog1(finfo, "Received invalid message %s from %s",
+                             func_name(*func), destlist[hostidx].name);
             }
             break;
         case DEST_DONE:
             if (*func == COMPLETE) {
                 handle_complete(message, meslen, finfo, hostidx);
             } else {
-                log1(finfo->group_id, finfo->file_id,
-                        "Received invalid message %s from %s",
-                        func_name(*func), destlist[hostidx].name);
+                glog1(finfo, "Received invalid message %s from %s",
+                            func_name(*func), destlist[hostidx].name);
             }
             break;
         }
@@ -506,17 +489,15 @@ int seek_block(const struct finfo_t *finfo, int file, int block,
 
     if ((new_offset = lseek_func(file, 
             ((f_offset_t)block * blocksize) - *offset, SEEK_CUR)) == -1) {
-        syserror(finfo->group_id, finfo->file_id, "lseek failed for file");
+        gsyserror(finfo, "lseek failed for file");
         return 0;
     }
     if (new_offset != (f_offset_t)block * blocksize) {
-        log0(finfo->group_id, finfo->file_id,
-                "block %d: offset is %s", block, printll(new_offset));
-        log0(finfo->group_id, finfo->file_id,
-                "  should be %s", printll((f_offset_t)block * blocksize));
+        glog0(finfo, "block %d: offset is %s", block, printll(new_offset));
+        glog0(finfo, "  should be %s", printll((f_offset_t)block * blocksize));
         if ((new_offset = lseek_func(file, ((f_offset_t)block * blocksize),
                                      SEEK_SET)) == -1) {
-            syserror(finfo->group_id, finfo->file_id, "lseek failed for file");
+            gsyserror(finfo, "lseek failed for file");
             return 0;
         }
     }
@@ -588,7 +569,7 @@ int put_cc_queue(const struct finfo_t *finfo, unsigned char *item, int len)
 {
     if ((cc_queue_start == cc_queue_end) &&
             (cc_queue[cc_queue_end].data != NULL)) {
-        log1(finfo->group_id, finfo->file_id, "cc_queue full");
+        glog1(finfo, "cc_queue full");
         return 0;
     }
     
@@ -668,21 +649,19 @@ THREAD_FUNC transfer_send_thread(void *infop)
     if ((cc_type == CC_NONE) && (rate != -1) && (txweight != 0)) {
         max_time = (int)(0 + floor(((double)txweight / 100) *
                 ((double)finfo->size / rate)));
-        log2(finfo->group_id, finfo->file_id,
-                "Maximum file transfer time: %d seconds", max_time);
+        glog2(finfo, "Maximum file transfer time: %d seconds", max_time);
     } else {
         max_time = 0;
     }
     pass = 1;
     section = 0;
     last_section = (uint16_t)-1;
-    log2(finfo->group_id, finfo->file_id, "Sending file");
-    log2(finfo->group_id, finfo->file_id, "Starting pass %u", pass);
+    glog2(finfo, "Sending file");
+    glog2(finfo, "Starting pass %u", pass);
     do {
         if (block < finfo->blocks) {
             if (current_nak) {
-                log5(finfo->group_id, finfo->file_id,
-                        "Sending %d, wait=%d", block, l_packet_wait);
+                glog5(finfo, "Sending %d, wait=%d", block, l_packet_wait);
                 attempt = 1;
                 // TODO: try to avoid seek on consecutive packets?
                 curr_offset = offset;
@@ -691,7 +670,7 @@ THREAD_FUNC transfer_send_thread(void *infop)
                 }
                 offset = curr_offset;
                 if ((numbytes = read(file, data, blocksize)) == -1) {
-                    syserror(finfo->group_id, finfo->file_id, "read failed");
+                    gsyserror(finfo, "read failed");
                     continue;
                 }
                 offset += numbytes;
@@ -708,8 +687,7 @@ THREAD_FUNC transfer_send_thread(void *infop)
                 if (l_packet_wait) overage += tdiff - l_packet_wait;
                 last_sent = current_sent;
                 if (log_level >= 5) {
-                    clog5(finfo->group_id, finfo->file_id,
-                            "tdiff=%s, ", printll(tdiff));
+                    cglog5(finfo, "tdiff=%s, ", printll(tdiff));
                     slog5("overage=%s", printll(overage));
                 }
                 // When rate changes significantly, clear the overage counter
@@ -737,8 +715,7 @@ THREAD_FUNC transfer_send_thread(void *infop)
                 }
                 section = ntohs(fileseg->section);
                 if (last_section != section) {
-                    log2(finfo->group_id, finfo->file_id,
-                            "Sending section %u", section);
+                    glog2(finfo, "Sending section %u", section);
                     last_section = section;
                 }
 
@@ -752,8 +729,7 @@ THREAD_FUNC transfer_send_thread(void *infop)
                 if (attempt < robust) {
                     if (!send_done(finfo, attempt, finfo->sections ?
                                         finfo->sections - 1 : 0, l_adv_grtt)) {
-                        log0(finfo->group_id, finfo->file_id,
-                                "Error sending DONE");
+                        glog0(finfo, "Error sending DONE");
                     }
                 }
                 attempt++;
@@ -766,15 +742,13 @@ THREAD_FUNC transfer_send_thread(void *infop)
 
         // Access anything used by both threads under one mutex all at once
         if (mux_lock(mux_main)) {
-            log0(finfo->group_id, finfo->file_id,
-                    "Failed to lock mutex in transfer_send_thread");
+            glog0(finfo, "Failed to lock mutex in transfer_send_thread");
             continue;
         }
         if (max_time) {
             gettimeofday(&now, NULL);
             if (diff_sec(now, start_time) > max_time) {
-                log1(finfo->group_id, finfo->file_id,
-                        "Maximum file transfer time exceeded");
+                glog1(finfo, "Maximum file transfer time exceeded");
                 max_time_timeout = 1;
                 file_done_flag = 1;
             }
@@ -786,7 +760,7 @@ THREAD_FUNC transfer_send_thread(void *infop)
             end_of_pass = 1;
         }
         if (rewind_flag) {
-            log2(finfo->group_id, finfo->file_id, "Starting pass %u", ++pass);
+            glog2(finfo, "Starting pass %u", ++pass);
             block = 0;
             rewind_flag = 0;
             end_of_pass = 0;
@@ -799,7 +773,7 @@ THREAD_FUNC transfer_send_thread(void *infop)
         }
         current_position = block;
         if ((attempt > robust) && !rewind_pending_flag) {
-            log1(finfo->group_id, finfo->file_id, "Sending thread timed out");
+            glog1(finfo, "Sending thread timed out");
             file_done_flag = 1;
         }
         l_cc_seq = cc_seq;
@@ -811,8 +785,7 @@ THREAD_FUNC transfer_send_thread(void *infop)
         rate_change = 0;
         get_cc_queue(&cc_body, &cc_len);
         if (mux_unlock(mux_main)) {
-            log0(finfo->group_id, finfo->file_id,
-                    "Failed to unlock mutex in transfer_send_thread");
+            glog0(finfo, "Failed to unlock mutex in transfer_send_thread");
             // TODO: if we can't unlock, kill the thread and fail the file
             continue;
         }
@@ -859,7 +832,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
     next_cc.tv_usec = 0;
     // Not mutexed, but should be OK when the thread first starts
     l_adv_grtt = adv_grtt;
-    log4(finfo->group_id, finfo->file_id, "adv_grtt=%.3f", l_adv_grtt);
+    glog4(finfo, "adv_grtt=%.3f", l_adv_grtt);
     if (cc_type == CC_TFMCC) {
         // Start a feedback round
         gettimeofday(&last_clr_time, NULL);
@@ -878,24 +851,23 @@ void transfer_receive_thread(struct finfo_t *finfo)
         if ((cc_type == CC_TFMCC) && (cmptimestamp(now, next_cc) > 0)) {
             create_cc_list(&cc_body, &cc_len); 
             if (!put_cc_queue(finfo, cc_body, cc_len)) {
-                log1(finfo->group_id, finfo->file_id,
-                        "Couldn't queue up CONG_CTRL: list full!");
+                glog1(finfo, "Couldn't queue up CONG_CTRL: list full!");
                 free(cc_body);
             } else {
                 gettimeofday(&next_cc, NULL);
                 add_timeval_d(&next_cc, 1 * l_adv_grtt);
             }
-            log3(finfo->group_id, finfo->file_id, "CONG_CTRL queued");
+            glog3(finfo, "CONG_CTRL queued");
 
             // TODO: bypass this check if selected less that 10 RTT ago?
             if (diff_usec(now, last_clr_time) > 1000000 * 4 * l_adv_grtt) {
                 do_halfrate = 1;
-                log5(finfo->group_id, finfo->file_id, "Halfing rate");
+                glog5(finfo, "Halfing rate");
             }
             if (diff_usec(now, last_clr_time) > 1000000 * robust * l_adv_grtt) {
                 clr = -1;
                 clr_drop = 1;
-                log5(finfo->group_id, finfo->file_id, "Lost clr");
+                glog5(finfo, "Lost clr");
             }
         }
         if ((rewind_time.tv_sec) && (cmptimestamp(now, rewind_time) >= 0)) {
@@ -906,13 +878,13 @@ void transfer_receive_thread(struct finfo_t *finfo)
         }
         if (do_rewind || do_nextcc || do_halfrate) {
             if (mux_lock(mux_main)) {
-                log0(finfo->group_id, finfo->file_id, "Failed to lock mutex "
-                        "in transfer_receive_thread for rewind / feedback");
+                glog0(finfo, "Failed to lock mutex in transfer_receive_thread "
+                             "for rewind / feedback");
                 continue;
             }
         }
         if (do_rewind) {
-            log3(finfo->group_id, finfo->file_id, "Rewind timer tripped");
+            glog3(finfo, "Rewind timer tripped");
             rewind_flag = 1;
             rewind_time.tv_sec = 0;
             rewind_time.tv_usec = 0;
@@ -936,8 +908,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
                     (last_clr > 1000000 * 5)) {
                 // No new CLR chosen in 2*robust RTTs (or 5 seconds) since the
                 // prior one dropped, meaning no feedback from anyone, so quit
-                log2(finfo->group_id, finfo->file_id,
-                        "No feedback in %d GRTTs", 2 * robust);
+                glog2(finfo, "No feedback in %d GRTTs", 2 * robust);
                 file_done_flag = 1;
             }
         }
@@ -957,7 +928,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
                 adv_grtt = grtt;
             }
             l_adv_grtt = adv_grtt;
-            log5(finfo->group_id, finfo->file_id, "adv_grtt=%.3f", l_adv_grtt);
+            glog5(finfo, "adv_grtt=%.3f", l_adv_grtt);
             if (rate < datapacketsize / grtt) {
                 slowstart = 1;
                 rate = (int)(datapacketsize / grtt);
@@ -968,13 +939,12 @@ void transfer_receive_thread(struct finfo_t *finfo)
             add_timeval_d(&fb_end, 6 * l_adv_grtt);
             cc_rate = 0xFFFFFFFF;
             cc_seq++;
-            log4(finfo->group_id, finfo->file_id,
-                    "Starting feedback round %d", cc_seq);
+            glog4(finfo, "Starting feedback round %d", cc_seq);
         }
         if (do_rewind || do_nextcc || do_halfrate) {
             if (mux_unlock(mux_main)) {
-                log0(finfo->group_id, finfo->file_id, "Failed to unlock mutex "
-                        "in transfer_receive_thread for rewind / feedback");
+                glog0(finfo, "Failed to unlock mutex in "
+                             "transfer_receive_thread for rewind / feedback");
                 continue;
             }
         }
@@ -1014,13 +984,12 @@ void transfer_receive_thread(struct finfo_t *finfo)
 
             for (i = 0, alldone = 1; (i < destcount) && alldone; i++) {
                 alldone = alldone && ((destlist[i].status == DEST_DONE) ||
-                        (client_error(i)) || (destlist[i].clientcnt != -1));
+                        (client_error(i)) || (destlist[i].isproxy));
             }
         }
 
         if (mux_lock(mux_main)) {
-            log0(finfo->group_id, finfo->file_id,
-                    "Failed to lock mutex in transfer_receive_thread");
+            glog0(finfo, "Failed to lock mutex in transfer_receive_thread");
             continue;
         }
         if (alldone || user_abort) {
@@ -1028,15 +997,14 @@ void transfer_receive_thread(struct finfo_t *finfo)
         } else if (got_naks && end_of_pass && (rewind_time.tv_sec == 0)) {
             gettimeofday(&rewind_time, NULL);
             add_timeval_d(&rewind_time, 3 * l_adv_grtt);
-            log3(finfo->group_id, finfo->file_id, "Starting rewind timer");
+            glog3(finfo, "Starting rewind timer");
         }
         l_file_done_flag = file_done_flag;
         l_adv_grtt = adv_grtt;
-        log5(finfo->group_id, finfo->file_id, "adv_grtt=%.3f", l_adv_grtt);
+        glog5(finfo, "adv_grtt=%.3f", l_adv_grtt);
         rewind_pending_flag = (rewind_time.tv_sec != 0);
         if (mux_unlock(mux_main)) {
-            log0(finfo->group_id, finfo->file_id,
-                    "Failed to unlock mutex in transfer_receive_thread");
+            glog0(finfo, "Failed to unlock mutex in transfer_receive_thread");
             continue;
         }
 
@@ -1044,7 +1012,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
 
     found_error = 0;
     if (user_abort || max_time_timeout) {
-        log0(finfo->group_id, finfo->file_id, "Aboring all clients");
+        glog0(finfo, "Aboring all clients");
         if (user_abort) {
             send_abort(finfo, "Server quit, aborting all",
                        &receive_dest, 0, (keytype != KEY_NONE), 0);
@@ -1062,12 +1030,11 @@ void transfer_receive_thread(struct finfo_t *finfo)
         for (i = 0; i < destcount; i++) {
             if ((destlist[i].status == DEST_ACTIVE) ||
                     (destlist[i].status == DEST_ACTIVE_NAK)) {
-                log1(finfo->group_id, finfo->file_id,
-                        "No response from %s", destlist[i].name);
+                glog1(finfo, "No response from %s", destlist[i].name);
                 destlist[i].status = DEST_LOST;
                 if (quit_on_error && !found_error) {
                     found_error = 1;
-                    log0(finfo->group_id,finfo->file_id, "Aboring all clients");
+                    glog0(finfo, "Aboring all clients");
                     send_abort(finfo, "A client dropped out, aborting all",
                             &receive_dest, 0, (keytype != KEY_NONE), 0);
                 }
@@ -1099,7 +1066,7 @@ int transfer_phase(struct finfo_t *finfo)
     // last attempt and responded to the FILEINFO with a COMPLETE
     for (i = 0, alldone = 1; (i < destcount) && alldone; i++) {
         alldone = alldone && ((destlist[i].status == DEST_DONE) ||
-                    (client_error(i)) || (destlist[i].clientcnt != -1));
+                    (client_error(i)) || (destlist[i].isproxy));
     }
     if (alldone) {
         gettimeofday(&start_time, NULL);
@@ -1114,7 +1081,7 @@ int transfer_phase(struct finfo_t *finfo)
                                                finfo->filename);
         // Open the file now so we don't start the sending thread if it fails
         if ((file = open(path, OPENREAD, 0)) == -1) {
-            syserror(finfo->group_id, finfo->file_id, "Error opening file");
+            gsyserror(finfo, "Error opening file");
             return ERR_DROPPED;
         }
     } else {
@@ -1149,7 +1116,7 @@ int transfer_phase(struct finfo_t *finfo)
         slowstart = 1;
         // Pick an initial CLR based on who has the highest RTT
         for (tmp_rtt = 9999, clr = -1, i = 0; i < destcount; i++) {
-            if (!client_error(i) && (destlist[i].clientcnt == -1) &&
+            if (!client_error(i) && (!destlist[i].isproxy) &&
                     (destlist[i].rtt < tmp_rtt)) {
                 clr = i;
                 tmp_rtt = destlist[i].rtt;
@@ -1166,7 +1133,7 @@ int transfer_phase(struct finfo_t *finfo)
         }
     }
     if (mux_create(mux_main)) {
-        syserror(finfo->group_id, finfo->file_id, "Failed to create mutex");
+        gsyserror(finfo, "Failed to create mutex");
         if (finfo->ftype == FTYPE_REG) {
             close(file);
         }
@@ -1175,8 +1142,7 @@ int transfer_phase(struct finfo_t *finfo)
     use_log_mux = 1;
 
     if (start_thread(tid, transfer_send_thread, finfo) != 0) {
-        syserror(finfo->group_id, finfo->file_id,
-                "Failed to create sender thread");
+        gsyserror(finfo, "Failed to create sender thread");
         if (finfo->ftype == FTYPE_REG) {
             close(file);
         }
@@ -1185,7 +1151,7 @@ int transfer_phase(struct finfo_t *finfo)
     }
     transfer_receive_thread(finfo);
     if (join_thread(tid) != 0) {
-        syserror(finfo->group_id,finfo->file_id,"Failed to join sender thread");
+        gsyserror(finfo, "Failed to join sender thread");
     } else  {
         destroy_thread(tid);
     }
@@ -1203,8 +1169,7 @@ int transfer_phase(struct finfo_t *finfo)
     for (i = 0; i < destcount; i++) {
         if (quit_on_error) {
             // Check to see that all finished
-            if ((destlist[i].status != DEST_DONE) &&
-                    (destlist[i].clientcnt == -1)) {
+            if ((destlist[i].status != DEST_DONE) && (!destlist[i].isproxy)) {
                 return ERR_DROPPED;
             }
         } else {
@@ -1240,8 +1205,7 @@ void handle_completion_phase(unsigned char *packet,
     hostidx = find_client(header->src_id);
     if ((keytype != KEY_NONE) && (header->func == ENCRYPTED)) {
         if (hostidx == -1) {
-            log1(finfo->group_id, finfo->file_id,
-                    "Host %08X not in host list", ntohl(header->src_id));
+            glog1(finfo, "Host %08X not in host list", ntohl(header->src_id));
             send_abort(finfo, "Not in host list", receiver, header->src_id,0,0);
             return;
         }
@@ -1249,8 +1213,8 @@ void handle_completion_phase(unsigned char *packet,
                 keytype, groupkey, groupsalt, ivlen, hashtype, grouphmackey,
                 hmaclen, sigtype, keyextype, destlist[hostidx].encinfo->pubkey,
                 destlist[hostidx].encinfo->pubkeylen)) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting message from %s: "
-                    "decrypt/validate failed", destlist[hostidx].name);
+            glog1(finfo, "Rejecting message from %s: "
+                         "decrypt/validate failed", destlist[hostidx].name);
             return;
         }
         func = (uint8_t *)decrypted;
@@ -1259,9 +1223,8 @@ void handle_completion_phase(unsigned char *packet,
     } else {
         if ((keytype != KEY_NONE) && ( (header->func == STATUS) ||
                 (header->func == COMPLETE) || (header->func == ABORT))) {
-            log1(finfo->group_id, finfo->file_id,
-                    "Rejecting %s message from %08X: not encrypted",
-                    func_name(header->func), ntohl(header->src_id));
+            glog1(finfo, "Rejecting %s message from %08X: not encrypted",
+                         func_name(header->func), ntohl(header->src_id));
             return;
         }
         func = (uint8_t *)&header->func;
@@ -1272,15 +1235,13 @@ void handle_completion_phase(unsigned char *packet,
     if (*func == ABORT) {
         handle_abort(message, meslen, hostidx, finfo, header->src_id);
     } else if (hostidx == -1) {
-        log1(finfo->group_id, finfo->file_id,
-                "Host %08X not in host list", ntohl(header->src_id));
+        glog1(finfo, "Host %08X not in host list", ntohl(header->src_id));
         send_abort(finfo, "Not in host list", receiver, header->src_id, 0, 0);
     } else if (*func == COMPLETE) {
         handle_complete(message, meslen, finfo, hostidx);
     } else {
-        log1(finfo->group_id, finfo->file_id,
-                "Received invalid message %s from %s",
-                func_name(*func), destlist[hostidx].name);
+        glog1(finfo, "Received invalid message %s from %s",
+                     func_name(*func), destlist[hostidx].name);
     }
     return;
 }
@@ -1308,7 +1269,7 @@ void completion_phase(struct finfo_t *finfo)
         }
     }
 
-    log2(finfo->group_id, finfo->file_id, "Finishing group");
+    glog2(finfo, "Finishing group");
     gettimeofday(&start_time, NULL);
     gettimeofday(&next_send, NULL);
     add_timeval_d(&next_send, 3 * grtt);
@@ -1352,7 +1313,7 @@ void completion_phase(struct finfo_t *finfo)
         handle_completion_phase(packet, decrypted, len, &receiver, finfo);
         for (i = 0, alldone = 1; (i < destcount) && alldone; i++) {
             alldone = alldone && ((destlist[i].status == DEST_DONE) ||
-                            (client_error(i)) || (destlist[i].clientcnt != -1));
+                            (client_error(i)) || (destlist[i].isproxy));
         }
         if (alldone) {
             // Change the timeout to 1 * grtt
@@ -1361,7 +1322,7 @@ void completion_phase(struct finfo_t *finfo)
             gettimeofday(&next_send, NULL);
             add_timeval_d(&next_send, grtt);
             if (!last_pass) {
-                log2(finfo->group_id, finfo->file_id, "Late completions:");
+                glog2(finfo, "Late completions:");
             }
             last_pass = 1;
             send_doneconf(finfo, attempt + 1);
@@ -1369,8 +1330,8 @@ void completion_phase(struct finfo_t *finfo)
     }
     for (i = 0; i < destcount; i++) {
         if (destlist[i].status == DEST_ACTIVE) {
-            log1(finfo->group_id, finfo->file_id, "Couldn't get COMPLETE "
-                    "for group from %s", destlist[i].name);
+            glog1(finfo, "Couldn't get COMPLETE for group from %s",
+                         destlist[i].name);
             destlist[i].status = DEST_LOST;
         }
     }

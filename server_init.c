@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -84,9 +84,6 @@ void cleanup(void)
                 free(destlist[i].encinfo);
             }
         }
-        if (destlist[i].clients) {
-            free(destlist[i].clients);
-        }
     }
     if (keytype != KEY_NONE) {
         if ((keyextype == KEYEX_RSA) || (keyextype == KEYEX_ECDH_RSA)) {
@@ -113,7 +110,7 @@ void cleanup(void)
  */
 void gotsig(int sig)
 {
-    log0(0, 0, "Got signal %d, aborting", sig);
+    log0(0, 0, 0, "Got signal %d, aborting", sig);
     user_abort = 1;
 }
 
@@ -125,22 +122,22 @@ BOOL WINAPI winsig(DWORD event)
 {
     switch (event) {
     case CTRL_C_EVENT:
-        log0(0, 0, "Got CTRL_C_EVENT");
+        log0(0, 0, 0, "Got CTRL_C_EVENT");
         break;
     case CTRL_BREAK_EVENT:
-        log0(0, 0, "Got CTRL_BREAK_EVENT");
+        log0(0, 0, 0, "Got CTRL_BREAK_EVENT");
         break;
     case CTRL_CLOSE_EVENT:
-        log0(0, 0, "Got CTRL_CLOSE_EVENT");
+        log0(0, 0, 0, "Got CTRL_CLOSE_EVENT");
         break;
     case CTRL_LOGOFF_EVENT:
-        log0(0, 0, "Got CTRL_LOGOFF_EVENT");
+        log0(0, 0, 0, "Got CTRL_LOGOFF_EVENT");
         break;
     case CTRL_SHUTDOWN_EVENT:
-        log0(0, 0, "Got CTRL_SHUTDOWN_EVENT");
+        log0(0, 0, 0, "Got CTRL_SHUTDOWN_EVENT");
         break;
     default:
-        log0(0, 0, "GOT unknown event %d", event);
+        log0(0, 0, 0, "GOT unknown event %d", event);
         break;
     }
     user_abort = 1;
@@ -186,7 +183,7 @@ void create_sockets(void)
     ai_hints.ai_protocol = 0;
     ai_hints.ai_flags = 0;
     if ((rval = getaddrinfo(pub_multi, port, &ai_hints, &ai_rval)) != 0) {
-        log0(0, 0, "Invalid public address or port: %s", gai_strerror(rval));
+        log0(0, 0, 0, "Invalid public address or port: %s",gai_strerror(rval));
         exit(ERR_SOCKET);
     }
     memcpy(&listen_dest, ai_rval->ai_addr, ai_rval->ai_addrlen);
@@ -213,7 +210,7 @@ void create_sockets(void)
             }
         }
         if ((rval = getaddrinfo(priv_multi, port, &ai_hints, &ai_rval)) != 0) {
-            log0(0, 0, "Invalid private address: %s", gai_strerror(rval));
+            log0(0, 0, 0, "Invalid private address: %s", gai_strerror(rval));
             exit(ERR_SOCKET);
         }
         memcpy(&receive_dest, ai_rval->ai_addr, ai_rval->ai_addrlen);
@@ -237,7 +234,7 @@ void create_sockets(void)
             }
         }
         if (!found_if) {
-            log0(0, 0, "ERROR: no network interface found for family");
+            log0(0, 0, 0, "ERROR: no network interface found for family");
             exit(ERR_SOCKET);
         }
     }
@@ -253,18 +250,19 @@ void create_sockets(void)
     }
 
     if (listen_dest.ss.ss_family != receive_dest.ss.ss_family) {
-        log0(0, 0, "IP version mismatch between public and private addresses");
+        log0(0,0,0, "IP version mismatch between public and private addresses");
         exit(ERR_SOCKET);
     }
     if (listen_dest.ss.ss_family != out_if.su.ss.ss_family) {
-        log0(0,0, "IP version mismatch between public and interface addresses");
+        log0(0, 0, 0, "IP version mismatch between "
+                      "public and interface addresses");
         exit(ERR_SOCKET);
     }
 
     // Create and bind socket
     if ((sock = socket(listen_dest.ss.ss_family, SOCK_DGRAM, 0)) ==
             INVALID_SOCKET) {
-        sockerror(0, 0, "Error creating socket");
+        sockerror(0, 0, 0, "Error creating socket");
         exit(ERR_SOCKET);
     }
     memset(&ai_hints, 0, sizeof(ai_hints));
@@ -273,11 +271,11 @@ void create_sockets(void)
     ai_hints.ai_protocol = 0;
     ai_hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
     if ((rval = getaddrinfo(NULL, srcport, &ai_hints, &ai_rval)) != 0) {
-        log0(0, 0, "Error getting bind address: %s", gai_strerror(rval));
+        log0(0, 0, 0, "Error getting bind address: %s", gai_strerror(rval));
         exit(ERR_SOCKET);
     }
     if (bind(sock, ai_rval->ai_addr, ai_rval->ai_addrlen) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error binding socket");
+        sockerror(0, 0, 0, "Error binding socket");
         exit(ERR_SOCKET);
     }
     freeaddrinfo(ai_rval);
@@ -286,12 +284,12 @@ void create_sockets(void)
     if (rcvbuf) {
         if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char *)&rcvbuf, 
                        sizeof(rcvbuf)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting receive buffer size");
+            sockerror(0, 0, 0, "Error setting receive buffer size");
             exit(ERR_SOCKET);
         }
         if (setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char *)&rcvbuf, 
                        sizeof(rcvbuf)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting send buffer size");
+            sockerror(0, 0, 0, "Error setting send buffer size");
             exit(ERR_SOCKET);
         }
     } else {
@@ -301,7 +299,7 @@ void create_sockets(void)
             rcvbuf = DEF_BSD_RCVBUF;
             if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, (char *)&rcvbuf, 
                            sizeof(rcvbuf)) == SOCKET_ERROR) {
-                sockerror(0, 0, "Error setting receive buffer size");
+                sockerror(0, 0, 0, "Error setting receive buffer size");
                 exit(ERR_SOCKET);
             }
         }
@@ -311,7 +309,7 @@ void create_sockets(void)
             rcvbuf = DEF_BSD_RCVBUF;
             if (setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (char *)&rcvbuf, 
                            sizeof(rcvbuf)) == SOCKET_ERROR) {
-                sockerror(0, 0, "Error setting send buffer size");
+                sockerror(0, 0, 0, "Error setting send buffer size");
                 exit(ERR_SOCKET);
             }
         }
@@ -319,7 +317,7 @@ void create_sockets(void)
     bcast = 1;
     if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (char *)&bcast, 
                    sizeof(bcast)) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error enabling broadcast");
+        sockerror(0, 0, 0, "Error enabling broadcast");
         closesocket(sock);
         exit(ERR_SOCKET);
     }
@@ -332,7 +330,7 @@ void create_sockets(void)
             int mtuflag = IP_PMTUDISC_DONT;
             if (setsockopt(sock, IPPROTO_IPV6, IPV6_MTU_DISCOVER,
                            (char *)&mtuflag, sizeof(mtuflag)) == SOCKET_ERROR) {
-                sockerror(0, 0, "Error disabling MTU discovery");
+                sockerror(0, 0, 0, "Error disabling MTU discovery");
                 closesocket(sock);
                 exit(ERR_SOCKET);
             }
@@ -340,21 +338,21 @@ void create_sockets(void)
 #endif
         if (setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, (char *)&ttl, 
                        sizeof(ttl)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting ttl");
+            sockerror(0, 0, 0, "Error setting ttl");
             closesocket(sock);
             exit(ERR_SOCKET);
         }
 #if defined IPV6_TCLASS && !defined WINDOWS
         if (setsockopt(sock, IPPROTO_IPV6, IPV6_TCLASS, (char *)&dscp, 
                        sizeof(dscp)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting dscp");
+            sockerror(0, 0, 0, "Error setting dscp");
             closesocket(sock);
             exit(ERR_SOCKET);
         }
 #endif
         if (setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_IF,
                 (char *)&out_if.ifidx, sizeof(int)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting outgoing interface");
+            sockerror(0, 0, 0, "Error setting outgoing interface");
             closesocket(sock);
             exit(ERR_SOCKET);
         }
@@ -365,7 +363,7 @@ void create_sockets(void)
             int mtuflag = IP_PMTUDISC_DONT;
             if (setsockopt(sock, IPPROTO_IP, IP_MTU_DISCOVER, (char *)&mtuflag, 
                            sizeof(mtuflag)) == SOCKET_ERROR) {
-                sockerror(0, 0, "Error disabling MTU discovery");
+                sockerror(0, 0, 0, "Error disabling MTU discovery");
                 closesocket(sock);
                 exit(ERR_SOCKET);
             }
@@ -373,20 +371,20 @@ void create_sockets(void)
 #endif
         if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, &l_ttl, 
                        sizeof(l_ttl)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting ttl");
+            sockerror(0, 0, 0, "Error setting ttl");
             closesocket(sock);
             exit(ERR_SOCKET);
         }
         if (setsockopt(sock, IPPROTO_IP, IP_TOS, (char *)&dscp, 
                        sizeof(dscp)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting dscp");
+            sockerror(0, 0, 0, "Error setting dscp");
             closesocket(sock);
             exit(ERR_SOCKET);
         }
         if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_IF,
                        (char *)&out_if.su.sin.sin_addr, 
                        sizeof(out_if.su.sin.sin_addr)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting outgoing interface");
+            sockerror(0, 0, 0, "Error setting outgoing interface");
             closesocket(sock);
             exit(ERR_SOCKET);
         }
@@ -396,19 +394,19 @@ void create_sockets(void)
 #ifdef WINDOWS
     fdflag = 1;
     if (ioctlsocket(sock, FIONBIO, &fdflag) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error setting non-blocking option");
+        sockerror(0, 0, 0, "Error setting non-blocking option");
         closesocket(sock);
         exit(ERR_SOCKET);
     }
 #else
     if ((fdflag = fcntl(sock, F_GETFL)) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error getting socket descriptor flags");
+        sockerror(0, 0, 0, "Error getting socket descriptor flags");
         closesocket(sock);
         exit(ERR_SOCKET);
     }
     fdflag |= O_NONBLOCK;
     if (fcntl(sock, F_SETFL, fdflag) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error setting non-blocking option");
+        sockerror(0, 0, 0, "Error setting non-blocking option");
         closesocket(sock);
         exit(ERR_SOCKET);
     }
@@ -438,12 +436,12 @@ void key_init(void)
     memset(grouphmackey, 0, sizeof(grouphmackey));
 
     if (!get_random_bytes(groupmaster, sizeof(groupmaster))) {
-        log0(0, 0, "Failed to generate group master");
+        log0(0, 0, 0, "Failed to generate group master");
         exit(ERR_CRYPTO);
     }
     groupmaster[0] = UFTP_VER_NUM;
     if (!get_random_bytes(rand1, sizeof(rand1))) {
-        log0(0, 0, "Failed to generate rand1");
+        log0(0, 0, 0, "Failed to generate rand1");
         exit(ERR_CRYPTO);
     }
     // Sets the first 4 bytes of rand1 to the current time
@@ -468,7 +466,7 @@ void key_init(void)
             privkey.rsa = read_RSA_key(keyfile);
         }
         if (!privkey.key) {
-            log0(0, 0, "Failed to read/generate private key");
+            log0(0, 0, 0, "Failed to read/generate private key");
             exit(ERR_CRYPTO);
         }
         privkeylen = RSA_keylen(privkey.rsa);
@@ -479,7 +477,7 @@ void key_init(void)
             privkey.ec = read_EC_key(keyfile);
         }
         if (!privkey.key) {
-            log0(0, 0, "Failed to read/generate private key");
+            log0(0, 0, 0, "Failed to read/generate private key");
             exit(ERR_CRYPTO);
         }
         privkeylen = ECDSA_siglen(privkey.ec);
@@ -487,7 +485,7 @@ void key_init(void)
     if ((keyextype == KEYEX_ECDH_RSA) || (keyextype == KEYEX_ECDH_ECDSA)) {
         dhkey.ec = gen_EC_key(ecdh_curve, 1, NULL);
         if (!dhkey.key) {
-            log0(0, 0, "Failed to generate DH key");
+            log0(0, 0, 0, "Failed to generate DH key");
             exit(ERR_CRYPTO);
         }
     }

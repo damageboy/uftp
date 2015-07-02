@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -118,16 +118,16 @@ int verify_client_key(struct pr_group_list_t *group, int hostidx)
             (group->keyextype == KEYEX_ECDH_RSA)) {
         if (!verify_RSA_sig(dest->pubkey.rsa, group->hashtype, verifydata,
                 verifylen, dest->verifydata, dest->verifylen)) {
-            log1(group->group_id, 0, "Rejecting CLIENT_KEY from %s: "
-                    "verify data mismatch", dest->name);
+            glog1(group, "Rejecting CLIENT_KEY from %s: verify data mismatch",
+                         dest->name);
             free(verifydata);
             return 0;
         }
     } else {
         if (!verify_ECDSA_sig(dest->pubkey.ec, group->hashtype, verifydata,
                 verifylen, dest->verifydata, dest->verifylen)) {
-            log1(group->group_id, 0, "Rejecting CLIENT_KEY from %s: "
-                    "verify data mismatch", dest->name);
+            glog1(group, "Rejecting CLIENT_KEY from %s: verify data mismatch",
+                         dest->name);
             free(verifydata);
             return 0;
         }
@@ -154,32 +154,32 @@ int handle_register_keys(const struct register_h *reg,
     if (group->keyextype == KEYEX_RSA) {
         if (!RSA_decrypt(group->proxy_privkey.rsa, enckey,
                          ntohs(reg->keyinfo_len), premaster, &len)) {
-            log1(group->group_id, 0, "Rejecting REGISTER from %s: "
-                    "failed to decrypt premaster secret", dest->name);
+            glog1(group, "Rejecting REGISTER from %s: "
+                         "failed to decrypt premaster secret", dest->name);
             return 0;
         }
         if (len != MASTER_LEN) {
-            log1(group->group_id, 0, "Rejecting REGISTER from %s: "
-                    "premaster secret wrong length", dest->name);
+            glog1(group, "Rejecting REGISTER from %s: "
+                         "premaster secret wrong length", dest->name);
             return 0;
         }
     } else {
         if (!import_EC_key(&dest->dhkey.ec, enckey,
                            ntohs(reg->keyinfo_len), 1)) {
-            log1(group->group_id, 0, "Rejecting REGISTER from %s: "
-                    "failed to import ECDH key", dest->name);
+            glog1(group, "Rejecting REGISTER from %s: "
+                         "failed to import ECDH key", dest->name);
             return 0;
         }
         if (get_EC_curve(dest->dhkey.ec) !=
                 get_EC_curve(group->proxy_dhkey.ec)) {
-            log1(group->group_id, 0, "Rejecting REGISTER from %s: "
-                    "invalid curve for ECDH", dest->name);
+            glog1(group, "Rejecting REGISTER from %s: "
+                         "invalid curve for ECDH", dest->name);
             return 0;
         }
         if (!get_ECDH_key(dest->dhkey.ec, group->proxy_dhkey.ec,
                           premaster, &len)) {
-            log1(group->group_id, 0, "Rejecting REGISTER from %s: "
-                    "failed to calculate premaster secret", dest->name);
+            glog1(group, "Rejecting REGISTER from %s: "
+                         "failed to calculate premaster secret", dest->name);
             return 0;
         }
 
@@ -213,15 +213,15 @@ void handle_register(struct pr_group_list_t *group, int hostidx,
     enckey = (const unsigned char *)reg + sizeof(struct register_h);
 
     if (group->destcount == MAXPROXYDEST) {
-        log1(group->group_id, 0, "Rejecting REGISTER from %08X: "
-                "max destinations exceeded", ntohl(src));
+        glog1(group, "Rejecting REGISTER from %08X: max destinations exceeded",
+                     ntohl(src));
         send_downstream_abort(group, src, "Max destinations exceeded", 0);
         return;
     }
     if ((meslen < (reg->hlen * 4U)) || ((reg->hlen * 4U) <
             sizeof(struct register_h) + ntohs(reg->keyinfo_len))) {
-        log1(group->group_id, 0, "Rejecting REGISTER from %08X: "
-                "invalid message size", ntohl(src));
+        glog1(group, "Rejecting REGISTER from %08X: invalid message size",
+                     ntohl(src));
         send_downstream_abort(group, src, "Invalid message size", 0);
         return;
     }
@@ -246,8 +246,7 @@ void handle_register(struct pr_group_list_t *group, int hostidx,
         }
     }
 
-    log2(group->group_id, 0, "Received REGISTER%s from %s",
-            dupmsg ? "+" : "", dest->name);
+    glog2(group, "Received REGISTER%s from %s", dupmsg ? "+" : "", dest->name);
 
     if (dest->state == PR_CLIENT_REGISTERED) {
         check_pending(group, hostidx, message);
@@ -271,16 +270,16 @@ void handle_clientkey(struct pr_group_list_t *group, int hostidx,
     verify = keyblob + ntohs(clientkey->bloblen);
 
     if (group->destcount == MAXPROXYDEST) {
-        log1(group->group_id, 0, "Rejecting CLIENT_KEY from %08X: "
-                "max destinations exceeded", ntohl(src));
+        glog1(group, "Rejecting CLIENT_KEY from %08X: "
+                     "max destinations exceeded", ntohl(src));
         send_downstream_abort(group, src, "Max destinations exceeded", 0);
         return;
     }
     if ((meslen < (clientkey->hlen * 4U)) ||
             ((clientkey->hlen * 4U) < sizeof(struct client_key_h) +
                 ntohs(clientkey->bloblen) + ntohs(clientkey->siglen))) {
-        log1(group->group_id, 0, "Rejecting CLIENT_KEY from %08X: "
-                "invalid message size", ntohl(src));
+        glog1(group, "Rejecting CLIENT_KEY from %08X: invalid message size",
+                     ntohl(src));
         send_downstream_abort(group, src, "Invalid message size", 0);
         return;
     }
@@ -289,8 +288,8 @@ void handle_clientkey(struct pr_group_list_t *group, int hostidx,
                 (keyblob[0] != KEYBLOB_RSA)) ||
             ((group->keyextype == KEYEX_ECDH_ECDSA) &&
              (keyblob[0] != KEYBLOB_EC))) {
-        log1(group->group_id, 0, "Rejecting CLIENT_KEY from %08X: "
-                "invalid keyblob type", ntohl(src));
+        glog1(group, "Rejecting CLIENT_KEY from %08X: invalid keyblob type",
+                     ntohl(src));
         send_downstream_abort(group, src, "Invalid keyblob type", 0);
         return;
     }
@@ -306,7 +305,7 @@ void handle_clientkey(struct pr_group_list_t *group, int hostidx,
         if (keyblob[0] == KEYBLOB_RSA) {
             if (!import_RSA_key(&dest->pubkey.rsa, keyblob,
                                 ntohs(clientkey->bloblen))) {
-                log1(group->group_id, 0, "Failed to load client public key");
+                glog1(group, "Failed to load client public key");
                 send_downstream_abort(group, src,
                                       "Failed to load client public key", 0);
                 return;
@@ -315,7 +314,7 @@ void handle_clientkey(struct pr_group_list_t *group, int hostidx,
         } else {
             if (!import_EC_key(&dest->pubkey.ec, keyblob,
                                ntohs(clientkey->bloblen), 0)) {
-                log1(group->group_id, 0, "Failed to load client public key");
+                glog1(group, "Failed to load client public key");
                 send_downstream_abort(group, src,
                                       "Failed to load client public key", 0);
                 return;
@@ -324,7 +323,7 @@ void handle_clientkey(struct pr_group_list_t *group, int hostidx,
         }
         if (!verify_fingerprint(client_fp, client_fp_count, keyblob,
                                 ntohs(clientkey->bloblen), group, src)) {
-            log1(group->group_id, 0, "Failed to verify client key fingerprint");
+            glog1(group, "Failed to verify client key fingerprint");
             send_downstream_abort(group, src, 
                                   "Failed to verify client key fingerprint", 0);
             return;
@@ -341,8 +340,7 @@ void handle_clientkey(struct pr_group_list_t *group, int hostidx,
         dest->state = PR_CLIENT_REGISTERED;
     }
 
-    log2(group->group_id, 0, "Received CLIENT_KEY%s from %s",
-            dupmsg ? "+" : "", dest->name);
+    glog2(group,"Received CLIENT_KEY%s from %s", dupmsg ? "+" : "", dest->name);
 
     if (dest->state == PR_CLIENT_REGISTERED) {
         // Pass in a dummy REGISTER message to check_pending, since
@@ -370,15 +368,15 @@ void handle_keyinfo_ack(struct pr_group_list_t *group, int hostidx,
 
     if ((meslen < (keyinfoack->hlen * 4U)) ||
             ((keyinfoack->hlen * 4U) < sizeof(struct keyinfoack_h))) {
-        log1(group->group_id, 0, "Rejecting KEYINFO_ACK from %s: "
-                "invalid message size", dest->name);
+        glog1(group, "Rejecting KEYINFO_ACK from %s: invalid message size",
+                     dest->name);
         send_downstream_abort(group, dest->id, "Invalid message size", 0);
         return;
     }
 
     if (!(verifydata = build_verify_data(group, hostidx, &verifylen,1))) {
-        log1(group->group_id, 0, "Rejecting KEYINFO_ACK from %s: "
-                "error exporting client public key", dest->name);
+        glog1(group, "Rejecting KEYINFO_ACK from %s: "
+                     "error exporting client public key", dest->name);
         return;
     }
     verify_hash = safe_calloc(group->hmaclen, 1);
@@ -388,8 +386,8 @@ void handle_keyinfo_ack(struct pr_group_list_t *group, int hostidx,
             sizeof(group->groupmaster), "client finished",
             verify_hash, hashlen, verify_test, &len);
     if (memcmp(keyinfoack->verify_data, verify_test, VERIFY_LEN)) {
-        log1(group->group_id, 0, "Rejecting KEYINFO_ACK from %s: "
-                "verify data mismatch", dest->name);
+        glog1(group, "Rejecting KEYINFO_ACK from %s: verify data mismatch",
+                     dest->name);
         free(verifydata);
         free(verify_hash);
         free(verify_test);
@@ -401,8 +399,8 @@ void handle_keyinfo_ack(struct pr_group_list_t *group, int hostidx,
     free(verify_test);
 
     dupmsg = (dest->state == PR_CLIENT_READY);
-    log2(group->group_id, 0, "Received KEYINFO_ACK%s from %s",
-            dupmsg ? "+" : "", dest->name);
+    glog2(group, "Received KEYINFO_ACK%s from %s", dupmsg ? "+" : "",
+                 dest->name);
     dest->state = PR_CLIENT_READY;
     if (!check_unfinished_clients(group, 0)) {
         group->phase = PR_PHASE_RECEIVING;
@@ -423,13 +421,13 @@ void handle_fileinfo_ack(struct pr_group_list_t *group, int hostidx,
 
     if ((meslen < (fileinfoack->hlen * 4U)) ||
             ((fileinfoack->hlen * 4U) < sizeof(struct fileinfoack_h))) {
-        log1(group->group_id, ntohs(fileinfoack->file_id),
+        log1(group->group_id, group->group_inst, ntohs(fileinfoack->file_id),
                 "Rejecting FILEINFO_ACK from %s: invalid message size",
                 dest->name);
         return;
     }
 
-    log2(group->group_id, ntohs(fileinfoack->file_id),
+    log2(group->group_id, group->group_inst, ntohs(fileinfoack->file_id),
             "Received FILEINFO_ACK from %s", dest->name);
     check_pending(group, hostidx, message);
 }
@@ -495,8 +493,7 @@ void send_keyinfo(struct pr_group_list_t *group, const uint32_t *addrlist,
                                    NULL, 0, &group->groupmaster[1],
                                    sizeof(group->groupmaster) - 1,
                                    keylist[dests].groupmaster, &len)) {
-                    log0(group->group_id, 0,
-                            "Error encrypting KEYINFO for %s", dest->name);
+                    glog0(group, "Error encrypting KEYINFO for %s", dest->name);
                     free(buf);
                     free(iv);
                     return;
@@ -508,12 +505,11 @@ void send_keyinfo(struct pr_group_list_t *group, const uint32_t *addrlist,
                 ((i == group->destcount - 1) && (dests > 0))) {
             payloadlen = sizeof(struct keyinfo_h) +
                          (dests * sizeof(struct destkey));
-            log2(group->group_id, 0, "Sending KEYINFO %d.%d",
-                    group->keyinfo_cnt, packetcnt);
+            glog2(group,"Sending KEYINFO %d.%d", group->keyinfo_cnt, packetcnt);
             if (nb_sendto(listener, buf, payloadlen + sizeof(struct uftp_h), 0,
                        (struct sockaddr *)&group->privatemcast,
                         family_len(group->privatemcast)) == SOCKET_ERROR) {
-                sockerror(group->group_id, 0, "Error sending KEYINFO");
+                gsockerror(group, "Error sending KEYINFO");
                 free(buf);
                 free(iv);
                 return;
@@ -550,12 +546,12 @@ void handle_status(struct pr_group_list_t *group, int hostidx,
 
     if ((meslen < (status->hlen * 4U)) ||
             ((status->hlen * 4U) < sizeof(struct status_h))) {
-        log1(group->group_id, ntohs(status->file_id),
+        log1(group->group_id, group->group_inst, ntohs(status->file_id),
                 "Rejecting STATUS from %s: invalid message size", dest->name);
         return;
     }
 
-    log2(group->group_id, ntohs(status->file_id),
+    log2(group->group_id, group->group_inst, ntohs(status->file_id),
             "Got STATUS for section %d from %s", mes_section, dest->name);
 
     check_pending(group, hostidx, message);
@@ -577,7 +573,7 @@ void handle_complete(struct pr_group_list_t *group, int hostidx,
 
     if ((meslen < (complete->hlen * 4U)) ||
             ((complete->hlen * 4U) < sizeof(struct complete_h))) {
-        log1(group->group_id, ntohs(complete->file_id),
+        log1(group->group_id, group->group_inst, ntohs(complete->file_id),
                 "Rejecting COMPLETE from %s: invalid message size", dest->name);
         return;
     }
@@ -596,7 +592,7 @@ void handle_complete(struct pr_group_list_t *group, int hostidx,
         strncpy(status, "(rejected)", sizeof(status));
         break;
     }
-    log2(group->group_id, ntohs(complete->file_id),
+    log2(group->group_id, group->group_inst, ntohs(complete->file_id),
             "Received COMPLETE%s from %s", status, dest->name);
 
     if (ntohs(complete->file_id) == 0) {

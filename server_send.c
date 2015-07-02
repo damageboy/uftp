@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -88,10 +88,10 @@ int send_file(const char *f_basedir, const char *filename,
     char path[MAXPATHNAME], destpath[MAXPATHNAME];
     int len, rval, fd, emptydir, maxsecsize;
 
-    log2(group_id, 0, "----- %s -----", filename);
+    log2(group_id, 0, 0, "----- %s -----", filename);
     len = snprintf(path, sizeof(path), "%s%c%s", f_basedir, PATH_SEP, filename);
     if ((len >= sizeof(path)) || (len == -1)) {
-        log1(group_id, 0, "Max pathname length exceeded: %s%c%s",
+        log1(group_id, 0, 0, "Max pathname length exceeded: %s%c%s",
                     f_basedir, PATH_SEP, filename);
         return ERR_NONE;
     }
@@ -102,12 +102,12 @@ int send_file(const char *f_basedir, const char *filename,
             rval = lstat_func(path, &statbuf);
         }
         if (rval == -1) {
-            syserror(group_id, 0, "Error getting file status for %s", filename);
+            syserror(group_id,0,0,"Error getting file status for %s", filename);
             return ERR_NONE;
         }
     }
     if (file_excluded(filename)) {
-        log2(group_id, 0, "Skipping %s", filename);
+        log2(group_id, 0, 0, "Skipping %s", filename);
         return ERR_NONE;
     }
     rval = ERR_NONE;
@@ -153,7 +153,7 @@ int send_file(const char *f_basedir, const char *filename,
         free(finfo.deststate);
     } else if (S_ISREG(statbuf.st_mode)) {
         if ((fd = open(path, OPENREAD, 0)) == -1) {
-            syserror(group_id, 0, "Error reading file %s", filename);
+            syserror(group_id, 0, 0, "Error reading file %s", filename);
             return ERR_NONE;
         }
         close(fd);
@@ -206,12 +206,12 @@ int send_file(const char *f_basedir, const char *filename,
 
         memset(linkname, 0, sizeof(linkname));
         if (readlink(path, linkname, sizeof(linkname)-1) == -1) {
-            syserror(group_id, 0, "Failed to read symbolic link %s", path);
+            syserror(group_id, 0, 0, "Failed to read symbolic link %s", path);
             return ERR_NONE;
         }
         // Both the file name and the link have to fit into a fileinfo_h.name
         if (strlen(linkname) + strlen(filename) + 2 > MAXPATHNAME) {
-            log0(group_id, 0, "Combined file name %s and link %s too long",
+            log0(group_id, 0, 0, "Combined file name %s and link %s too long",
                         filename, linkname);
             return ERR_NONE;
         }
@@ -246,23 +246,23 @@ int send_file(const char *f_basedir, const char *filename,
         snprintf(dirglob, sizeof(dirglob), "%s%c%s%c*", f_basedir, PATH_SEP,
                                                         filename, PATH_SEP);
         if ((ffhandle = _findfirsti64(dirglob, &ffinfo)) == -1) {
-            syserror(group_id, 0, "Failed to open directory %s%c%s", f_basedir,
-                        PATH_SEP, filename);
+            syserror(group_id, 0, 0, "Failed to open directory %s%c%s",
+                        f_basedir, PATH_SEP, filename);
             return ERR_NONE;
         }
         emptydir = 1;
         do {
             len = snprintf(path, sizeof(path), "%s/%s", filename, ffinfo.name);
-            log3(group_id, 0, "Checking file %s", path);
+            log3(group_id, 0, 0, "Checking file %s", path);
             if ((len >= sizeof(path)) || (len == -1)) {
-                log0(group_id, 0, "Max pathname length exceeded: %s/%s",
+                log0(group_id, 0, 0, "Max pathname length exceeded: %s/%s",
                             filename, ffinfo.name);
                 continue;
             }
             len = snprintf(destpath, sizeof(destpath), "%s/%s",
                            n_destfname, ffinfo.name);
             if ((len >= sizeof(destpath)) || (len == -1)) {
-                log0(group_id, 0, "Max pathname length exceeded: %s/%s",
+                log0(group_id, 0, 0, "Max pathname length exceeded: %s/%s",
                             n_destfname, ffinfo.name);
                 continue;
             }
@@ -284,7 +284,7 @@ int send_file(const char *f_basedir, const char *filename,
         snprintf(dirname, sizeof(dirname), "%s%c%s", f_basedir, PATH_SEP,
                  filename);
         if ((dir = opendir(dirname)) == NULL) {
-            syserror(group_id, 0, "Failed to open directory %s", dirname);
+            syserror(group_id, 0, 0, "Failed to open directory %s", dirname);
             return ERR_NONE;
         }
         // errno needs to be set to 0 before calling readdir, otherwise
@@ -293,14 +293,14 @@ int send_file(const char *f_basedir, const char *filename,
         while ((errno = 0, de = readdir(dir)) != NULL) {
             len = snprintf(path, sizeof(path), "%s/%s", filename, de->d_name);
             if ((len >= sizeof(path)) || (len == -1)) {
-                log0(group_id, 0, "Max pathname length exceeded: %s/%s",
+                log0(group_id, 0, 0, "Max pathname length exceeded: %s/%s",
                             filename, de->d_name);
                 continue;
             }
             len = snprintf(destpath, sizeof(destpath), "%s/%s",
                            n_destfname, de->d_name);
             if ((len >= sizeof(destpath)) || (len == -1)) {
-                log0(group_id, 0, "Max pathname length exceeded: %s/%s",
+                log0(group_id, 0, 0, "Max pathname length exceeded: %s/%s",
                             n_destfname, de->d_name);
                 continue;
             }
@@ -314,7 +314,7 @@ int send_file(const char *f_basedir, const char *filename,
             }
         }
         if (errno && (errno != ENOENT)) {
-            syserror(group_id, 0, "Failed to read directory %s", filename);
+            syserror(group_id, 0, 0, "Failed to read directory %s", filename);
         }
         closedir(dir);
 #endif
@@ -340,7 +340,7 @@ int send_file(const char *f_basedir, const char *filename,
             free(finfo.deststate);
         }
     } else {
-        log2(group_id, 0, "Skipping special file %s", filename);
+        log2(group_id, 0, 0, "Skipping special file %s", filename);
     }
     return rval;
 }
@@ -362,9 +362,9 @@ int write_restart_host(uint32_t group_id, int fd, int i)
         memcpy(host.keyfingerprint, destlist[i].keyfingerprint,
                HMAC_LEN);
     }
-    host.is_proxy = (destlist[i].clientcnt != -1);
+    host.is_proxy = destlist[i].isproxy;
     if (file_write(fd, &host, sizeof(host)) == -1) {
-        log0(group_id, 0, "Failed to write host for restart file");
+        log0(group_id, 0, 0, "Failed to write host for restart file");
         return 0;
     }
     return 1;
@@ -384,13 +384,14 @@ void write_restart_file(uint32_t group_id, uint8_t group_inst)
     opened = 0;
     proxycnt = 0;
     for (i = 0; i < destcount; i++) {
-        if ((destlist[i].clientcnt == -1) && client_error(i)) {
+        if ((!destlist[i].isproxy) && client_error(i)) {
             if (!opened) {
                 snprintf(restart_name, sizeof(restart_name),
                          "_group_%08X_restart", group_id);
                 if ((fd = open(restart_name, OPENWRITE | O_CREAT | O_TRUNC,
                                0644)) == -1) {
-                    syserror(group_id, 0, "Failed to create restart file");
+                    syserror(group_id, group_inst, 0,
+                             "Failed to create restart file");
                     return;
                 }
 
@@ -399,14 +400,15 @@ void write_restart_file(uint32_t group_id, uint8_t group_inst)
                 header.group_inst = group_inst;
                 header.filecount = filecount;
                 if (file_write(fd, &header, sizeof(header)) == -1) {
-                    log0(group_id,0, "Failed to write header for restart file");
+                    log0(group_id, group_inst, 0,
+                            "Failed to write header for restart file");
                     goto errexit;
                 }
 
                 // Write file list
                 for (j = 0; j < filecount; j++) {
                     if (file_write(fd, filelist[j],sizeof(filelist[j])) == -1) {
-                        log0(group_id, 0,
+                        log0(group_id, group_inst, 0,
                                 "Failed to write filename for restart file");
                         goto errexit;
                     }
@@ -475,36 +477,37 @@ int send_files(void)
     
     t = time(NULL);
     if (!showtime) slog2("");
-    log2(group_info.group_id, 0, "%s", VERSIONSTR);
-    if (!showtime) clog2(group_info.group_id, 0, "Starting at %s", ctime(&t));
+    log2(group_info.group_id, 0, 0, "%s", VERSIONSTR);
+    if (!showtime) clog2(group_info.group_id, 0, 0, "Starting at %s",ctime(&t));
     if (privkey.key) {
         if ((keyextype == KEYEX_RSA) || (keyextype == KEYEX_ECDH_RSA)) {
-            log2(group_info.group_id, 0,
+            log2(group_info.group_id, 0, 0,
                     "Loaded %d bit RSA key with fingerprint %s",
                        RSA_keylen(privkey.rsa) * 8,
                        print_key_fingerprint(privkey, KEYBLOB_RSA));
         } else {
-            log2(group_info.group_id, 0,
+            log2(group_info.group_id, 0, 0,
                     "Loaded ECDSA key with curve %s and fingerprint %s",
                        curve_name(get_EC_curve(privkey.ec)),
                        print_key_fingerprint(privkey, KEYBLOB_EC));
         }
     }
     if (dhkey.key) {
-        log2(group_info.group_id, 0, "Loaded ECDH key with curve %s",
+        log2(group_info.group_id, 0, 0, "Loaded ECDH key with curve %s",
                    curve_name(get_EC_curve(dhkey.ec)));
     }
     if (cc_type == CC_NONE || cc_type == CC_UFTP3) {
         if (rate == -1) {
-            log2(group_info.group_id, 0, "Transfer rate: full interface speed");
+            log2(group_info.group_id, 0, 0,
+                    "Transfer rate: full interface speed");
         } else {
-            log2(group_info.group_id, 0, "Transfer rate: %d Kbps (%d KB/s)",
+            log2(group_info.group_id, 0, 0, "Transfer rate: %d Kbps (%d KB/s)",
                        rate * 8 / 1024, rate / 1024);
-            log2(group_info.group_id, 0,
+            log2(group_info.group_id, 0, 0,
                     "Wait between packets: %d us", packet_wait);
         }
     } else if (cc_type == CC_TFMCC) {
-        log2(group_info.group_id, 0, "Transfer rate: dynamic via TFMCC");
+        log2(group_info.group_id, 0, 0, "Transfer rate: dynamic via TFMCC");
     }
 
     if (log_level >= 2) {
@@ -512,10 +515,10 @@ int send_files(void)
                 family_len(receive_dest), mcast, sizeof(mcast),
                 NULL, 0, NI_NUMERICHOST);
         if (rval) {
-            log2(group_info.group_id, 0,
+            log2(group_info.group_id, 0, 0,
                     "getnameinfo failed: %s", gai_strerror(rval));
         }
-        log2(group_info.group_id, 0, "Using private multicast address %s  "
+        log2(group_info.group_id, 0, 0, "Using private multicast address %s  "
                 "Group ID: %08X", mcast, group_info.group_id);
     }
     rval = announce_phase(&group_info);
@@ -544,7 +547,7 @@ int send_files(void)
                     }
                 }
                 if (!found_base) {
-                    log1(group_info.group_id, 0, "Skipping %s: "
+                    log1(group_info.group_id, 0, 0, "Skipping %s: "
                             "doesn't match any base", filelist[i]);
                     free(dir);
                     free(base);
@@ -569,7 +572,7 @@ int send_files(void)
                     len = snprintf(path, sizeof(path), "%s/%s",
                                    destfname, l_destfname);
                     if ((len >= sizeof(path)) || (len == -1)) {
-                        log0(group_info.group_id, 0, "Max pathname length "
+                        log0(group_info.group_id, 0, 0, "Max pathname length "
                                 "exceeded: %s/%s", destfname, base);
                         free(dir);
                         free(base);
@@ -595,7 +598,7 @@ int send_files(void)
             if (files_sent == 0) {
                 rval = ERR_NO_FILES;
             }
-            log2(group_info.group_id, 0, "-----------------------------");
+            log2(group_info.group_id, 0, 0, "-----------------------------");
             completion_phase(&group_info);
         }
     }
@@ -605,7 +608,7 @@ int send_files(void)
     free(group_info.deststate);
 
     t = time(NULL);
-    if (!showtime) clog2(group_info.group_id, 0, "uftp: Finishing at %s",
+    if (!showtime) clog2(group_info.group_id, 0, 0, "uftp: Finishing at %s",
                          ctime(&t));
     return rval;
 }

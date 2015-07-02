@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -81,7 +81,7 @@ static void mserror(const char *str, int err)
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_FROM_HMODULE |
                   FORMAT_MESSAGE_IGNORE_INSERTS, Hand, err,
                   0, errbuf, sizeof(errbuf), NULL);
-    clog0(0, 0, "%s: (0x%08X) %s", str, err, errbuf);
+    clog0(0, 0, 0, "%s: (0x%08X) %s", str, err, errbuf);
     FreeLibrary(Hand);
 }
 
@@ -236,7 +236,7 @@ static LPCWSTR get_cipher(int keytype)
     case KEY_AES256_CCM:
         return BCRYPT_AES_ALGORITHM;
     default:
-        log0(0, 0, "Unknown keytype: %d", keytype);
+        log0(0, 0, 0, "Unknown keytype: %d", keytype);
         return NULL;
     }
 }
@@ -280,7 +280,7 @@ static LPCWSTR get_hash(int hashtype)
     case HASH_MD5:
         return BCRYPT_MD5_ALGORITHM;
     default:
-        log0(0, 0, "Unknown hashtype: %d", hashtype);
+        log0(0, 0, 0, "Unknown hashtype: %d", hashtype);
         return NULL;
     }
 }
@@ -472,7 +472,7 @@ int encrypt_block(int keytype, const unsigned char *IV,
     mode = get_cipher_mode(keytype);
 
     if ((alghandle = get_alg_handle(alg, mode, 0)) == NULL) {
-        log0(0, 0, "get_alg_handle failed\n");
+        log0(0, 0, 0, "get_alg_handle failed\n");
         return 0;
     }
     status = BCryptSetProperty(alghandle, BCRYPT_CHAINING_MODE, (PUCHAR)mode,
@@ -556,7 +556,7 @@ int decrypt_block(int keytype, const unsigned char *IV,
     mode = get_cipher_mode(keytype);
 
     if ((alghandle = get_alg_handle(alg, mode, 0)) == NULL) {
-        log0(0, 0, "get_alg_handle failed\n");
+        log0(0, 0, 0, "get_alg_handle failed\n");
         return 0;
     }
     status = BCryptSetProperty(alghandle, BCRYPT_CHAINING_MODE, (PUCHAR)mode, 
@@ -630,7 +630,7 @@ int create_hmac(int hashtype, const unsigned char *key, unsigned int keylen,
 
     alg = get_hash(hashtype);
     if ((alghandle = get_alg_handle(alg, NULL, 1)) == NULL) {
-        log0(0, 0, "get_alg_handle failed\n");
+        log0(0, 0, 0, "get_alg_handle failed\n");
         return 0;
     }
     status = BCryptGetProperty(alghandle, BCRYPT_HASH_LENGTH,
@@ -677,7 +677,7 @@ int hash(int hashtype, const unsigned char *src, unsigned int srclen,
 
     alg = get_hash(hashtype);
     if ((alghandle = get_alg_handle(alg, NULL, 0)) == NULL) {
-        log0(0, 0, "get_alg_handle failed\n");
+        log0(0, 0, 0, "get_alg_handle failed\n");
         return 0;
     }
     status = BCryptGetProperty(alghandle, BCRYPT_HASH_LENGTH,
@@ -957,7 +957,7 @@ int verify_ECDSA_sig(EC_key_t ec, int hashtype,
     slen = (uint16_t *)(sig + sizeof(uint16_t));
     rsval = (unsigned char *)slen + sizeof(uint16_t);
     if ((unsigned int)ntohs(*rlen) + ntohs(*slen) > siglen) {
-        log0(0, 0, "Invalid signature length");
+        log0(0, 0, 0, "Invalid signature length");
         return 0;
     }
 
@@ -1017,7 +1017,7 @@ int import_RSA_key(RSA_key_t *rsa, const unsigned char *keyblob,
     modulus = keyblob + sizeof(struct rsa_blob_t);
 
     if (sizeof(struct rsa_blob_t) + ntohs(rsablob->modlen) != bloblen) {
-        log0(0, 0, "Error importing RSA key: invalid length");
+        log0(0, 0, 0, "Error importing RSA key: invalid length");
         return 0;
     } 
 
@@ -1092,7 +1092,7 @@ int export_RSA_key(const RSA_key_t rsa, unsigned char *keyblob,
     buf_exp = buf + sizeof(BCRYPT_RSAKEY_BLOB);
     buf_mod = buf_exp + blobheader->cbPublicExp;
     if (blobheader->cbPublicExp > 4) {
-        log0(0, 0, "unexpected size %d of public exponent\n",
+        log0(0, 0, 0, "unexpected size %d of public exponent\n",
                 blobheader->cbPublicExp);
         free(buf);
         return 0;
@@ -1130,7 +1130,7 @@ int import_EC_key(EC_key_t *ec, const unsigned char *keyblob, uint16_t bloblen,
     keyval = keyblob + sizeof(struct ec_blob_t);
 
     if (sizeof(struct ec_blob_t) + ntohs(ecblob->keylen) > bloblen) {
-        log0(0, 0, "Error importing EC key: invalid length");
+        log0(0, 0, 0, "Error importing EC key: invalid length");
         return 0;
     } 
 
@@ -1257,7 +1257,7 @@ RSA_key_t read_RSA_key(const char *container)
 
     key = read_private_key(container, &keytype);
     if (keytype != KEYBLOB_RSA) {
-        log0(0, 0, "%s not an RSA key", container);
+        log0(0, 0, 0, "%s not an RSA key", container);
         NCryptFreeObject(key.rsa);
         return 0;
     }
@@ -1274,7 +1274,7 @@ EC_key_t gen_EC_key(uint8_t curve, int isdh, const char *container)
 
     alg = get_curve_alg(curve, isdh);
     if (!alg) {
-        log0(0, 0, "curve not supported\n");
+        log0(0, 0, 0, "curve not supported\n");
         return 0;
     }
     if (!BCRYPT_SUCCESS(sstatus = NCryptOpenStorageProvider(&prov, NULL, 0))) {
@@ -1310,7 +1310,7 @@ EC_key_t read_EC_key(const char *container)
 
     key = read_private_key(container, &keytype);
     if (keytype != KEYBLOB_EC) {
-        log0(0, 0, "%s not an EC key", container);
+        log0(0, 0, 0, "%s not an EC key", container);
         NCryptFreeObject(key.ec);
         return 0;
     }
@@ -1366,7 +1366,7 @@ union key_t read_private_key(const char *container, int *keytype)
         tmp.rsa = key;
         *keytype = KEYBLOB_RSA;
     } else {
-        log0(0, 0, "Unexpected key type: %ws", algtype);
+        log0(0, 0, 0, "Unexpected key type: %ws", algtype);
         NCryptFreeObject(key);
     }
     NCryptFreeObject(prov);
@@ -1401,7 +1401,7 @@ uint8_t get_EC_curve(const EC_key_t ec)
             !wcscmp(alg, BCRYPT_ECDSA_P521_ALGORITHM)) {
         return CURVE_secp521r1;
     } else {
-        log0(0, 0, "Unexpected key type: %ws", alg);
+        log0(0, 0, 0, "Unexpected key type: %ws", alg);
         return 0;
     }
 }

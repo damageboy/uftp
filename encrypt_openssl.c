@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -57,11 +57,11 @@ static void log_ssl_err(const char *mes)
     found = 0;
     while ((err = ERR_get_error())) {
         ERR_error_string(err, errstr);
-        log0(0, 0, "%s: %s", mes, errstr);
+        log0(0, 0, 0, "%s: %s", mes, errstr);
         found = 1;
     }
     if (!found) {
-        log0(0, 0, "%s", mes);
+        log0(0, 0, 0, "%s", mes);
     }
 }
 
@@ -240,7 +240,7 @@ static const EVP_CIPHER *get_cipher(int keytype)
     case KEY_AES256_CCM:
         return EVP_get_cipherbyname("id-aes256-CCM");
     default:
-        log0(0, 0, "Unknown keytype: %d", keytype);
+        log0(0, 0, 0, "Unknown keytype: %d", keytype);
         return NULL;
     }
 }
@@ -262,7 +262,7 @@ static const EVP_MD *get_hash(int hashtype)
     case HASH_MD5:
         return EVP_get_digestbyname("MD5");
     default:
-        log0(0, 0, "Unknown hashtype: %d", hashtype);
+        log0(0, 0, 0, "Unknown hashtype: %d", hashtype);
         return NULL;
     }
 }
@@ -354,7 +354,7 @@ int encrypt_block(int keytype, const unsigned char *IV,
     int mode, len;
 
     if (cipher == NULL) {
-        log0(0, 0, "Invalid keytype");
+        log0(0, 0, 0, "Invalid keytype");
         return 0;
     }
     mode = EVP_CIPHER_mode(cipher);
@@ -458,7 +458,7 @@ int decrypt_block(int keytype, const unsigned char *IV,
     int mode, len, l_srclen;
 
     if (cipher == NULL) {
-        log0(0, 0, "Invalid keytype");
+        log0(0, 0, 0, "Invalid keytype");
         return 0;
     }
     mode = EVP_CIPHER_mode(cipher);
@@ -557,7 +557,7 @@ int create_hmac(int hashtype, const unsigned char *key, unsigned int keylen,
     const EVP_MD *hashptr = get_hash(hashtype);
 
     if (hashptr == NULL) {
-        log0(0, 0, "Invalid hashtype");
+        log0(0, 0, 0, "Invalid hashtype");
         return 0;
     }
     return (HMAC(hashptr, key, keylen, src, srclen, dest, destlen) != NULL);
@@ -573,7 +573,7 @@ int hash(int hashtype, const unsigned char *src, unsigned int srclen,
     const EVP_MD *hashptr = get_hash(hashtype);
 
     if (hashptr == NULL) {
-        log0(0, 0, "Invalid hashtype");
+        log0(0, 0, 0, "Invalid hashtype");
         return 0;
     }
     EVP_MD_CTX_init(&hashctx);
@@ -618,7 +618,7 @@ int EC_keylen(const EC_key_t ec)
     int keylen, padding; 
 
     if ((keylen = i2o_ECPublicKey(ec, NULL)) == 0) {
-        log0(0, 0, "error getting size of EC key");
+        log0(0, 0, 0, "error getting size of EC key");
         return 0;
     }
     // Don't count leading "4"
@@ -716,7 +716,7 @@ int create_RSA_sig(RSA_key_t rsa, int hashtype,
 
     hashptr = get_hash(hashtype);
     if (hashptr == NULL) {
-        log0(0, 0, "Invalid hashtype");
+        log0(0, 0, 0, "Invalid hashtype");
         return 0;
     }
     if (!RSA_sign(EVP_MD_type(hashptr), meshash, meshashlen,
@@ -745,7 +745,7 @@ int verify_RSA_sig(RSA_key_t rsa, int hashtype,
 
     hashptr = get_hash(hashtype);
     if (hashptr == NULL) {
-        log0(0, 0, "Invalid hashtype");
+        log0(0, 0, 0, "Invalid hashtype");
         return 0;
     }
     if (!RSA_verify(EVP_MD_type(hashptr), meshash, meshashlen,
@@ -779,7 +779,7 @@ int create_ECDSA_sig(EC_key_t ec, int hashtype,
 
     hashptr = get_hash(hashtype);
     if (hashptr == NULL) {
-        log0(0, 0, "Invalid hashtype");
+        log0(0, 0, 0, "Invalid hashtype");
         return 0;
     }
     if ((_sig = ECDSA_do_sign(meshash, meshashlen, ec)) == NULL) {
@@ -801,7 +801,7 @@ int create_ECDSA_sig(EC_key_t ec, int hashtype,
     ECDSA_SIG_free(_sig);
     return 1;
 #else
-    log0(0, 0, "ECDSA not supported");
+    log0(0, 0, 0, "ECDSA not supported");
     return 0;
 #endif
 }
@@ -827,7 +827,7 @@ int verify_ECDSA_sig(EC_key_t ec, int hashtype,
 
     hashptr = get_hash(hashtype);
     if (hashptr == NULL) {
-        log0(0, 0, "Invalid hashtype");
+        log0(0, 0, 0, "Invalid hashtype");
         return 0;
     }
 
@@ -836,7 +836,7 @@ int verify_ECDSA_sig(EC_key_t ec, int hashtype,
     rval = (const unsigned char *)slen + sizeof(uint16_t);
     sval = rval + ntohs(*rlen);
     if (ntohs(*rlen) + ntohs(*slen) > siglen) {
-        log0(0, 0, "Invalid signature length");
+        log0(0, 0, 0, "Invalid signature length");
         return 0;
     }
 
@@ -861,7 +861,7 @@ int verify_ECDSA_sig(EC_key_t ec, int hashtype,
         return 1;
     }
 #else
-    log0(0, 0, "ECDSA not supported");
+    log0(0, 0, 0, "ECDSA not supported");
     return 0;
 #endif
 }
@@ -899,7 +899,7 @@ int get_ECDH_key(EC_key_t pubkey, EC_key_t privkey, unsigned char *key,
     *keylen = get_hash_len(HASH_SHA1);
     return 1;
 #else
-    log0(0, 0, "ECDH not supported");
+    log0(0, 0, 0, "ECDH not supported");
     return 0;
 #endif
 }
@@ -917,7 +917,7 @@ int import_RSA_key(RSA_key_t *rsa, const unsigned char *keyblob,
     modulus = keyblob + sizeof(struct rsa_blob_t);
 
     if (sizeof(struct rsa_blob_t) + ntohs(rsablob->modlen) != bloblen) {
-        log0(0, 0, "Error importing RSA key: invalid length");
+        log0(0, 0, 0, "Error importing RSA key: invalid length");
         return 0;
     } 
 
@@ -952,7 +952,7 @@ int export_RSA_key(const RSA_key_t rsa, unsigned char *keyblob,
     modulus = keyblob + sizeof(struct rsa_blob_t);
 
     if (BN_num_bytes(rsa->e) > sizeof(bin_exponent)) {
-        log0(0, 0, "exponent too big for export");
+        log0(0, 0, 0, "exponent too big for export");
         return 0;
     }
     if ((explen = BN_bn2bin(rsa->e, bin_exponent)) <= 0) {
@@ -960,7 +960,7 @@ int export_RSA_key(const RSA_key_t rsa, unsigned char *keyblob,
         return 0;
     }
     if (explen > 4) {
-        log0(0, 0, "exponent too big, size %d", explen);
+        log0(0, 0, 0, "exponent too big, size %d", explen);
         return 0;
     }
     exponent = 0;
@@ -996,7 +996,7 @@ int import_EC_key(EC_key_t *ec, const unsigned char *keyblob, uint16_t bloblen,
     keyval = keyblob + sizeof(struct ec_blob_t);
 
     if (sizeof(struct ec_blob_t) + ntohs(ecblob->keylen) > bloblen) {
-        log0(0, 0, "Error importing EC key: invalid length");
+        log0(0, 0, 0, "Error importing EC key: invalid length");
         return 0;
     } 
 
@@ -1018,7 +1018,7 @@ int import_EC_key(EC_key_t *ec, const unsigned char *keyblob, uint16_t bloblen,
     free(buf);
     return 1;
 #else
-    log0(0, 0, "EC keys not supported");
+    log0(0, 0, 0, "EC keys not supported");
     return 0;
 #endif
 }
@@ -1037,7 +1037,7 @@ int export_EC_key(const EC_key_t ec, unsigned char *keyblob, uint16_t *bloblen)
     keyval = keyblob + sizeof(struct ec_blob_t);
 
     if ((keylen = i2o_ECPublicKey(ec, NULL)) == 0) {
-        log0(0, 0, "error getting size of EC key");
+        log0(0, 0, 0, "error getting size of EC key");
         return 0;
     }
     buf = safe_malloc(keylen);
@@ -1061,7 +1061,7 @@ int export_EC_key(const EC_key_t ec, unsigned char *keyblob, uint16_t *bloblen)
     free(buf);
     return 1;
 #else
-    log0(0, 0, "EC keys not supported");
+    log0(0, 0, 0, "EC keys not supported");
     return 0;
 #endif
 }
@@ -1083,12 +1083,12 @@ RSA_key_t gen_RSA_key(int bits, int exponent, const char *filename)
 
     if (filename && strcmp(filename, "")) {
         if ((f = fopen(filename, "rb")) != NULL) {
-            log0(0, 0, "Private key file already exists, won't overwrite");
+            log0(0, 0, 0, "Private key file already exists, won't overwrite");
             fclose(f);
             return NULL;
         }
         if ((f = fopen(filename, "wb")) == NULL) {
-            syserror(0, 0, "failed to open key file");
+            syserror(0, 0, 0, "failed to open key file");
             return NULL;
         }
         if (!PEM_write_RSAPrivateKey(f, rsa, NULL, NULL, 0, NULL, NULL)) {
@@ -1111,7 +1111,7 @@ RSA_key_t read_RSA_key(const char *filename)
     FILE *f;
 
     if ((f = fopen(filename, "rb")) == NULL) {
-        syserror(0, 0, "failed to open key file");
+        syserror(0, 0, 0, "failed to open key file");
         return NULL;
     }
     if ((rsa = PEM_read_RSAPrivateKey(f, NULL, NULL, NULL)) == NULL) {
@@ -1149,12 +1149,12 @@ EC_key_t gen_EC_key(uint8_t curve, int isdh, const char *filename)
 
     if (filename && strcmp(filename, "")) {
         if ((f = fopen(filename, "rb")) != NULL) {
-            log0(0, 0, "Private key file already exists, won't overwrite");
+            log0(0, 0, 0, "Private key file already exists, won't overwrite");
             fclose(f);
             return NULL;
         }
         if ((f = fopen(filename, "wb")) == NULL) {
-            syserror(0, 0, "failed to open key file");
+            syserror(0, 0, 0, "failed to open key file");
             return NULL;
         }
         if (!PEM_write_ECPrivateKey(f, ec, NULL, NULL, 0, NULL, NULL)) {
@@ -1167,7 +1167,7 @@ EC_key_t gen_EC_key(uint8_t curve, int isdh, const char *filename)
 
     return ec;
 #else
-    log0(0, 0, "EC keys not supported");
+    log0(0, 0, 0, "EC keys not supported");
     return NULL;
 #endif
 }
@@ -1182,7 +1182,7 @@ EC_key_t read_EC_key(const char *filename)
     FILE *f;
 
     if ((f = fopen(filename, "rb")) == NULL) {
-        syserror(0, 0, "failed to open key file");
+        syserror(0, 0, 0, "failed to open key file");
         return NULL;
     }
     if ((ec = PEM_read_ECPrivateKey(f, NULL, NULL, NULL)) == NULL) {
@@ -1193,7 +1193,7 @@ EC_key_t read_EC_key(const char *filename)
 
     return ec;
 #else
-    log0(0, 0, "EC keys not supported");
+    log0(0, 0, 0, "EC keys not supported");
     return NULL;
 #endif
 }
@@ -1208,7 +1208,7 @@ union key_t read_private_key(const char *filename, int *keytype)
 
     key.key = 0;
     if ((f = fopen(filename, "rb")) == NULL) {
-        syserror(0, 0, "failed to open key file");
+        syserror(0, 0, 0, "failed to open key file");
         *keytype = 0;
         return key;
     }
@@ -1222,20 +1222,20 @@ union key_t read_private_key(const char *filename, int *keytype)
 #ifndef NO_EC
     key.key = 0;
     if ((f = fopen(filename, "rb")) == NULL) {
-        syserror(0, 0, "failed to open key file");
+        syserror(0, 0, 0, "failed to open key file");
         *keytype = 0;
         return key;
     }
     if ((key.ec = PEM_read_ECPrivateKey(f, NULL, NULL, NULL)) != NULL) {
         *keytype = KEYBLOB_EC;
     } else {
-        log0(0, 0, "Failed to read key");
+        log0(0, 0, 0, "Failed to read key");
         *keytype = 0;
     }
     fclose(f);
     return key;
 #else
-    log0(0, 0, "Failed to read key");
+    log0(0, 0, 0, "Failed to read key");
     key.key = 0;
     *keytype = 0;
     return key;
@@ -1253,7 +1253,7 @@ uint8_t get_EC_curve(const EC_key_t ec)
     nid = EC_GROUP_get_curve_name(EC_KEY_get0_group(ec));
     return get_ec_curve_type(nid);
 #else
-    log0(0, 0, "EC keys not supported");
+    log0(0, 0, 0, "EC keys not supported");
     return 0;
 #endif
 }

@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -74,14 +74,12 @@ int set_enc_info(const struct finfo_t *finfo, struct enc_info_he *encinfo)
     memcpy(encinfo->rand1, rand1, sizeof(rand1));
     if ((keyextype == KEYEX_RSA) || (keyextype == KEYEX_ECDH_RSA)) {
         if (!export_RSA_key(privkey.rsa, keyblob, &bloblen)) {
-            log0(finfo->group_id, finfo->file_id,
-                    "Error exporting server public key");
+            glog0(finfo, "Error exporting server public key");
             return 0;
         }
     } else {
         if (!export_EC_key(privkey.ec, keyblob, &bloblen)) {
-            log0(finfo->group_id, finfo->file_id,
-                    "Error exporting server public key");
+            glog0(finfo, "Error exporting server public key");
             return 0;
         }
     }
@@ -92,8 +90,7 @@ int set_enc_info(const struct finfo_t *finfo, struct enc_info_he *encinfo)
                           ntohs(encinfo->keylen));
 
         if (!export_EC_key(dhkey.ec, dhblob, &dhlen)) {
-            log0(finfo->group_id, finfo->file_id,
-                    "Error exporting server ECDH public key");
+            glog0(finfo, "Error exporting server ECDH public key");
             return 0;
         }
         encinfo->dhlen = htons(dhlen);
@@ -175,8 +172,7 @@ int send_announce(const struct finfo_t *finfo, int attempt, int open)
     if (keytype != KEY_NONE) {
         extlen = set_enc_info(finfo, encinfo);
         if (extlen == 0) {
-            log0(finfo->group_id, finfo->file_id,
-                    "Error setting up EXT_ENC_INFO");
+            glog0(finfo, "Error setting up EXT_ENC_INFO");
             free(buf);
             return 0;
         }
@@ -191,14 +187,14 @@ int send_announce(const struct finfo_t *finfo, int attempt, int open)
         header->seq = htons(send_seq++);
         packetlen = sizeof(struct uftp_h) + (announce->hlen * 4);
         if (!sign_announce(finfo, buf, packetlen)) {
-            log0(finfo->group_id, finfo->file_id, "Error signing ANNOUNCE");
+            glog0(finfo, "Error signing ANNOUNCE");
             free(buf);
             return 0;
         }
-        log2(finfo->group_id, finfo->file_id, "Sending ANNOUNCE %d", attempt);
+        glog2(finfo, "Sending ANNOUNCE %d", attempt);
         if (nb_sendto(sock, buf, packetlen, 0, (struct sockaddr *)&listen_dest,
                       family_len(listen_dest)) == SOCKET_ERROR) {
-            sockerror(finfo->group_id,finfo->file_id, "Error sending ANNOUNCE");
+            gsockerror(finfo, "Error sending ANNOUNCE");
             // So we don't spin our wheels...
             sleep(1);
             free(buf);
@@ -292,8 +288,8 @@ int send_keyinfo(const struct finfo_t *finfo, int attempt)
             if (!encrypt_block(unauth_keytype, iv,destlist[i].encinfo->key,
                                NULL,0, &groupmaster[1], sizeof(groupmaster) - 1,
                                keylist[dests].groupmaster, &len)) {
-                log0(finfo->group_id, finfo->file_id,
-                        "Error encrypting KEYINFO for %s", destlist[i].name);
+                glog0(finfo, "Error encrypting KEYINFO for %s",
+                             destlist[i].name);
                 free(buf);
                 free(iv);
                 return 0;
@@ -303,13 +299,11 @@ int send_keyinfo(const struct finfo_t *finfo, int attempt)
         if ((dests >= maxdest) || ((i == destcount - 1) && (dests > 0))) {
             header->seq = htons(send_seq++);
             payloadlen = hsize + (dests * sizeof(struct destkey));
-            log2(finfo->group_id, finfo->file_id,
-                    "Sending KEYINFO %d.%d", attempt, packetcnt);
+            glog2(finfo, "Sending KEYINFO %d.%d", attempt, packetcnt);
             if (nb_sendto(sock, buf, payloadlen + sizeof(struct uftp_h), 0,
                           (struct sockaddr *)&receive_dest,
                           family_len(receive_dest)) == SOCKET_ERROR) {
-                sockerror(finfo->group_id, finfo->file_id,
-                        "Error sending KEYINFO");
+                gsockerror(finfo, "Error sending KEYINFO");
                 sleep(1);
                 free(buf);
                 free(iv);
@@ -342,8 +336,7 @@ int send_fileinfo(const struct finfo_t *finfo, int attempt)
     char *filename, *linkname;
 
     if (strlen(finfo->destfname) > MAXPATHNAME) {
-        log0(finfo->group_id, finfo->file_id,
-                "File name too long: %s", finfo->destfname);
+        glog0(finfo, "File name too long: %s", finfo->destfname);
         return 0;
     }
 
@@ -373,8 +366,7 @@ int send_fileinfo(const struct finfo_t *finfo, int attempt)
     if (finfo->ftype == FTYPE_LINK) {
         if (strlen(finfo->linkname) > 
                 (unsigned)MAXPATHNAME - (fileinfo->namelen * 4)) {
-            log0(finfo->group_id, finfo->file_id,
-                    "Link name too long: %s", finfo->linkname);
+            glog0(finfo, "Link name too long: %s", finfo->linkname);
             free(buf);
             return 0;
         }
@@ -397,14 +389,14 @@ int send_fileinfo(const struct finfo_t *finfo, int attempt)
  * Adds a registered host to the hostlist.  Returns the list index.
  */
 int add_dest_by_addr(uint32_t id, struct finfo_t *finfo,
-                     int state, int proxyidx, int clientcnt)
+                     int state, int proxyidx, int isproxy)
 {
     snprintf(destlist[destcount].name, sizeof(destlist[destcount].name),
              "0x%08X", ntohl(id));
     destlist[destcount].id = id;
     destlist[destcount].status = state;
     destlist[destcount].proxyidx = proxyidx;
-    destlist[destcount].clientcnt = clientcnt;
+    destlist[destcount].isproxy = isproxy;
     return destcount++;
 }
 
@@ -415,44 +407,29 @@ void add_proxy_dests(struct finfo_t *finfo, const uint32_t *idlist,
                      const union sockaddr_u *su, int clientcnt,
                      int proxyidx, int open, double rtt)
 {
-    int startcnt, addcnt, hostidx, i, dupmsg;
+    int hostidx, i, dupmsg;
 
-    if (destlist[proxyidx].clientcnt == -1) {
+    if (!destlist[proxyidx].isproxy) {
         // True when using open group membership and
         // we get a CLIENT_KEY before the REGSITER for a proxy
-        destlist[proxyidx].clientcnt = 0;
+        destlist[proxyidx].isproxy = 1;
     }
-    if (destlist[proxyidx].clients == NULL) {
-        destlist[proxyidx].clients =
-                safe_calloc(MAXPROXYDEST, sizeof(*destlist[proxyidx].clients));
-    }
-    startcnt = destlist[proxyidx].clientcnt;
-    for (addcnt = 0, i = 0; i < clientcnt; i++) {
+    for (i = 0; i < clientcnt; i++) {
         dupmsg = 0;
         hostidx = find_client(idlist[i]);
         if (hostidx == -1) {
             if (open) {
                 if (destcount == MAXDEST) {
-                    log1(finfo->group_id, finfo->file_id,
-                        "Rejecting client %08X: max destinations exceeded",
-                        ntohl(idlist[i]));
+                    glog1(finfo, "Rejecting client %08X: "
+                                 "max destinations exceeded", ntohl(idlist[i]));
                     send_abort(finfo, "Max destinations exceeded",
                                su, idlist[i], 0, 0);
                     continue;
                 }
-                if (startcnt + addcnt == MAXPROXYDEST) {
-                    log1(finfo->group_id, finfo->file_id,
-                            "Rejecting client %08X: max destinations "
-                            "exceeded for proxy", idlist[i]);
-                    send_abort(finfo, "Max destinations exceeded for proxy",
-                               su, idlist[i], 0, 0);
-                    continue;
-                }
                 hostidx = add_dest_by_addr(idlist[i], finfo, DEST_ACTIVE,
-                                           proxyidx, -1);
+                                           proxyidx, 0);
             } else {
-                log1(finfo->group_id, finfo->file_id,
-                        "Host %08X not in host list", idlist[i]);
+                glog1(finfo, "Host %08X not in host list", idlist[i]);
                 send_abort(finfo, "Not in host list", su, idlist[i], 0, 0);
                 continue;
             }
@@ -463,12 +440,9 @@ void add_proxy_dests(struct finfo_t *finfo, const uint32_t *idlist,
         }
         destlist[hostidx].rtt = rtt;
         finfo->deststate[hostidx].conf_sent = 0;
-        log1(finfo->group_id, finfo->file_id,
-                "  For client%s %s", dupmsg ? "+" : "", destlist[hostidx].name);
-        destlist[proxyidx].clients[addcnt + startcnt] = hostidx;
-        addcnt++;
+        glog1(finfo, "  For client%s %s", dupmsg ? "+" : "",
+                destlist[hostidx].name);
     }
-    destlist[proxyidx].clientcnt += addcnt;
 }
 
 /**
@@ -535,8 +509,7 @@ uint8_t *build_verify_data(const struct finfo_t *finfo, int hostidx,
             } else {
                 if (!export_EC_key(destlist[hostidx].encinfo->pubkey.ec,
                                    keyblob, &bloblen)) {
-                    log0(finfo->group_id, finfo->file_id,
-                            "Error exporting server public key");
+                    glog0(finfo, "Error exporting server public key");
                     free(verifydata);
                     return NULL;
                 }
@@ -565,8 +538,8 @@ int verify_client_key(struct finfo_t *finfo, int hostidx)
         if (!verify_RSA_sig(destlist[hostidx].encinfo->pubkey.rsa, hashtype,
                 verifydata, verifylen, destlist[hostidx].encinfo->verifydata,
                 destlist[hostidx].encinfo->verifylen)) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting CLIENT_KEY "
-                    "from %s: verify data mismatch", destlist[hostidx].name);
+            glog1(finfo, "Rejecting CLIENT_KEY from %s: verify data mismatch",
+                         destlist[hostidx].name);
             free(verifydata);
             return 0;
         }
@@ -574,8 +547,8 @@ int verify_client_key(struct finfo_t *finfo, int hostidx)
         if (!verify_ECDSA_sig(destlist[hostidx].encinfo->pubkey.ec, hashtype,
                 verifydata, verifylen, destlist[hostidx].encinfo->verifydata,
                 destlist[hostidx].encinfo->verifylen)) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting CLIENT_KEY "
-                    "from %s: verify data mismatch", destlist[hostidx].name);
+            glog1(finfo, "Rejecting CLIENT_KEY from %s: verify data mismatch",
+                         destlist[hostidx].name);
             free(verifydata);
             return 0;
         }
@@ -637,33 +610,31 @@ int handle_register_keys(const struct register_h *reg,
     if (keyextype == KEYEX_RSA) {
         if (!RSA_decrypt(privkey.rsa, keyinfo, ntohs(reg->keyinfo_len),
                          premaster, &len)) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting REGISTER from %s: "
-                  "failed to decrypt premaster secret", destlist[hostidx].name);
+            glog1(finfo, "Rejecting REGISTER from %s: failed to decrypt "
+                         "premaster secret", destlist[hostidx].name);
             return 0;
         }
         if (len != MASTER_LEN) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting REGISTER from %s: "
-                    "decrypted premaster secret wrong length",
-                    destlist[hostidx].name);
+            glog1(finfo, "Rejecting REGISTER from %s: decrypted premaster "
+                         "secret wrong length", destlist[hostidx].name);
             return 0;
         }
     } else {
         if (!import_EC_key(&destlist[hostidx].encinfo->dhkey.ec, keyinfo,
                            ntohs(reg->keyinfo_len), 1)) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting REGISTER from %s: "
-                    "failed to import ECDH key", destlist[hostidx].name);
+            glog1(finfo, "Rejecting REGISTER from %s: "
+                         "failed to import ECDH key", destlist[hostidx].name);
             return 0;
         }
         if (get_EC_curve(destlist[hostidx].encinfo->dhkey.ec) != ecdh_curve) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting REGISTER from %s: "
-                    "invalid curve for ECDH", destlist[hostidx].name);
+            glog1(finfo, "Rejecting REGISTER from %s: "
+                         "invalid curve for ECDH", destlist[hostidx].name);
             return 0;
         }
         if (!get_ECDH_key(destlist[hostidx].encinfo->dhkey.ec, dhkey.ec,
                           premaster, &len)) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting REGISTER from %s: "
-                    "failed to calculate premaster secret",
-                    destlist[hostidx].name);
+            glog1(finfo, "Rejecting REGISTER from %s: failed to calculate "
+                         "premaster secret", destlist[hostidx].name);
             return 0;
         }
     }
@@ -698,22 +669,21 @@ void handle_open_register(const unsigned char *message, unsigned meslen,
     gettimeofday(&tv2, NULL);
 
     if (destcount == MAXDEST) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting REGISTER from %08X: "
-                "max destinations exceeded", ntohl(src));
+        glog1(finfo, "Rejecting REGISTER from %08X: "
+                     "max destinations exceeded", ntohl(src));
         send_abort(finfo, "Max destinations exceeded", su, src, 0, 0);
         return;
     }
     if ((meslen < (reg->hlen * 4U)) || ((reg->hlen * 4U) <
             sizeof(struct register_h) + ntohs(reg->keyinfo_len))) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting REGISTER from %08X: "
-                "invalid message size", ntohl(src));
+        glog1(finfo, "Rejecting REGISTER from %08X: "
+                     "invalid message size", ntohl(src));
         send_abort(finfo, "Invalid message size", su, src, 0, 0);
         return;
     }
 
     clientcnt = (meslen - (reg->hlen * 4)) / 4;
-    hostidx = add_dest_by_addr(src, finfo, DEST_MUTE, -1,
-                               (clientcnt > 0) ? 0 : -1);
+    hostidx = add_dest_by_addr(src, finfo, DEST_MUTE, -1, (clientcnt > 0));
     if (keytype != KEY_NONE) {
         if (!handle_register_keys(reg, enckey, finfo, hostidx)) {
             return;
@@ -732,18 +702,16 @@ void handle_open_register(const unsigned char *message, unsigned meslen,
     destlist[hostidx].registered = 1;
     destlist[hostidx].status =
             regconf ? DEST_ACTIVE : (client_auth ? DEST_MUTE : DEST_REGISTERED);
-    log2(finfo->group_id, finfo->file_id, "Received REGISTER from %s %s",
+    glog2(finfo, "Received REGISTER from %s %s",
               (clientcnt > 0) ? "proxy" : "client", destlist[hostidx].name);
     if (clientcnt > 0) {
         idlist = (const uint32_t *)(message + (reg->hlen * 4));
         add_proxy_dests(finfo, idlist, su, clientcnt, hostidx, 1,
                         destlist[hostidx].rtt);
     }
-    log3(finfo->group_id, finfo->file_id,
-            "send time = %d.%06d", tv1.tv_sec, tv1.tv_usec);
-    log3(finfo->group_id, finfo->file_id,
-            "rx time = %d.%06d", tv2.tv_sec, tv2.tv_usec);
-    log3(finfo->group_id,finfo->file_id, "  rtt = %.6f", destlist[hostidx].rtt);
+    glog3(finfo, "send time = %d.%06d", tv1.tv_sec, tv1.tv_usec);
+    glog3(finfo, "rx time = %d.%06d", tv2.tv_sec, tv2.tv_usec);
+    glog3(finfo, "  rtt = %.6f", destlist[hostidx].rtt);
 }
 
 /**
@@ -766,24 +734,22 @@ void handle_register(const unsigned char *message, unsigned meslen,
 
     if ((meslen < (reg->hlen * 4U)) || ((reg->hlen * 4U) <
             sizeof(struct register_h) + ntohs(reg->keyinfo_len))) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting REGISTER from %s: "
-                "invalid message size", destlist[hostidx].name);
+        glog1(finfo, "Rejecting REGISTER from %s: "
+                     "invalid message size", destlist[hostidx].name);
         send_abort(finfo, "Invalid message size", su, destlist[hostidx].id,0,0);
         return;
     }
     clientcnt = (meslen - (reg->hlen * 4)) / 4;
-    if ((clientcnt > 0) && (destlist[hostidx].clientcnt == -1) && (!open)) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting REGISTER from %s: "
-                "specified multiple clients but not a proxy",
-                destlist[hostidx].name);
+    if ((clientcnt > 0) && (!destlist[hostidx].isproxy) && (!open)) {
+        glog1(finfo, "Rejecting REGISTER from %s: specified multiple clients "
+                     "but not a proxy", destlist[hostidx].name);
         send_abort(finfo, "specified multiple clients but not a proxy", su,
                    destlist[hostidx].id, 0, 0);
         destlist[hostidx].status = DEST_ABORT;
         return;
     }    
     if (finfo->file_id != 0) {
-        log2(finfo->group_id, finfo->file_id,
-                "Received REGISTER+ from %s", destlist[hostidx].name);
+        glog2(finfo, "Received REGISTER+ from %s", destlist[hostidx].name);
         return;
     }
 
@@ -809,8 +775,8 @@ void handle_register(const unsigned char *message, unsigned meslen,
     if (regconf) {
         finfo->deststate[hostidx].conf_sent = 0;
     }
-    isproxy = (destlist[hostidx].clientcnt != -1);
-    log2(finfo->group_id, finfo->file_id, "Received REGISTER%s from %s %s",
+    isproxy = destlist[hostidx].isproxy;
+    glog2(finfo, "Received REGISTER%s from %s %s",
             (dupmsg && !isproxy) ? "+" : "",
             (isproxy) ? "proxy" : "client", destlist[hostidx].name);
     if (clientcnt > 0) {
@@ -818,11 +784,9 @@ void handle_register(const unsigned char *message, unsigned meslen,
         add_proxy_dests(finfo, idlist, su, clientcnt, hostidx, open,
                         destlist[hostidx].rtt);
     }
-    log3(finfo->group_id, finfo->file_id,
-            "send time = %d.%06d", tv1.tv_sec, tv1.tv_usec);
-    log3(finfo->group_id, finfo->file_id,
-            "rx time = %d.%06d", tv2.tv_sec, tv2.tv_usec);
-    log3(finfo->group_id,finfo->file_id, "  rtt = %.6f", destlist[hostidx].rtt);
+    glog3(finfo, "send time = %d.%06d", tv1.tv_sec, tv1.tv_usec);
+    glog3(finfo, "rx time = %d.%06d", tv2.tv_sec, tv2.tv_usec);
+    glog3(finfo, "  rtt = %.6f", destlist[hostidx].rtt);
 }
 
 /**
@@ -842,8 +806,8 @@ int verify_client_fingerprint(const struct finfo_t *finfo,
     if (keyblob[0] == KEYBLOB_RSA) {
         if (!import_RSA_key(&destlist[hostidx].encinfo->pubkey.rsa,
                             keyblob, bloblen)) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting CLIENT_KEY "
-                    "from %s: failed to import key", destlist[hostidx].name);
+            glog1(finfo, "Rejecting CLIENT_KEY from %s: "
+                         "failed to import key", destlist[hostidx].name);
             return 0;
         }
         destlist[hostidx].encinfo->pubkeylen =
@@ -851,8 +815,8 @@ int verify_client_fingerprint(const struct finfo_t *finfo,
     } else {
         if (!import_EC_key(&destlist[hostidx].encinfo->pubkey.ec,
                            keyblob, bloblen, 0)) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting CLIENT_KEY "
-                    "from %s: failed to import key", destlist[hostidx].name);
+            glog1(finfo, "Rejecting CLIENT_KEY from %s: "
+                         "failed to import key", destlist[hostidx].name);
             return 0;
         }
         destlist[hostidx].encinfo->pubkeylen =
@@ -862,8 +826,8 @@ int verify_client_fingerprint(const struct finfo_t *finfo,
     if (destlist[hostidx].has_fingerprint) {
         hash(HASH_SHA1, keyblob, bloblen, fingerprint, &fplen);
         if (memcmp(destlist[hostidx].keyfingerprint, fingerprint, fplen)) {
-            log1(finfo->group_id, finfo->file_id, "Rejecting CLIENT_KEY "
-                   "from %s: key fingerprint mismatch", destlist[hostidx].name);
+            glog1(finfo, "Rejecting CLIENT_KEY from %s: "
+                         "key fingerprint mismatch", destlist[hostidx].name);
             if (keyblob[0] == KEYBLOB_RSA) {
                 free_RSA_key(destlist[hostidx].encinfo->pubkey.rsa);
             } else {
@@ -895,16 +859,16 @@ void handle_open_clientkey(const unsigned char *message, unsigned meslen,
     verify = keyblob + ntohs(clientkey->bloblen);
 
     if (destcount == MAXDEST) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting CLIENT_KEY from %08X: "
-                "max destinations exceeded", ntohl(src));
+        glog1(finfo, "Rejecting CLIENT_KEY from %08X: "
+                     "max destinations exceeded", ntohl(src));
         send_abort(finfo, "Max destinations exceeded", su, src, 0, 0);
         return;
     }
     if ((meslen < (clientkey->hlen * 4U)) ||
             ((clientkey->hlen * 4U) < sizeof(struct client_key_h) +
                 ntohs(clientkey->bloblen) + ntohs(clientkey->siglen))) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting CLIENT_KEY from %08X: "
-                "invalid message size", ntohl(src));
+        glog1(finfo, "Rejecting CLIENT_KEY from %08X: "
+                     "invalid message size", ntohl(src));
         send_abort(finfo, "Invalid message size", su, src, 0, 0);
         return;
     }
@@ -912,12 +876,12 @@ void handle_open_clientkey(const unsigned char *message, unsigned meslen,
                 (keyblob[0] != KEYBLOB_RSA)) ||
             ((keyextype == KEYEX_ECDH_ECDSA) &&
              (keyblob[0] != KEYBLOB_EC))) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting CLIENT_KEY from %08X: "
-                "invalid keyblob type", ntohl(src));
+        glog1(finfo, "Rejecting CLIENT_KEY from %08X: "
+                     "invalid keyblob type", ntohl(src));
         return;
     }
 
-    hostidx = add_dest_by_addr(src, finfo, DEST_MUTE, -1, -1);
+    hostidx = add_dest_by_addr(src, finfo, DEST_MUTE, -1, 0);
     if (!verify_client_fingerprint(finfo, keyblob, ntohs(clientkey->bloblen),
                                    hostidx)) {
         return;
@@ -925,8 +889,7 @@ void handle_open_clientkey(const unsigned char *message, unsigned meslen,
     memcpy(destlist[hostidx].encinfo->verifydata, verify,
             ntohs(clientkey->siglen));
     destlist[hostidx].encinfo->verifylen = ntohs(clientkey->siglen);
-    log2(finfo->group_id, finfo->file_id, "Received CLIENT_KEY from %s",
-            destlist[hostidx].name);
+    glog2(finfo, "Received CLIENT_KEY from %s", destlist[hostidx].name);
 }
 
 /**
@@ -947,8 +910,8 @@ void handle_clientkey(const unsigned char *message, unsigned meslen,
     if ((meslen < (clientkey->hlen * 4U)) ||
             ((clientkey->hlen * 4U) < sizeof(struct client_key_h) +
                 ntohs(clientkey->bloblen) + ntohs(clientkey->siglen))) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting CLIENT_KEY from %s: "
-                "invalid message size", destlist[hostidx].name);
+        glog1(finfo, "Rejecting CLIENT_KEY from %s: "
+                     "invalid message size", destlist[hostidx].name);
         send_abort(finfo, "Invalid message size", su, destlist[hostidx].id,0,0);
         return;
     }
@@ -956,13 +919,12 @@ void handle_clientkey(const unsigned char *message, unsigned meslen,
                 (keyblob[0] != KEYBLOB_RSA)) ||
             ((keyextype == KEYEX_ECDH_ECDSA) &&
              (keyblob[0] != KEYBLOB_EC))) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting CLIENT_KEY from %s: "
-                "invalid keyblob type", destlist[hostidx].name);
+        glog1(finfo, "Rejecting CLIENT_KEY from %s: "
+                     "invalid keyblob type", destlist[hostidx].name);
         return;
     }
     if (finfo->file_id != 0) {
-        log2(finfo->group_id, finfo->file_id,
-                "Received CLIENT_KEY+ from %s", destlist[hostidx].name);
+        glog2(finfo, "Received CLIENT_KEY+ from %s", destlist[hostidx].name);
         return;
     }
 
@@ -978,8 +940,7 @@ void handle_clientkey(const unsigned char *message, unsigned meslen,
             return;
         }
     }
-    log2(finfo->group_id, finfo->file_id,
-            "Received CLIENT_KEY from %s", destlist[hostidx].name);
+    glog2(finfo, "Received CLIENT_KEY from %s", destlist[hostidx].name);
 }
 
 /**
@@ -998,23 +959,23 @@ void handle_keyinfo_ack(const unsigned char *message, unsigned meslen,
 
     if ((meslen < (keyinfoack->hlen * 4U)) ||
             ((keyinfoack->hlen * 4U) < sizeof(struct keyinfoack_h))) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting KEYINFO_ACK from %s: "
-                "invalid message size", destlist[hostidx].name);
+        glog1(finfo, "Rejecting KEYINFO_ACK from %s: "
+                     "invalid message size", destlist[hostidx].name);
         send_abort(finfo, "Invalid message size", su, destlist[hostidx].id,0,0);
         return;
     }
 
     if (keytype == KEY_NONE) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting KEYINFO_ACK from %s: "
-                "encryption not enabled", destlist[hostidx].name);
+        glog1(finfo, "Rejecting KEYINFO_ACK from %s: "
+                     "encryption not enabled", destlist[hostidx].name);
         send_abort(finfo, "Encryption not enabled", su, destlist[hostidx].id,
                    0, 0);
         return;
     }
 
     if (!(verifydata = build_verify_data(finfo, hostidx, &verifylen))) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting KEYINFO_ACK from %s: "
-                "error exporting client public key", destlist[hostidx].name);
+        glog1(finfo, "Rejecting KEYINFO_ACK from %s: "
+                     "error exporting client public key", destlist[hostidx].name);
         return;
     }
     verify_hash = safe_calloc(hmaclen, 1);
@@ -1023,8 +984,8 @@ void handle_keyinfo_ack(const unsigned char *message, unsigned meslen,
     PRF(hashtype, VERIFY_LEN, groupmaster, sizeof(groupmaster),
             "client finished", verify_hash, hashlen, verify_test, &len);
     if (memcmp(keyinfoack->verify_data, verify_test, VERIFY_LEN)) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting KEYINFO_ACK from %s: "
-                "verify data mismatch", destlist[hostidx].name);
+        glog1(finfo, "Rejecting KEYINFO_ACK from %s: "
+                     "verify data mismatch", destlist[hostidx].name);
         free(verifydata);
         free(verify_hash);
         free(verify_test);
@@ -1036,8 +997,8 @@ void handle_keyinfo_ack(const unsigned char *message, unsigned meslen,
     free(verify_test);
 
     dupmsg = (destlist[hostidx].status == DEST_ACTIVE);
-    log2(finfo->group_id, finfo->file_id, "Received KEYINFO_ACK%s from %s",
-            dupmsg ? "+" : "", destlist[hostidx].name);
+    glog2(finfo, "Received KEYINFO_ACK%s from %s", dupmsg ? "+" : "",
+                 destlist[hostidx].name);
     destlist[hostidx].status = DEST_ACTIVE;
 }
 
@@ -1057,22 +1018,22 @@ void handle_fileinfo_ack(const unsigned char *message, unsigned meslen,
 
     if ((meslen < (fileinfoack->hlen * 4U)) ||
             ((fileinfoack->hlen * 4U) < sizeof(struct fileinfoack_h))) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting FILEINFO_ACK from %s: "
-                "invalid message size", destlist[hostidx].name);
+        glog1(finfo, "Rejecting FILEINFO_ACK from %s: "
+                     "invalid message size", destlist[hostidx].name);
         return;
     }
     clientcnt = (meslen - (fileinfoack->hlen * 4)) / 4;
-    if ((clientcnt > 0) && (destlist[hostidx].clientcnt == -1)) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting FILEINFO_ACK from %s: "
-                "specified multiple clients but not a proxy",
+    if ((clientcnt > 0) && (!destlist[hostidx].isproxy)) {
+        glog1(finfo, "Rejecting FILEINFO_ACK from %s: "
+                     "specified multiple clients but not a proxy",
                 destlist[hostidx].name);
         return;
     }    
 
     if (ntohs(fileinfoack->file_id) != finfo->file_id) {
-        log1(finfo->group_id, finfo->file_id, "Rejecting FILEINFO_ACK from %s: "
+        glog1(finfo, "Rejecting FILEINFO_ACK from %s: "
                 "invalid file ID %04X, expected %04X ", destlist[hostidx].name,
-                ntohs(fileinfoack->file_id), finfo->file_id );
+                ntohs(fileinfoack->file_id), finfo->file_id);
         return;
     }
     finfo->partial = finfo->partial &&
@@ -1086,35 +1047,32 @@ void handle_fileinfo_ack(const unsigned char *message, unsigned meslen,
     }
     destlist[hostidx].rtt_measured = 1;
     destlist[hostidx].rtt_sent = 0;
-    isproxy = (destlist[hostidx].clientcnt != -1);
+    isproxy = destlist[hostidx].isproxy;
     dupmsg = (destlist[hostidx].status == DEST_ACTIVE);
     destlist[hostidx].status = DEST_ACTIVE;
-    log2(finfo->group_id, finfo->file_id, "Received FILEINFO_ACK%s from %s %s",
-               (dupmsg && !isproxy) ? "+" : "",
-               (isproxy) ? "proxy" : "client", destlist[hostidx].name);
+    glog2(finfo, "Received FILEINFO_ACK%s from %s %s",
+                 (dupmsg && !isproxy) ? "+" : "",
+                 (isproxy) ? "proxy" : "client", destlist[hostidx].name);
     if (clientcnt > 0) {
         addr = (const uint32_t *)(message + (fileinfoack->hlen * 4));
         for (i = 0; i < clientcnt; i++) {
             dupmsg = 0;
             clientidx = find_client(addr[i]);
             if (clientidx == -1) {
-                log2(finfo->group_id, finfo->file_id,
-                        "Host %08X not in host list", ntohl(addr[i]));
+                glog2(finfo, "Host %08X not in host list", ntohl(addr[i]));
                 continue;
             } else {
                 dupmsg = (destlist[clientidx].status == DEST_ACTIVE);
                 destlist[clientidx].status = DEST_ACTIVE;
                 destlist[clientidx].rtt = destlist[hostidx].rtt;
             }
-            log2(finfo->group_id, finfo->file_id, "  For client%s %s",
-                    dupmsg ? "+" : "", destlist[clientidx].name);
+            glog2(finfo, "  For client%s %s", dupmsg ? "+" : "",
+                         destlist[clientidx].name);
         }
     }
-    log3(finfo->group_id, finfo->file_id,
-            "send time = %d.%06d", tv1.tv_sec, tv1.tv_usec);
-    log3(finfo->group_id, finfo->file_id,
-            "rx time = %d.%06d", tv2.tv_sec, tv2.tv_usec);
-    log3(finfo->group_id,finfo->file_id, "  rtt = %.6f", destlist[hostidx].rtt);
+    glog3(finfo, "send time = %d.%06d", tv1.tv_sec, tv1.tv_usec);
+    glog3(finfo, "rx time = %d.%06d", tv2.tv_sec, tv2.tv_usec);
+    glog3(finfo, "  rtt = %.6f", destlist[hostidx].rtt);
 
     return;
 }

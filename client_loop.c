@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -87,8 +87,7 @@ struct timeval *getrecenttimeout(void)
                         break;
                     case PHASE_RECEIVING:
                     case PHASE_MIDGROUP:
-                        log1(group->group_id, group->file_id,
-                             "Transfer timed out");
+                        glog1(group, "Transfer timed out");
                         send_abort(group, "Transfer timed out");
                         break;
                     case PHASE_COMPLETE:
@@ -99,9 +98,9 @@ struct timeval *getrecenttimeout(void)
                 } else if ((!found_timeout) ||
                            (cmptimestamp(group->timeout_time,
                                          min_timestamp) < 0)) {
-                    log5(0, 0, "found min timeout time: %d:%06d",
-                         group->timeout_time.tv_sec,
-                         group->timeout_time.tv_usec);
+                    glog5(group, "found min timeout time: %d:%06d",
+                                 group->timeout_time.tv_sec,
+                                 group->timeout_time.tv_usec);
                     min_timestamp = group->timeout_time;
                     found_timeout = 1;
                 }
@@ -119,8 +118,8 @@ struct timeval *getrecenttimeout(void)
                             section++) {
                         naks = NULL;
                         nak_count = get_naks(group, section, &naks);
-                        log3(group->group_id, group->file_id,
-                             "read %d NAKs for section %d", nak_count, section);
+                        glog3(group, "read %d NAKs for section %d",
+                                     nak_count, section);
                         if (nak_count > 0) {
                             send_status(group, section, naks, nak_count);
                             sent_naks = 1;
@@ -129,8 +128,7 @@ struct timeval *getrecenttimeout(void)
                         naks = NULL;
                     }
                     if (file_done(group, 1)) {
-                        log2(group->group_id, group->file_id,
-                             "File transfer complete");
+                        glog2(group, "File transfer complete");
                         send_complete(group, 0);
                         file_cleanup(group, 0);
                     } else if (group->fileinfo.got_done && !sent_naks) {
@@ -147,7 +145,7 @@ struct timeval *getrecenttimeout(void)
                            ((!found_timeout) ||
                             (cmptimestamp(group->fileinfo.nak_time,
                                           min_timestamp) < 0))) {
-                    log5(0, 0, "found min nak time: %d:%06d",
+                    glog5(group, "found min nak time: %d:%06d",
                          group->fileinfo.nak_time.tv_sec,
                          group->fileinfo.nak_time.tv_usec);
                     min_timestamp = group->fileinfo.nak_time;
@@ -163,7 +161,7 @@ struct timeval *getrecenttimeout(void)
                                ((!found_timeout) ||
                                 (cmptimestamp(group->cc_time,
                                               min_timestamp) < 0))) {
-                        log5(0, 0, "found min CC time: %d:%06d",
+                        glog5(group, "found min CC time: %d:%06d",
                              group->cc_time.tv_sec, group->cc_time.tv_usec);
                         min_timestamp = group->cc_time;
                         found_timeout = 1;
@@ -222,14 +220,14 @@ void mainloop(void)
     struct timeval *tv, rxtime;
     double new_grtt;
 
-    log2(0, 0, "%s", VERSIONSTR);
+    log2(0, 0, 0, "%s", VERSIONSTR);
     for (i = 0; i < key_count; i++) {
         if (privkey_type[i] == KEYBLOB_RSA) {
-            log2(0, 0, "Loaded %d bit RSA key with fingerprint %s",
+            log2(0, 0, 0, "Loaded %d bit RSA key with fingerprint %s",
                   RSA_keylen(privkey[i].rsa) * 8,
                   print_key_fingerprint(privkey[i], KEYBLOB_RSA));
         } else {
-            log2(0, 0, "Loaded ECDSA key with curve %s and fingerprint %s",
+            log2(0, 0, 0, "Loaded ECDSA key with curve %s and fingerprint %s",
                   curve_name(get_EC_curve(privkey[i].ec)),
                   print_key_fingerprint(privkey[i], KEYBLOB_EC));
         }
@@ -242,7 +240,7 @@ void mainloop(void)
     while (1) {
         tv = getrecenttimeout();
         if (tv) {
-            log5(0, 0, "read timeout: %d.%06d", tv->tv_sec, tv->tv_usec);
+            log5(0, 0, 0, "read timeout: %d.%06d", tv->tv_sec, tv->tv_usec);
         }
         if (read_packet(listener, &src, buf, &packetlen,
                         MAXMTU, tv, &tos) <= 0) {
@@ -252,19 +250,19 @@ void mainloop(void)
 
         if ((rval = getnameinfo((struct sockaddr *)&src, family_len(src),
                 rxname, sizeof(rxname), NULL, 0, NI_NUMERICHOST)) != 0) {
-            log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+            log1(0, 0, 0, "getnameinfo failed: %s", gai_strerror(rval));
         }
 
         if (header->version == UFTP_VER_NUM) {
             version = header->version;
             group = find_group(ntohl(header->group_id), header->group_inst);
         } else {
-            log1(0, 0, "Invalid message from %s: not uftp packet "
-                       "or invalid version", rxname);
+            log1(0, 0, 0, "Invalid message from %s: not uftp packet "
+                          "or invalid version", rxname);
             continue;
         }
         if (packetlen < sizeof(struct uftp_h) + 4) {
-            log1(0, 0, "Invalid packet size from %s: %d", rxname, packetlen);
+            log1(0, 0, 0, "Invalid packet size from %s: %d", rxname, packetlen);
             continue;
         }
 
@@ -274,7 +272,7 @@ void mainloop(void)
         if ((group != NULL) && (header->func != KEYINFO) &&
                 (header->func != ABORT)) {
             if ((int16_t)(group->max_txseq - txseq) > MAXMISORDER) {
-                log3(group->group_id, 0, "seq out of range, dropping");
+                glog3(group, "seq out of range, dropping");
                 continue;
             }
             if (group->cc_type != CC_NONE) {
@@ -288,8 +286,8 @@ void mainloop(void)
         if ((header->func == ENCRYPTED) && (group != NULL) &&
                 (group->keytype != KEY_NONE)) {
             if (group->phase == PHASE_REGISTERED) {
-                log1(group->group_id, 0, "Got encrypted packet from %s "
-                        "but keys not established", rxname);
+                glog1(group, "Got encrypted packet from %s "
+                             "but keys not established", rxname);
             }
 
             if (!validate_and_decrypt(buf, packetlen, &decrypted, &decryptlen,
@@ -297,8 +295,8 @@ void mainloop(void)
                     group->ivlen, group->hashtype, group->grouphmackey,
                     group->hmaclen, group->sigtype, group->keyextype,
                     group->server_pubkey, group->server_pubkeylen)) {
-                log1(group->group_id, 0, "Rejecting message from %s: "
-                        "decrypt/validate failed", rxname);
+                glog1(group, "Rejecting message from %s: "
+                             "decrypt/validate failed", rxname);
                 continue;
             }
             func = (uint8_t *)decrypted;
@@ -310,9 +308,8 @@ void mainloop(void)
                      (header->func == DONE) || (header->func == DONE_CONF) ||
                      ((header->func == ABORT) &&
                          (group->phase != PHASE_REGISTERED)))) {
-                log1(group->group_id, 0,
-                        "Rejecting %s message from %s: not encrypted",
-                        func_name(header->func), rxname);
+                glog1(group, "Rejecting %s message from %s: not encrypted",
+                             func_name(header->func), rxname);
                 continue;
             }
             func = (uint8_t *)&header->func;
@@ -327,7 +324,7 @@ void mainloop(void)
                 set_timeout(group, 1);
             }
             group->gsize = unquantize_gsize(header->gsize);
-            log5(group->group_id, 0, "grtt: %.3f", group->grtt);
+            glog5(group, "grtt: %.3f", group->grtt);
         }
 
         if (header->func == PROXY_KEY) {
@@ -354,11 +351,11 @@ void mainloop(void)
                 continue;
             }
             if (group->version != version) {
-                log1(group->group_id, group->file_id, "Version mismatch");
+                glog1(group, "Version mismatch");
                 continue;
             }
             if (group->src_id != header->src_id) {
-                log1(group->group_id, group->file_id, "Source ID mismatch");
+                glog1(group, "Source ID mismatch");
                 continue;
             }
             if (*func == ABORT) {
@@ -371,8 +368,8 @@ void mainloop(void)
                     if (*func == KEYINFO) {
                         handle_keyinfo(group, message, meslen, header->src_id);
                     } else {
-                        log1(group->group_id, group->file_id,
-                                "Expected KEYINFO, got %s", func_name(*func));
+                        glog1(group, "Expected KEYINFO, got %s",
+                                     func_name(*func));
                     }
                 } else if (group->keytype == KEY_NONE) {
                     if (*func == REG_CONF) {
@@ -380,8 +377,8 @@ void mainloop(void)
                     } else if (*func == FILEINFO) {
                         handle_fileinfo(group, message, meslen, rxtime);
                     } else {
-                        log1(group->group_id, group->file_id,
-                                "Expected REG_CONF, got %s", func_name(*func));
+                        glog1(group, "Expected REG_CONF, got %s",
+                                     func_name(*func));
                     }
                 }
                 break;

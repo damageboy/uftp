@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -67,7 +67,7 @@ void getiflist(struct iflist *list, int *len)
         char errbuf[300];
         FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err,
                       0, errbuf, sizeof(errbuf), NULL);
-        log0(0, 0, "GetAdaptersAddresses failed: (%d) %s", err, errbuf);
+        log0(0, 0, 0, "GetAdaptersAddresses failed: (%d) %s", err, errbuf);
         free(buf);
         return;
     }
@@ -123,7 +123,7 @@ void getiflist(struct iflist *list, int *len)
     unsigned ifidx;
 
     if (getifaddrs(&ifa) == -1) {
-        syserror(0, 0, "getifaddrs failed");
+        syserror(0, 0, 0, "getifaddrs failed");
         *len = 0;
         return;
     }
@@ -132,8 +132,8 @@ void getiflist(struct iflist *list, int *len)
     *len = 0;
     while (ifa_tmp && (*len < count)) {
         if ((ifidx = if_nametoindex(ifa_tmp->ifa_name)) == 0) {
-            syserror(0, 0, "Error getting interface index for interface %s",
-                     ifa_tmp->ifa_name);
+            syserror(0, 0, 0, "Error getting interface index for interface %s",
+                              ifa_tmp->ifa_name);
             continue;
         }
         if (ifa_tmp->ifa_addr && ((ifa_tmp->ifa_addr->sa_family == AF_INET) ||
@@ -171,13 +171,13 @@ void getiflist(struct iflist *list, int *len)
     ifc.lifc_req = ifr;
 
     if ((s = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
-        sockerror(0, 0, "Error creating socket for interface list");
+        sockerror(0, 0, 0, "Error creating socket for interface list");
         free(ifr);
         *len = 0;
         return;
     }
     if (ioctl(s, SIOCGLIFCONF, &ifc) == -1) {
-        syserror(0, 0, "Error getting interface list");
+        syserror(0, 0, 0, "Error getting interface list");
         free(ifr);
         close(s);
         *len = 0;
@@ -187,14 +187,14 @@ void getiflist(struct iflist *list, int *len)
     for (i = 0, *len = 0; i < count; i++) {
         strcpy(ifr_tmp_flags.lifr_name, ifr[i].lifr_name);
         if (ioctl(s, SIOCGLIFFLAGS, &ifr_tmp_flags) == -1) {
-            syserror(0, 0, "Error getting flags for interface %s",
-                     ifr[i].lifr_name);
+            syserror(0, 0, 0, "Error getting flags for interface %s",
+                              ifr[i].lifr_name);
             continue;
         }
         strcpy(ifr_tmp_ifidx.lifr_name, ifr[i].lifr_name);
         if (ioctl(s, SIOCGLIFINDEX, &ifr_tmp_ifidx) == -1) {
-            syserror(0, 0, "Error getting interface index for interface %s",
-                     ifr[i].lifr_name);
+            syserror(0, 0, 0, "Error getting interface index for interface %s",
+                              ifr[i].lifr_name);
             continue;
         }
         if (((ifr[i].lifr_addr.ss_family == AF_INET) ||
@@ -544,36 +544,36 @@ void roll_log()
 
     if (rolling) return;
     rolling = 1;
-    log2(0, 0, "Rolling logs");
+    log2(0, 0, 0, "Rolling logs");
     for (i = max_log_count; i >=0; i--) {
         if (i == 0) {
             rval = snprintf(oldname, sizeof(oldname), "%s", logfile);
             if  (rval >= sizeof(oldname)) {
-                log0(0, 0, "Old log name too long");
+                log0(0, 0, 0, "Old log name too long");
                 rolling = 0;
                 return;
             }
         } else {
             rval = snprintf(oldname, sizeof(oldname), "%s.%d", logfile, i);
             if  (rval >= sizeof(oldname)) {
-                log0(0, 0, "Old log name too long");
+                log0(0, 0, 0, "Old log name too long");
                 rolling = 0;
                 return;
             }
         }
         rval = snprintf(newname, sizeof(newname), "%s.%d", logfile, i + 1);
         if  (rval >= sizeof(oldname)) {
-            log0(0, 0, "New log name too long");
+            log0(0, 0, 0, "New log name too long");
             rolling = 0;
             return;
         }
         if (i == max_log_count) {
             if (unlink(oldname) == -1) {
-                syserror(0, 0, "Couldn't remove log %s", oldname);
+                syserror(0, 0, 0, "Couldn't remove log %s", oldname);
             }
         } else if (i == 0) {
 #ifdef WINDOWS
-            log2(0, 0, "Switching to new log");
+            log2(0, 0, 0, "Switching to new log");
             close(2);
             if (rename(oldname, newname) == -1) {
                 printf("Couldn't rename log %s to %s", oldname, newname);
@@ -584,25 +584,27 @@ void roll_log()
                 exit(ERR_LOGGING); 
             }
             log_size = 0;
-            log2(0, 0, "Switch to new log complete");
+            log2(0, 0, 0, "Switch to new log complete");
 #else
             if (rename(oldname, newname) == -1) {
-                syserror(0,0, "Couldn't rename log %s to %s", oldname, newname);
+                syserror(0, 0, 0, "Couldn't rename log %s to %s",
+                                  oldname, newname);
             }
-            log2(0, 0, "Opening new log");
+            log2(0, 0, 0, "Opening new log");
             if ((fd=open(logfile, O_WRONLY | O_APPEND | O_CREAT, 0644)) == -1) {
-                syserror(0, 0, "Can't open log file");
+                syserror(0, 0, 0, "Can't open log file");
                 exit(ERR_LOGGING); 
             }
-            log2(0, 0, "Switching to new log");
+            log2(0, 0, 0, "Switching to new log");
             dup2(fd, 2);
             close(fd);
             log_size = 0;
-            log2(0, 0, "Switch to new log complete");
+            log2(0, 0, 0, "Switch to new log complete");
 #endif
         } else {
             if (rename(oldname, newname) == -1) {
-                syserror(0,0, "Couldn't rename log %s to %s", oldname, newname);
+                syserror(0, 0, 0, "Couldn't rename log %s to %s",
+                                  oldname, newname);
             }
         }
     }
@@ -613,8 +615,9 @@ void roll_log()
  * The main logging function.
  * Called via a series of macros for a particular log level or output format.
  */
-void logfunc(uint32_t group_id, uint16_t file_id, int level, int _showtime,
-             int newline, int err, int sockerr, const char *str, ...)
+void logfunc(uint32_t group_id, uint8_t group_inst, uint16_t file_id,
+             int level, int _showtime, int newline, int err, int sockerr,
+             const char *str, ...)
 {
     struct tm *timeval;
     struct timeval tv;
@@ -639,14 +642,14 @@ void logfunc(uint32_t group_id, uint16_t file_id, int level, int _showtime,
                 timeval->tm_hour, timeval->tm_min, timeval->tm_sec,
                 (int)tv.tv_usec);
         if (write_len != -1) log_size += write_len;
-        if (group_id && file_id) {
-            write_len = fprintf(applog, "[%08X:%04X]: ", group_id, file_id);
-            if (write_len != -1) log_size += write_len;
-        } else if (group_id && !file_id) {
-            write_len = fprintf(applog, "[%08X:0]: ", group_id);
-            if (write_len != -1) log_size += write_len;
-        } else if (!group_id && file_id) {
-            write_len = fprintf(applog, "[%04X]: ", file_id);
+        if (group_id) {
+            if (file_id) {
+                write_len = fprintf(applog, "[%08X/%02X:%04X]: ",
+                                    group_id, group_inst, file_id);
+            } else {
+                write_len = fprintf(applog, "[%08X/%02X:0]: ",
+                                    group_id, group_inst);
+            }
             if (write_len != -1) log_size += write_len;
         }
     }
@@ -704,7 +707,7 @@ void split_path(const char *path, char **dir, char **file)
 
     // GetFullPathNameA doens't handle trailing slashes well, so disallow
     if ((path[strlen(path)-1] == '/') || (path[strlen(path)-1] == '\\')) {
-        log0(0, 0, "bad path, trailing / or \\ not allowed");
+        log0(0, 0, 0, "bad path, trailing / or \\ not allowed");
         *dir = NULL;
         *file = NULL;
         return;
@@ -715,7 +718,7 @@ void split_path(const char *path, char **dir, char **file)
         char errbuf[300];
         FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
                 GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
-        log0(0, 0, "Error in GetFullPathNameA: %s", errbuf);
+        log0(0, 0, 0, "Error in GetFullPathNameA: %s", errbuf);
         *dir = NULL;
         *file = NULL;
         return;
@@ -728,7 +731,7 @@ void split_path(const char *path, char **dir, char **file)
         *dir = strdup(result);
         *file = strdup(filename);
         if (!*dir || (filename && !*file)) {
-            syserror(0, 0, "strdup failed!");
+            syserror(0, 0, 0, "strdup failed!");
             exit(ERR_ALLOC);
         }
         (*dir)[strlen(*dir) - strlen(*file) - 1] = '\x0';
@@ -740,13 +743,13 @@ void split_path(const char *path, char **dir, char **file)
     dirc = strdup(path);
     filec = strdup(path);
     if (!dirc || !filec) {
-        syserror(0, 0, "strdup failed!");
+        syserror(0, 0, 0, "strdup failed!");
         exit(ERR_ALLOC);
     }
     *dir = strdup(dirname(dirc));
     *file = strdup(basename(filec));
     if (!*dir || !*file) {
-        syserror(0, 0, "strdup failed!");
+        syserror(0, 0, 0, "strdup failed!");
         exit(ERR_ALLOC);
     }
     free(dirc);
@@ -770,26 +773,26 @@ int parse_fingerprint(unsigned char *fingerprint, const char *fingerprint_str)
     len = 0;
     p = strtok(tmp, ":");
     if (p == NULL) {
-        log1(0, 0, "Invalid fingerprint %s", fingerprint_str);
+        log1(0, 0, 0, "Invalid fingerprint %s", fingerprint_str);
         free(tmp);
         return 0;
     }
     do {
         if (len >= HMAC_LEN) {
-            log1(0, 0, "Key fingerprint %s too long", fingerprint_str);
+            log1(0, 0, 0, "Key fingerprint %s too long", fingerprint_str);
             free(tmp);
             return 0;
         }
         errno = 0;
         num = strtol(p, NULL, 16);
         if (errno) {
-            syserror(0, 0, "Parse of host key fingerprint %s failed",
-                            fingerprint_str);
+            syserror(0, 0, 0, "Parse of host key fingerprint %s failed",
+                              fingerprint_str);
             free(tmp);
             return 0;
         } else if ((num > 255) || (num < 0)) {
-            log1(0, 0, "Parse of host key fingerprint %s failed",
-                        fingerprint_str);
+            log1(0, 0, 0, "Parse of host key fingerprint %s failed",
+                          fingerprint_str);
             free(tmp);
             return 0;
         }
@@ -1003,7 +1006,7 @@ int read_packet(SOCKET sock, union sockaddr_u *su, unsigned char *buffer,
                     &WSARecvMsg_GUID, sizeof WSARecvMsg_GUID,
                     &WSARecvMsg, sizeof WSARecvMsg, &nbytes, NULL, NULL);
             if (rval == SOCKET_ERROR) {
-                sockerror(0, 0, "WSAIoctl for WSARecvMsg failed");
+                sockerror(0, 0, 0, "WSAIoctl for WSARecvMsg failed");
                 exit(ERR_SOCKET);
             }
         }
@@ -1019,7 +1022,7 @@ int read_packet(SOCKET sock, union sockaddr_u *su, unsigned char *buffer,
         if ((rval = WSARecvMsg(sock, &mhdr, len, NULL, NULL)) == SOCKET_ERROR) {
             if (!would_block_err()) {
                 if (!conn_reset_err()) {
-                    sockerror(0, 0, "Error receiving");
+                    sockerror(0, 0, 0, "Error receiving");
                 }
                 return -1;
             }
@@ -1035,7 +1038,7 @@ int read_packet(SOCKET sock, union sockaddr_u *su, unsigned char *buffer,
                 }
                 cmhdr = WSA_CMSG_NXTHDR(&mhdr, cmhdr);
             }
-            log5(0, 0, "tos / traffic class byte = %02X", *tos);
+            log5(0, 0, 0, "tos / traffic class byte = %02X", *tos);
             return 1;
         }
 #elif defined NO_RECVMSG
@@ -1044,7 +1047,7 @@ int read_packet(SOCKET sock, union sockaddr_u *su, unsigned char *buffer,
                              &addr_len)) == SOCKET_ERROR) {
             if (!would_block_err()) {
                 if (!conn_reset_err()) {
-                    sockerror(0, 0, "Error receiving");
+                    sockerror(0, 0, 0, "Error receiving");
                 }
                 return -1;
             }
@@ -1063,7 +1066,7 @@ int read_packet(SOCKET sock, union sockaddr_u *su, unsigned char *buffer,
         if ((*len = recvmsg(sock, &mhdr, 0)) == SOCKET_ERROR) {
             if (!would_block_err()) {
                 if (!conn_reset_err()) {
-                    sockerror(0, 0, "Error receiving");
+                    sockerror(0, 0, 0, "Error receiving");
                 }
                 return -1;
             }
@@ -1100,7 +1103,7 @@ int read_packet(SOCKET sock, union sockaddr_u *su, unsigned char *buffer,
                 }
                 cmhdr = CMSG_NXTHDR(&mhdr, cmhdr);
             }
-            log5(0, 0, "tos / traffic class byte = %02X", *tos);
+            log5(0, 0, 0, "tos / traffic class byte = %02X", *tos);
             return 1;
         }
 #endif
@@ -1110,13 +1113,13 @@ int read_packet(SOCKET sock, union sockaddr_u *su, unsigned char *buffer,
         if (timeout) tv = *timeout;
         if ((rval = select(FD_SETSIZE-1, &fdin, NULL, NULL,
                            (timeout ? &tv : NULL))) == SOCKET_ERROR) {
-            sockerror(0, 0, "Select failed");
+            sockerror(0, 0, 0, "Select failed");
             return -1;
         }
         if (rval == 0) {
             return 0;
         } else if (!FD_ISSET(sock, &fdin)) {
-            log0(0, 0, "Unknown select error");
+            log0(0, 0, 0, "Unknown select error");
             return -1;
         }
     }
@@ -1260,7 +1263,7 @@ int validate_and_decrypt(unsigned char *encpacket, unsigned int enclen,
     } else if (sigtype == SIG_AUTHENC) {
         siglen = 0;
     } else {
-        log0(0, 0, "Invalid signature type");
+        log0(0, 0, 0, "Invalid signature type");
         return 0;
     }
 
@@ -1271,17 +1274,17 @@ int validate_and_decrypt(unsigned char *encpacket, unsigned int enclen,
     payload = sig + hsiglen;
 
     if (header->func != ENCRYPTED) {
-        log0(0, 0, "Attempt to decrypt non-encrypted message");
+        log0(0, 0, 0, "Attempt to decrypt non-encrypted message");
         return 0;
     }
     if (enclen != (sizeof(struct uftp_h) + sizeof(struct encrypted_h) +
             hsiglen + ntohs(encrypted->payload_len))) {
-        log0(0, 0, "Invalid signature and/or encrypted payload length");
+        log0(0, 0, 0, "Invalid signature and/or encrypted payload length");
         return 0;
     }
     if (hsiglen != siglen) {
-        log0(0, 0, "Signature length incorrect: got %d, expected %d",
-                   hsiglen, siglen);
+        log0(0, 0, 0, "Signature length incorrect: got %d, expected %d",
+                      hsiglen, siglen);
         return 0;
     }
 
@@ -1296,19 +1299,19 @@ int validate_and_decrypt(unsigned char *encpacket, unsigned int enclen,
     if (sigtype == SIG_HMAC) {
         if (!create_hmac(hashtype, hmackey, hsiglen, encpacket, enclen,
                          sigtest, &len)) {
-            log0(0, 0, "HMAC creation failed");
+            log0(0, 0, 0, "HMAC creation failed");
             rval = 0;
             goto end;
         }
         if (memcmp(sigtest, sigcopy, len)) {
-            log0(0, 0, "HMAC verification failed");
+            log0(0, 0, 0, "HMAC verification failed");
             rval = 0;
             goto end;
         }
     } else if ((sigtype == SIG_KEYEX) && (keyextype == KEYEX_ECDH_ECDSA)) {
         if (!verify_ECDSA_sig(pubkey.ec, hashtype, encpacket, enclen,
                               sigcopy, ntohs(encrypted->sig_len))) {
-            log0(0, 0, "ECDSA signature verification failed");
+            log0(0, 0, 0, "ECDSA signature verification failed");
             rval = 0;
             goto end;
         }
@@ -1316,7 +1319,7 @@ int validate_and_decrypt(unsigned char *encpacket, unsigned int enclen,
             ((keyextype == KEYEX_RSA) || (keyextype == KEYEX_ECDH_RSA))) {
         if (!verify_RSA_sig(pubkey.rsa, hashtype, encpacket, enclen,
                             sigcopy, ntohs(encrypted->sig_len))) {
-            log0(0, 0, "RSA signature verification failed");
+            log0(0, 0, 0, "RSA signature verification failed");
             rval = 0;
             goto end;
         }
@@ -1333,7 +1336,7 @@ int validate_and_decrypt(unsigned char *encpacket, unsigned int enclen,
     if (!decrypt_block(keytype, iv, key, encpacket,
             sizeof(struct uftp_h) + sizeof(struct encrypted_h),
             payload, ntohs(encrypted->payload_len), *decpacket, declen)) {
-        log0(0, 0, "Decrypt failed");
+        log0(0, 0, 0, "Decrypt failed");
         if (allocdec) {
             free(*decpacket);
             *decpacket = NULL;
@@ -1376,7 +1379,7 @@ int encrypt_and_sign(const unsigned char *decpacket, unsigned char **encpacket,
     } else if (sigtype == SIG_AUTHENC) {
         siglen = 0;
     } else {
-        log0(0, 0, "Invalid signature type");
+        log0(0, 0, 0, "Invalid signature type");
         return 0;
     }
 
@@ -1424,8 +1427,8 @@ int encrypt_and_sign(const unsigned char *decpacket, unsigned char **encpacket,
         encrypted->payload_len = htons(payloadlen);
     } else {
         if (payloadlen != ntohs(encrypted->payload_len)) {
-            log0(0, 0, "Invalid payloadlen: got %d, expected %d",
-                    payloadlen, ntohs(encrypted->payload_len)); 
+            log0(0, 0, 0, "Invalid payloadlen: got %d, expected %d",
+                          payloadlen, ntohs(encrypted->payload_len));
             return 0;
         }
     }
@@ -1438,7 +1441,7 @@ int encrypt_and_sign(const unsigned char *decpacket, unsigned char **encpacket,
     if (sigtype == SIG_HMAC) {
         if (!create_hmac(hashtype, hmackey, siglen, *encpacket,
                          sizeof(struct uftp_h) + *enclen, sigcopy, &len)) {
-            log0(0, 0, "HMAC creation failed");
+            log0(0, 0, 0, "HMAC creation failed");
             free(sigcopy);
             if (allocenc) {
                 free(*encpacket);
@@ -1632,7 +1635,7 @@ int multicast_join(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
             greq.gr_group = multi->ss;
             if (setsockopt(s, level, MCAST_JOIN_GROUP,
                     (char *)&greq, sizeof(greq)) == -1) {
-                sockerror(group_id, 0, "Error joining multicast group"); 
+                sockerror(group_id, 0, 0, "Error joining multicast group"); 
                 return 0;
             }
         } else {
@@ -1645,7 +1648,7 @@ int multicast_join(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
                 gsreq.gsr_group = multi->ss;
                 if (setsockopt(s, level, MCAST_JOIN_SOURCE_GROUP,
                         (char *)&gsreq, sizeof(gsreq)) == -1) {
-                    sockerror(group_id, 0, "Error joining multicast group"); 
+                    sockerror(group_id, 0, 0, "Error joining multicast group");
                     return 0;
                 }
             }
@@ -1684,7 +1687,7 @@ void multicast_leave(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
             greq.gr_group = multi->ss;
             if (setsockopt(s, level, MCAST_LEAVE_GROUP,
                     (char *)&greq, sizeof(greq)) == -1) {
-                sockerror(group_id, 0, "Error leaving multicast group"); 
+                sockerror(group_id, 0, 0, "Error leaving multicast group");
             }
         } else {
             for (j = 0; j < fplist_len; j++) {
@@ -1696,7 +1699,7 @@ void multicast_leave(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
                 gsreq.gsr_group = multi->ss;
                 if (setsockopt(s, level, MCAST_LEAVE_SOURCE_GROUP,
                         (char *)&gsreq, sizeof(gsreq)) == -1) {
-                    sockerror(group_id, 0, "Error leaving multicast group"); 
+                    sockerror(group_id, 0, 0, "Error leaving multicast group");
                 }
             }
         }
@@ -1731,7 +1734,7 @@ int multicast_join(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
             mreq6.ipv6mr_interface = addrlist[i].ifidx;
             if (setsockopt(s, IPPROTO_IPV6, IPV6_JOIN_GROUP,
                            (char *)&mreq6, sizeof(mreq6)) == SOCKET_ERROR) {
-                sockerror(group_id, 0, "Error joining multicast group");
+                sockerror(group_id, 0, 0, "Error joining multicast group");
                 return 0;
             }
         } else {
@@ -1745,7 +1748,8 @@ int multicast_join(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
                     srcmreq.imr_interface = addrlist[i].su.sin.sin_addr;
                     if (setsockopt(s, IPPROTO_IP, IP_ADD_SOURCE_MEMBERSHIP,
                            (char *)&srcmreq, sizeof(srcmreq)) == SOCKET_ERROR) {
-                        sockerror(group_id, 0, "Error joining multicast group");
+                        sockerror(group_id, 0, 0,
+                                  "Error joining multicast group");
                         return 0;
                     }
                 }
@@ -1754,7 +1758,7 @@ int multicast_join(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
                 mreq.imr_interface = addrlist[i].su.sin.sin_addr;
                 if (setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP,
                                (char *)&mreq, sizeof(mreq)) == SOCKET_ERROR) {
-                    sockerror(group_id, 0, "Error joining multicast group");
+                    sockerror(group_id, 0, 0, "Error joining multicast group");
                     return 0;
                 }
             }
@@ -1763,7 +1767,7 @@ int multicast_join(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
             mreq.imr_interface = addrlist[i].su.sin.sin_addr;
             if (setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP,
                            (char *)&mreq, sizeof(mreq)) == SOCKET_ERROR) {
-                sockerror(group_id, 0, "Error joining multicast group");
+                sockerror(group_id, 0, 0, "Error joining multicast group");
                 return 0;
             }
 #endif
@@ -1797,7 +1801,7 @@ void multicast_leave(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
             mreq6.ipv6mr_interface = addrlist[i].ifidx;
             if (setsockopt(s, IPPROTO_IPV6, IPV6_LEAVE_GROUP,
                            (char *)&mreq6, sizeof(mreq6)) == SOCKET_ERROR) {
-                sockerror(group_id, 0, "Error leaving multicast group");
+                sockerror(group_id, 0, 0, "Error leaving multicast group");
             }
         } else {
 #ifdef IP_DROP_SOURCE_MEMBERSHIP
@@ -1810,7 +1814,8 @@ void multicast_leave(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
                     srcmreq.imr_interface = addrlist[i].su.sin.sin_addr;
                     if (setsockopt(s, IPPROTO_IP, IP_DROP_SOURCE_MEMBERSHIP,
                            (char *)&srcmreq, sizeof(srcmreq)) == SOCKET_ERROR) {
-                        sockerror(group_id, 0, "Error leaving multicast group");
+                        sockerror(group_id, 0, 0,
+                                  "Error leaving multicast group");
                     }
                 }
             } else {
@@ -1818,7 +1823,7 @@ void multicast_leave(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
                 mreq.imr_interface = addrlist[i].su.sin.sin_addr;
                 if (setsockopt(s, IPPROTO_IP, IP_DROP_MEMBERSHIP,
                                (char *)&mreq, sizeof(mreq)) == SOCKET_ERROR) {
-                    sockerror(group_id, 0, "Error leaving multicast group");
+                    sockerror(group_id, 0, 0, "Error leaving multicast group");
                 }
             }
 #else
@@ -1826,7 +1831,7 @@ void multicast_leave(SOCKET s, uint32_t group_id, const union sockaddr_u *multi,
             mreq.imr_interface = addrlist[i].su.sin.sin_addr;
             if (setsockopt(s, IPPROTO_IP, IP_DROP_MEMBERSHIP,
                            (char *)&mreq, sizeof(mreq)) == SOCKET_ERROR) {
-                sockerror(group_id, 0, "Error leaving multicast group");
+                sockerror(group_id, 0, 0, "Error leaving multicast group");
             }
 #endif
         }
@@ -1848,7 +1853,7 @@ int getifbyname(const char *name, const struct iflist *list, int len)
 
     tmpname = strdup(name);
     if (tmpname == NULL) {
-        syserror(0, 0, "strdup failed!");
+        syserror(0, 0, 0, "strdup failed!");
         exit(ERR_ALLOC);
     }
 
@@ -1925,11 +1930,11 @@ int file_read(int fd, void *buf, int buflen, int allow_eof)
     int read_len;
 
     if ((read_len = read(fd, buf, buflen)) == -1) {
-        syserror(0, 0, "Read failed");
+        syserror(0, 0, 0, "Read failed");
         return -1;
     }
     if ((read_len != buflen) && (!allow_eof || (read_len != 0))) {
-        log0(0, 0, "Read error: read %d bytes, expected %d", read_len, buflen);
+        log0(0,0,0, "Read error: read %d bytes, expected %d", read_len, buflen);
         return -1;
     }
     return read_len;
@@ -1944,11 +1949,11 @@ int file_write(int fd, const void *buf, int buflen)
     int write_len;
 
     if ((write_len = write(fd, buf, buflen)) == -1) {
-        syserror(0, 0, "Write failed");
+        syserror(0, 0, 0, "Write failed");
         return -1;
     }
     if (write_len != buflen) {
-        log0(0, 0, "Write error: wrote %d bytes, expected %d",write_len,buflen);
+        log0(0,0,0,"Write error: wrote %d bytes, expected %d",write_len,buflen);
         return -1;
     }
     return write_len;
@@ -1974,12 +1979,12 @@ int64_t free_space(const char *file)
         char errbuf[300];
         FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
                 GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
-        log0(0, 0, "Error in GetDiskFreeSpaceEx: %s", errbuf);
+        log0(0, 0, 0, "Error in GetDiskFreeSpaceEx: %s", errbuf);
         free(dirname);
         free(filename);
         return 0x7FFFFFFFFFFFFFFFULL;
     } else {
-        log3(0, 0, "Free space: %s", printll(bytes_free.QuadPart));
+        log3(0, 0, 0, "Free space: %s", printll(bytes_free.QuadPart));
         free(dirname);
         free(filename);
         return bytes_free.QuadPart;
@@ -1988,11 +1993,11 @@ int64_t free_space(const char *file)
     struct statvfs buf;
 
     if (statvfs(file, &buf) == -1) {
-        syserror(0, 0, "statvfs failed");
+        syserror(0, 0, 0, "statvfs failed");
         return 0x7FFFFFFFFFFFFFFFULL;
     } else {
-        log3(0, 0, "Free space: %s",
-                printll((uint64_t)buf.f_bsize * buf.f_bavail));
+        log3(0, 0, 0, "Free space: %s",
+                      printll((uint64_t)buf.f_bsize * buf.f_bavail));
         return (int64_t)buf.f_bsize * buf.f_bavail;
     }
 #endif
@@ -2037,7 +2042,7 @@ void *safe_malloc(size_t size)
 {
     void *p = malloc(size);
     if (p == NULL) {
-        syserror(0, 0, "malloc failed!");
+        syserror(0, 0, 0, "malloc failed!");
         exit(ERR_ALLOC);
     }
     return p;
@@ -2051,7 +2056,7 @@ void *safe_calloc(size_t num, size_t size)
 {
     void *p = calloc(num, size);
     if (p == NULL) {
-        syserror(0, 0, "calloc failed!");
+        syserror(0, 0, 0, "calloc failed!");
         exit(ERR_ALLOC);
     }
     return p;

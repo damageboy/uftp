@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -98,7 +98,7 @@ void send_abort(const struct finfo_t *finfo, const char *message,
         if (!encrypt_and_sign(buf, &encrypted, payloadlen, &enclen, keytype,
                 groupkey, groupsalt, &ivctr, ivlen, hashtype, grouphmackey,
                 hmaclen, sigtype, keyextype, privkey, privkeylen)) {
-            log0(finfo->group_id, finfo->file_id, "Error encrypting ABORT");
+            glog0(finfo, "Error encrypting ABORT");
             free(buf);
             return;
         }
@@ -112,7 +112,7 @@ void send_abort(const struct finfo_t *finfo, const char *message,
     if (nb_sendto(sock, outpacket, payloadlen + sizeof(struct uftp_h), 0,
                   (const struct sockaddr *)destaddr,
                   family_len(*destaddr)) == SOCKET_ERROR) {
-        sockerror(finfo->group_id, finfo->file_id, "Error sending ABORT");
+        gsockerror(finfo, "Error sending ABORT");
     }
     free(buf); 
     free(encrypted);
@@ -175,8 +175,7 @@ int send_multiple(const struct finfo_t *finfo, unsigned char *packet,
             if (message == ANNOUNCE) {
                 outpacket = packet;
                 if (!sign_announce(finfo, outpacket, payloadlen)) {
-                    log0(finfo->group_id, finfo->file_id,
-                            "Error signing ANNOUNCE");
+                    glog0(finfo, "Error signing ANNOUNCE");
                     free(encpacket);
                     return 0;
                 }
@@ -185,8 +184,7 @@ int send_multiple(const struct finfo_t *finfo, unsigned char *packet,
                         keytype, groupkey, groupsalt, &ivctr, ivlen, hashtype,
                         grouphmackey, hmaclen, sigtype, keyextype,
                         privkey, privkeylen)) {
-                    log0(finfo->group_id, finfo->file_id,
-                            "Error encrypting %s", func_name(message));
+                    glog0(finfo, "Error encrypting %s", func_name(message));
                     free(encpacket);
                     return 0;
                 }
@@ -195,24 +193,21 @@ int send_multiple(const struct finfo_t *finfo, unsigned char *packet,
             } else {
                 outpacket = packet;
             }
-            log2(finfo->group_id, finfo->file_id,
-                    "Sending %s %d.%d", func_name(message), 
-                       attempt, packetcnt);
+            glog2(finfo, "Sending %s %d.%d", func_name(message), 
+                         attempt, packetcnt);
             if (log_level >= 4) {
                 rval = getnameinfo((const struct sockaddr *)destaddr,
                         family_len(*destaddr), out_addr, sizeof(out_addr),
                         NULL, 0, NI_NUMERICHOST);
                 if (rval) {
-                    log4(finfo->group_id, finfo->file_id,
-                            "getnameinfo failed: %s", gai_strerror(rval));
+                    glog4(finfo, "getnameinfo failed: %s", gai_strerror(rval));
                 }
-                log4(finfo->group_id,finfo->file_id, "Sending to %s", out_addr);
+                glog4(finfo, "Sending to %s", out_addr);
             }
             if (nb_sendto(sock, outpacket, payloadlen + sizeof(struct uftp_h),
                           0, (const struct sockaddr *)destaddr,
                           family_len(*destaddr)) == SOCKET_ERROR) {
-                sockerror(finfo->group_id, finfo->file_id,
-                          "Error sending %s", func_name(message));
+                gsockerror(finfo, "Error sending %s", func_name(message));
                 sleep(1);
                 free(encpacket);
                 return 0;
@@ -239,29 +234,27 @@ int validate_packet(const unsigned char *packet, int len,
 
     header = (const struct uftp_h *)packet;
     if (header->version != UFTP_VER_NUM) {
-        log1(finfo->group_id, finfo->file_id,
-                "Invalid version %02X", header->version);
+        glog1(finfo, "Invalid version %02X", header->version);
         return 0;
     }
     if (header->func == ENCRYPTED) {
         if (len < sizeof(struct uftp_h) + sizeof(struct encrypted_h)) {
-            log1(finfo->group_id,finfo->file_id, "Invalid packet size %d", len);
+            glog1(finfo, "Invalid packet size %d", len);
             return 0;
         }
     } else {
         if (len < sizeof(struct uftp_h) + 4) {
-            log1(finfo->group_id,finfo->file_id, "Invalid packet size %d", len);
+            glog1(finfo, "Invalid packet size %d", len);
             return 0;
         }
     }
     if (ntohl(header->group_id) != finfo->group_id) {
-        log1(finfo->group_id, finfo->file_id, "Invalid group ID %08X, "
-                "expected %08X", ntohl(header->group_id), finfo->group_id);
+        glog1(finfo, "Invalid group ID %08X, expected %08X",
+                     ntohl(header->group_id), finfo->group_id);
         return 0;
     }
     if ((header->func == ENCRYPTED) && (keytype == KEY_NONE)) {
-        log1(finfo->group_id, finfo->file_id,
-                "Received encrypted packet with encryption disabled");
+        glog1(finfo, "Received encrypted packet with encryption disabled");
         return 0;
     }
     return 1;
@@ -315,10 +308,8 @@ int sign_announce(const struct finfo_t *finfo, unsigned char *packet,
         }
     }
     if (_siglen != siglen) {
-        log0(finfo->group_id, finfo->file_id,
-                "Signature length doesn't match expected length");
-        log1(finfo->group_id, finfo->file_id,
-                "expected %d, got %d", siglen, _siglen);
+        glog0(finfo, "Signature length doesn't match expected length");
+        glog1(finfo, "expected %d, got %d", siglen, _siglen);
         free(sigcopy);
         return 0;
     }
@@ -367,14 +358,13 @@ void handle_abort(const unsigned char *message, int meslen, int idx,
 
     abort_hdr = (const struct abort_h *)message;
     if (meslen < (abort_hdr->hlen * 4)) {
-        log1(finfo->group_id, finfo->file_id,
-                "Rejecting ABORT from %08X: invalid message size",
-                (idx == -1) ? ntohl(src) : destlist[idx].id);
+        glog1(finfo, "Rejecting ABORT from %08X: invalid message size",
+                     (idx == -1) ? ntohl(src) : destlist[idx].id);
         return;
     }
     if (idx == -1) {
-        log1(finfo->group_id, finfo->file_id, "Transfer aborted by %08X: %s",
-                    ntohl(src), abort_hdr->message);
+        glog1(finfo, "Transfer aborted by %08X: %s",
+                     ntohl(src), abort_hdr->message);
         return;
     }
 
@@ -382,15 +372,15 @@ void handle_abort(const unsigned char *message, int meslen, int idx,
         idx = find_client(abort_hdr->host);
     }
     if (idx == -1) {
-        log1(finfo->group_id, finfo->file_id, "Transfer aborted by %08X: %s",
-                    ntohl(src), abort_hdr->message);
+        glog1(finfo, "Transfer aborted by %08X: %s",
+                     ntohl(src), abort_hdr->message);
     } else {
         destlist[idx].status = DEST_ABORT;
-        log1(finfo->group_id, finfo->file_id, "Transfer aborted by %s: %s",
-                    destlist[idx].name, abort_hdr->message);
+        glog1(finfo, "Transfer aborted by %s: %s",
+                     destlist[idx].name, abort_hdr->message);
     }
     if (quit_on_error) {
-        log0(finfo->group_id, finfo->file_id, "Aborting all clients");
+        glog0(finfo, "Aborting all clients");
         send_abort(finfo, "A client aborted, aborting all",
                 &receive_dest, 0, 0, 0);
         // If encryption enabled, send ABORT both encrypted and unencrypted
@@ -441,7 +431,7 @@ int recalculate_grtt(const struct finfo_t *finfo, int grtt_set,
         } else {
             grtt = new_grtt;
         }
-        log3(finfo->group_id, finfo->file_id, "grtt = %.6f", grtt);
+        glog3(finfo, "grtt = %.6f", grtt);
         return 1;
     } else {
         return 0;

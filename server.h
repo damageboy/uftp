@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -112,8 +112,7 @@ struct destinfo_t {
     char name[DESTNAME_LEN];        /// Hostname of client
     uint32_t id;                    /// UID of client (network byte order)
     int proxyidx;                   /// Index of the proxy serving this client
-    int clientcnt;                  /// The number of clients a proxy serves
-    uint32_t *clients;              /// Indexes of clients served by this proxy
+    int isproxy;                    /// True if this is a proxy
     int64_t freespace;              /// Free disk space reported by client
     int8_t status;                  /// Specified by a client_status value
     int8_t comp_status;             /// Completion status as given by COMPLETE

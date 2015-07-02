@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -113,7 +113,7 @@ void cleanup(void)
  */
 void gotsig(int sig)
 {
-    log0(0, 0, "Exiting on signal %d", sig);
+    log0(0, 0, 0, "Exiting on signal %d", sig);
     exit(ERR_INTERRUPTED);
 }
 
@@ -125,22 +125,22 @@ BOOL WINAPI winsig(DWORD event)
 {
     switch (event) {
     case CTRL_C_EVENT:
-        log0(0, 0, "Got CTRL_C_EVENT");
+        log0(0, 0, 0, "Got CTRL_C_EVENT");
         break;
     case CTRL_BREAK_EVENT:
-        log0(0, 0, "Got CTRL_BREAK_EVENT");
+        log0(0, 0, 0, "Got CTRL_BREAK_EVENT");
         break;
     case CTRL_CLOSE_EVENT:
-        log0(0, 0, "Got CTRL_CLOSE_EVENT");
+        log0(0, 0, 0, "Got CTRL_CLOSE_EVENT");
         break;
     case CTRL_LOGOFF_EVENT:
-        log0(0, 0, "Got CTRL_LOGOFF_EVENT");
+        log0(0, 0, 0, "Got CTRL_LOGOFF_EVENT");
         break;
     case CTRL_SHUTDOWN_EVENT:
-        log0(0, 0, "Got CTRL_SHUTDOWN_EVENT");
+        log0(0, 0, 0, "Got CTRL_SHUTDOWN_EVENT");
         break;
     default:
-        log0(0, 0, "GOT unknown event %d", event);
+        log0(0, 0, 0, "GOT unknown event %d", event);
         break;
     }
     exit(ERR_INTERRUPTED);
@@ -180,7 +180,7 @@ void daemonize(void)
         if (strcmp(pidfile, "")) {
             // Write out the pid file, before we redirect STDERR to the log.
             if ((pidfh = fopen(pidfile, "w")) == NULL) {
-                syserror(0, 0, "Can't open pid file for writing");
+                syserror(0, 0, 0, "Can't open pid file for writing");
                 exit(ERR_PARAM);
             }
             fprintf(pidfh, "%d\n", GetCurrentProcessId());
@@ -192,7 +192,7 @@ void daemonize(void)
         char errbuf[300];
         FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
                 GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
-        log0(0, 0, "Error setting priority (%d): %s", GetLastError(), errbuf);
+        log0(0,0,0, "Error setting priority (%d): %s", GetLastError(), errbuf);
     }
     SetConsoleCtrlHandler(winsig, TRUE);
 #else  // WINDOWS
@@ -224,7 +224,7 @@ void daemonize(void)
         if (strcmp(pidfile, "")) {
             // Write out the pid file, before we redirect STDERR to the log.
             if ((pidfh = fopen(pidfile, "w")) == NULL) {
-                syserror(0, 0, "Can't open pid file for writing");
+                syserror(0, 0, 0, "Can't open pid file for writing");
                 exit(ERR_PARAM);
             }
             fprintf(pidfh, "%d\n", getpid());
@@ -233,7 +233,7 @@ void daemonize(void)
     }
 
     if (nice(priority) == -1) {
-        syserror(0, 0, "Error setting priority");
+        syserror(0, 0, 0, "Error setting priority");
     }
     {
         struct sigaction act;
@@ -281,7 +281,7 @@ void key_init(void)
             if (!strncmp(keyinfo[i], "ec:", 3)) {
                 curve = get_curve(&keyinfo[i][3]);
                 if (curve == 0) {
-                    log0(0, 0, "Invalid EC curve: %s", &keyinfo[i][3]);
+                    log0(0, 0, 0, "Invalid EC curve: %s", &keyinfo[i][3]);
                     exit(ERR_PARAM);
                 }
                 privkey[key_count].ec = gen_EC_key(curve, 0, keyname);
@@ -292,7 +292,7 @@ void key_init(void)
             } else if (!strncmp(keyinfo[i], "rsa:", 4)) {
                 size = atoi(&keyinfo[i][4]);
                 if ((size < 512) || (size > 2048)) {
-                    log0(0, 0, "Invalid RSA key size: %s", &keyinfo[i][4]);
+                    log0(0, 0, 0, "Invalid RSA key size: %s", &keyinfo[i][4]);
                     exit(ERR_PARAM);
                 }
                 privkey[key_count].rsa = gen_RSA_key(size, RSA_EXP, keyname);
@@ -301,7 +301,7 @@ void key_init(void)
                     exit(ERR_CRYPTO);
                 }
             } else {
-                log0(0, 0, "Invalid keyinfo entry: %s", keyinfo[i]);
+                log0(0, 0, 0, "Invalid keyinfo entry: %s", keyinfo[i]);
                 exit(ERR_PARAM);
             }
             key_count++;
@@ -340,7 +340,7 @@ void create_sockets(void)
     }
 
     if ((listener = socket(family, SOCK_DGRAM, 0)) == INVALID_SOCKET) {
-        sockerror(0, 0, "Error creating socket for listener");
+        sockerror(0, 0, 0, "Error creating socket for listener");
         exit(ERR_SOCKET);
     }
 #if (defined WINDOWS && _WIN32_WINNT >= _WIN32_WINNT_LONGHORN) ||\
@@ -349,7 +349,7 @@ void create_sockets(void)
         int v6flag = 0;
         if (setsockopt(listener, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6flag,
                         sizeof(v6flag)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting v6only");
+            sockerror(0, 0, 0, "Error setting v6only");
             closesocket(listener);
             exit(ERR_SOCKET);
         }
@@ -361,11 +361,11 @@ void create_sockets(void)
     ai_hints.ai_protocol = 0;
     ai_hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
     if ((rval = getaddrinfo(NULL, portname, &ai_hints, &ai_rval)) != 0) {
-        log0(0, 0, "Error getting bind address: %s", gai_strerror(rval));
+        log0(0, 0, 0, "Error getting bind address: %s", gai_strerror(rval));
         exit(ERR_SOCKET);
     }
     if (bind(listener, ai_rval->ai_addr, ai_rval->ai_addrlen) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error binding socket for listener");
+        sockerror(0, 0, 0, "Error binding socket for listener");
         closesocket(listener);
         exit(ERR_SOCKET);
     }
@@ -373,19 +373,19 @@ void create_sockets(void)
 #ifdef WINDOWS
     fdflag = 1;
     if (ioctlsocket(listener, FIONBIO, &fdflag) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error setting non-blocking option");
+        sockerror(0, 0, 0, "Error setting non-blocking option");
         closesocket(listener);
         exit(ERR_SOCKET);
     }
 #else
     if ((fdflag = fcntl(listener, F_GETFL)) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error getting socket descriptor flags");
+        sockerror(0, 0, 0, "Error getting socket descriptor flags");
         closesocket(listener);
         exit(ERR_SOCKET);
     }
     fdflag |= O_NONBLOCK;
     if (fcntl(listener, F_SETFL, fdflag) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error setting non-blocking option");
+        sockerror(0, 0, 0, "Error setting non-blocking option");
         closesocket(listener);
         exit(ERR_SOCKET);
     }
@@ -394,7 +394,7 @@ void create_sockets(void)
 #if defined IPV6_TCLASS && !defined WINDOWS
         if (setsockopt(listener, IPPROTO_IPV6, IPV6_TCLASS, (char *)&dscp,
                        sizeof(dscp)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting dscp");
+            sockerror(0, 0, 0, "Error setting dscp");
             closesocket(listener);
             exit(ERR_SOCKET);
         }
@@ -404,7 +404,7 @@ void create_sockets(void)
         tosflag = 1;
         if (setsockopt(listener, IPPROTO_IPV6, IPV6_RECVTCLASS,
                        (char *)&tosflag, sizeof(tosflag)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting recv tos");
+            sockerror(0, 0, 0, "Error setting recv tos");
             closesocket(listener);
             exit(ERR_SOCKET);
        }
@@ -415,7 +415,7 @@ void create_sockets(void)
             int mtuflag = IP_PMTUDISC_DONT;
             if (setsockopt(listener, IPPROTO_IPV6, IPV6_MTU_DISCOVER,
                            (char *)&mtuflag, sizeof(mtuflag)) == SOCKET_ERROR) {
-                sockerror(0, 0, "Error disabling MTU discovery");
+                sockerror(0, 0, 0, "Error disabling MTU discovery");
                 closesocket(listener);
                 exit(ERR_SOCKET);
             }
@@ -428,7 +428,7 @@ void create_sockets(void)
 #endif
         if (setsockopt(listener, IPPROTO_IP, IP_TOS, (char *)&dscp,
                        sizeof(dscp)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting dscp");
+            sockerror(0, 0, 0, "Error setting dscp");
             closesocket(listener);
             exit(ERR_SOCKET);
         }
@@ -437,7 +437,7 @@ void create_sockets(void)
         tosflag = 1;
         if (setsockopt(listener, IPPROTO_IP, IP_RECVTCLASS, (char *)&tosflag,
                        sizeof(tosflag)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting recv tos");
+            sockerror(0, 0, 0, "Error setting recv tos");
             closesocket(listener);
             exit(ERR_SOCKET);
         }
@@ -446,7 +446,7 @@ void create_sockets(void)
         tosflag = 1;
         if (setsockopt(listener, IPPROTO_IP, IP_RECVTOS, (char *)&tosflag,
                        sizeof(tosflag)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting recv tos");
+            sockerror(0, 0, 0, "Error setting recv tos");
             closesocket(listener);
             exit(ERR_SOCKET);
         }
@@ -456,7 +456,7 @@ void create_sockets(void)
             int mtuflag = IP_PMTUDISC_DONT;
             if (setsockopt(listener, IPPROTO_IP, IP_MTU_DISCOVER,
                     (char *)&mtuflag, sizeof(mtuflag)) == SOCKET_ERROR) {
-                sockerror(0, 0, "Error disabling MTU discovery");
+                sockerror(0, 0, 0, "Error disabling MTU discovery");
                 closesocket(listener);
                 exit(ERR_SOCKET);
             }
@@ -469,7 +469,7 @@ void create_sockets(void)
     if (rcvbuf) {
         if (setsockopt(listener, SOL_SOCKET, SO_RCVBUF,
                        (char *)&rcvbuf, sizeof(rcvbuf)) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error setting receive buffer size");
+            sockerror(0, 0, 0, "Error setting receive buffer size");
             exit(ERR_SOCKET);
         }
     } else {
@@ -479,20 +479,20 @@ void create_sockets(void)
             rcvbuf = DEF_BSD_RCVBUF;
             if (setsockopt(listener, SOL_SOCKET, SO_RCVBUF,
                            (char *)&rcvbuf, sizeof(rcvbuf)) == SOCKET_ERROR) {
-                sockerror(0, 0, "Error setting receive buffer size");
+                sockerror(0, 0, 0, "Error setting receive buffer size");
                 exit(ERR_SOCKET);
             }
         }
     }
     for (i = 0; i < pub_multi_count; i++) {
         if (server_count > 0) {
-            log3(0, 0, "joining ssm for server IPs");
+            log3(0, 0, 0, "joining ssm for server IPs");
             if (!multicast_join(listener, 0, &pub_multi[i], m_interface,
                                 interface_count, server_keys, server_count)) {
                 exit(ERR_SOCKET);
             }
             if (has_proxy) {
-                log3(0, 0, "joining ssm for proxy IPs");
+                log3(0, 0, 0, "joining ssm for proxy IPs");
                 if (!multicast_join(listener, 0, &pub_multi[i], m_interface,
                                     interface_count, &proxy_info, 1)) {
                     exit(ERR_SOCKET);
@@ -677,7 +677,7 @@ void initialize(void)
     }
 
     for (i = 0; i < MAXLIST; i++) {
-        group_list[i].group_id = 0;
+        memset(&group_list[i], 0, sizeof(struct group_list_t));
     }
 
     next_hb_time.tv_sec = 0;

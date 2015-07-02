@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -60,67 +60,98 @@ extern mux_t log_mux;
 void init_log(int _debug);
 void close_log(void);
 void roll_log(void);
-void logfunc(uint32_t group_id, uint16_t file_id, int level, int _showtime,
-             int newline, int err, int sockerr, const char *str, ...);
+void logfunc(uint32_t group_id, uint8_t group_inst, uint16_t file_id,
+             int level, int _showtime, int newline, int err, int sockerr,
+             const char *str, ...);
 
-#define clog0(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 0, showtime, 0, 0, 0, __VA_ARGS__)
-#define log0(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 0, showtime, 1, 0, 0, __VA_ARGS__)
+#define GRPLOG(group) (group)->group_id, (group)->group_inst, (group)->file_id
+
+#define clog0(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 0, showtime, 0, 0, 0, __VA_ARGS__)
+#define log0(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 0, showtime, 1, 0, 0, __VA_ARGS__)
+#define cglog0(group, ...) \
+    logfunc(GRPLOG(group), 0, showtime, 0, 0, 0, __VA_ARGS__)
+#define glog0(group, ...) \
+    logfunc(GRPLOG(group), 0, showtime, 1, 0, 0, __VA_ARGS__)
 #define sclog0(...) \
-    logfunc(0, 0, 0, 0, 0, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 0, 0, 0, 0, 0, __VA_ARGS__)
 #define slog0(...) \
-    logfunc(0, 0, 0, 0, 1, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 0, 0, 1, 0, 0, __VA_ARGS__)
 
-#define clog1(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 1, showtime, 0, 0, 0, __VA_ARGS__)
-#define log1(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 1, showtime, 1, 0, 0, __VA_ARGS__)
+#define clog1(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 1, showtime, 0, 0, 0, __VA_ARGS__)
+#define log1(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 1, showtime, 1, 0, 0, __VA_ARGS__)
+#define cglog1(group, ...) \
+    logfunc(GRPLOG(group), 1, showtime, 0, 0, 0, __VA_ARGS__)
+#define glog1(group, ...) \
+    logfunc(GRPLOG(group), 1, showtime, 1, 0, 0, __VA_ARGS__)
 #define sclog1(...) \
-    logfunc(0, 0, 1, 0, 0, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 1, 0, 0, 0, 0, __VA_ARGS__)
 #define slog1(...) \
-    logfunc(0, 0, 1, 0, 1, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 1, 0, 1, 0, 0, __VA_ARGS__)
 
-#define clog2(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 2, showtime, 0, 0, 0, __VA_ARGS__)
-#define log2(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 2, showtime, 1, 0, 0, __VA_ARGS__)
+#define clog2(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 2, showtime, 0, 0, 0, __VA_ARGS__)
+#define log2(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 2, showtime, 1, 0, 0, __VA_ARGS__)
+#define cglog2(group, ...) \
+    logfunc(GRPLOG(group), 2, showtime, 0, 0, 0, __VA_ARGS__)
+#define glog2(group, ...) \
+    logfunc(GRPLOG(group), 2, showtime, 1, 0, 0, __VA_ARGS__)
 #define sclog2(...) \
-    logfunc(0, 0, 2, 0, 0, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 2, 0, 0, 0, 0, __VA_ARGS__)
 #define slog2(...) \
-    logfunc(0, 0, 2, 0, 1, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 2, 0, 1, 0, 0, __VA_ARGS__)
 
-#define clog3(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 3, showtime, 0, 0, 0, __VA_ARGS__)
-#define log3(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 3, showtime, 1, 0, 0, __VA_ARGS__)
+#define clog3(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 3, showtime, 0, 0, 0, __VA_ARGS__)
+#define log3(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 3, showtime, 1, 0, 0, __VA_ARGS__)
+#define cglog3(group, ...) \
+    logfunc(GRPLOG(group), 3, showtime, 0, 0, 0, __VA_ARGS__)
+#define glog3(group, ...) \
+    logfunc(GRPLOG(group), 3, showtime, 1, 0, 0, __VA_ARGS__)
 #define sclog3(...) \
-    logfunc(0, 0, 3, 0, 0, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 3, 0, 0, 0, 0, __VA_ARGS__)
 #define slog3(...) \
-    logfunc(0, 0, 3, 0, 1, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 3, 0, 1, 0, 0, __VA_ARGS__)
 
-#define clog4(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 4, showtime, 0, 0, 0, __VA_ARGS__)
-#define log4(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 4, showtime, 1, 0, 0, __VA_ARGS__)
+#define clog4(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 4, showtime, 0, 0, 0, __VA_ARGS__)
+#define log4(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 4, showtime, 1, 0, 0, __VA_ARGS__)
+#define cglog4(group, ...) \
+    logfunc(GRPLOG(group), 4, showtime, 0, 0, 0, __VA_ARGS__)
+#define glog4(group, ...) \
+    logfunc(GRPLOG(group), 4, showtime, 1, 0, 0, __VA_ARGS__)
 #define sclog4(...) \
-    logfunc(0, 0, 4, 0, 0, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 4, 0, 0, 0, 0, __VA_ARGS__)
 #define slog4(...) \
-    logfunc(0, 0, 4, 0, 1, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 4, 0, 1, 0, 0, __VA_ARGS__)
 
-#define clog5(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 5, showtime, 0, 0, 0, __VA_ARGS__)
-#define log5(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 5, showtime, 1, 0, 0, __VA_ARGS__)
+#define clog5(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 5, showtime, 0, 0, 0, __VA_ARGS__)
+#define log5(group_id, group_inst, file_id, ...) \
+    logfunc(group_id, group_inst, file_id, 5, showtime, 1, 0, 0, __VA_ARGS__)
+#define cglog5(group, ...) \
+    logfunc(GRPLOG(group), 5, showtime, 0, 0, 0, __VA_ARGS__)
+#define glog5(group, ...) \
+    logfunc(GRPLOG(group), 5, showtime, 1, 0, 0, __VA_ARGS__)
 #define sclog5(...) \
-    logfunc(0, 0, 5, 0, 0, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 5, 0, 0, 0, 0, __VA_ARGS__)
 #define slog5(...) \
-    logfunc(0, 0, 5, 0, 1, 0, 0, __VA_ARGS__)
+    logfunc(0, 0, 0, 5, 0, 1, 0, 0, __VA_ARGS__)
 
-#define syserror(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 0, showtime, 1, errno, 0, __VA_ARGS__)
-#define sockerror(group_id, file_id, ...) \
-    logfunc(group_id, file_id, 0, showtime, 1, errno, 1, __VA_ARGS__)
+#define syserror(group_id, group_inst, file_id, ...) \
+    logfunc(group_id,group_inst, file_id, 0, showtime, 1, errno, 0, __VA_ARGS__)
+#define sockerror(group_id, group_inst, file_id, ...) \
+    logfunc(group_id,group_inst, file_id, 0, showtime, 1, errno, 1, __VA_ARGS__)
+#define gsyserror(group, ...) \
+    logfunc(GRPLOG(group), 0, showtime, 1, errno, 0, __VA_ARGS__)
+#define gsockerror(group, ...) \
+    logfunc(GRPLOG(group), 0, showtime, 1, errno, 1, __VA_ARGS__)
 
 union sockaddr_u {
     struct sockaddr_storage ss;

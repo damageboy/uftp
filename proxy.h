@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2013   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -114,6 +114,7 @@ struct pr_pending_info_t {
 struct pr_group_list_t {
     uint32_t group_id;              /// Group ID
     uint8_t group_inst;             /// Group instance ID (restart number)
+    uint16_t file_id;               /// Dummy field, present for logging macros
     uint8_t version;                /// Protocol version number of server
     uint32_t src_id;                /// ID of server
     double grtt;                    /// Server's GRTT

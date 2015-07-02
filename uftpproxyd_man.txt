@@ -561,4 +561,4 @@ NOTES
 
 
 
-UFTP 4.6		       30 December 2014			 uftpproxyd(1)
+UFTP 4.7			  16 May 2015			 uftpproxyd(1)

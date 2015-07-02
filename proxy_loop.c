@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -98,18 +98,18 @@ struct timeval *getrecenttimeout(void)
                     // If at least one message is pending, timeout_time is
                     // time to next send of the specified message.
                     // Otherwise it's the overall timeout.
-                    log5(group->group_id, 0, "timeout, checking pending");
+                    glog5(group, "timeout, checking pending");
                     for (pending = 0, j = 0; (j < MAX_PEND) && !pending; j++) {
                         if (group->pending[j].msg != 0) {
-                            log5(group->group_id, 0, "found pending %s",
-                                    func_name(group->pending[j].msg));
+                            glog5(group, "found pending %s",
+                                         func_name(group->pending[j].msg));
                             pending = 1;
                         }
                     }
                     if (pending) {
                         send_all_pending(group);
                     } else {
-                        log1(group->group_id, 0, "Group timed out");
+                        glog1(group, "Group timed out");
                         group_cleanup(group);
                     }
                     recheck = 1;
@@ -162,14 +162,14 @@ void mainloop(void)
     struct timeval *tv;
     double new_grtt;
 
-    log2(0, 0, "%s", VERSIONSTR);
+    log2(0, 0, 0, "%s", VERSIONSTR);
     for (i = 0; i < key_count; i++) {
         if (privkey_type[i] == KEYBLOB_RSA) {
-            log2(0, 0, "Loaded %d bit RSA key with fingerprint %s",
+            log2(0, 0, 0, "Loaded %d bit RSA key with fingerprint %s",
                   RSA_keylen(privkey[i].rsa) * 8,
                   print_key_fingerprint(privkey[i], KEYBLOB_RSA));
         } else {
-            log2(0, 0, "Loaded ECDSA key with curve %s and fingerprint %s",
+            log2(0, 0, 0, "Loaded ECDSA key with curve %s and fingerprint %s",
                   curve_name(get_EC_curve(privkey[i].ec)),
                   print_key_fingerprint(privkey[i], KEYBLOB_EC));
         }
@@ -182,7 +182,7 @@ void mainloop(void)
     while (1) {
         tv = getrecenttimeout();
         if (tv) {
-            log5(0, 0, "timeout: %d.%06d", tv->tv_sec, tv->tv_usec);
+            log5(0, 0, 0, "timeout: %d.%06d", tv->tv_sec, tv->tv_usec);
         }
         if (read_packet(listener, &src, buf, &packetlen,
                         MAXMTU, tv, &tos) <= 0) {
@@ -191,16 +191,16 @@ void mainloop(void)
 
         if ((rval = getnameinfo((struct sockaddr *)&src, family_len(src),
                 rxname, sizeof(rxname), NULL, 0, NI_NUMERICHOST)) != 0) {
-            log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+            log1(0, 0, 0, "getnameinfo failed: %s", gai_strerror(rval));
         }
 
         if (header->version != UFTP_VER_NUM) {
-            log2(0, 0, "Invalid message from %s: not uftp packet "
-                       "or invalid version", rxname);
+            log2(0, 0, 0, "Invalid message from %s: not uftp packet "
+                    "or invalid version", rxname);
             continue;
         }
         if (packetlen < sizeof(struct uftp_h) + 4) {
-            log1(0, 0, "Invalid packet size from %s: %d", rxname, packetlen);
+            log1(0, 0, 0, "Invalid packet size from %s: %d", rxname, packetlen);
             continue;
         }
 
@@ -227,8 +227,8 @@ void mainloop(void)
             continue;
         }
         if ((proxy_type == SERVER_PROXY) && (addr_blank(&down_addr))) {
-            log1(0, 0, "Rejecting message from %s: downstream address "
-                       "not established", rxname);
+            log1(0, 0, 0, "Rejecting message from %s: downstream address "
+                          "not established", rxname);
             continue;
         }
 
@@ -240,7 +240,7 @@ void mainloop(void)
                 continue;
             }
             if (group->version != header->version) {
-                log1(group->group_id, 0, "Version mismatch");
+                glog1(group, "Version mismatch");
                 continue;
             }
             if (proxy_type == SERVER_PROXY) {
@@ -253,7 +253,7 @@ void mainloop(void)
                         set_timeout(group, 0, 1);
                     }
                     group->gsize = unquantize_gsize(header->gsize);
-                    log4(group->group_id, 0, "grtt: %.3f", group->grtt);
+                    glog4(group, "grtt: %.3f", group->grtt);
                 }
                 forward_message(group, &src, buf, packetlen);
                 continue;
@@ -261,7 +261,7 @@ void mainloop(void)
             if (!memcmp(&src, &group->up_addr, sizeof(src))) {
                 // Downstream message
                 if (group->src_id != header->src_id) {
-                    log1(group->group_id, 0, "Source ID mismatch");
+                    glog1(group, "Source ID mismatch");
                     continue;
                 }
                 new_grtt = unquantize_grtt(header->grtt);
@@ -270,7 +270,7 @@ void mainloop(void)
                     set_timeout(group, 0, 1);
                 }
                 group->gsize = unquantize_gsize(header->gsize);
-                log4(group->group_id, 0, "grtt: %.3f", group->grtt);
+                glog4(group, "grtt: %.3f", group->grtt);
                 message = buf + sizeof(struct uftp_h);
                 meslen = packetlen - sizeof(struct uftp_h);
                 if (header->func == ABORT) {
@@ -291,8 +291,8 @@ void mainloop(void)
                 hostidx = find_client(group, header->src_id);
                 if ((hostidx == -1) && (header->func != REGISTER) &&
                         (header->func != CLIENT_KEY)) {
-                    log1(0, 0, "Host %08X not in host list",
-                            ntohl(header->src_id));
+                    glog1(group, "Host %08X not in host list",
+                                 ntohl(header->src_id));
                     continue;
                 }
                 if ((hostidx != -1) && (header->func == ENCRYPTED) &&
@@ -303,8 +303,8 @@ void mainloop(void)
                             group->grouphmackey, group->hmaclen, group->sigtype,
                             group->keyextype, group->destinfo[hostidx].pubkey,
                             group->destinfo[hostidx].pubkeylen)) {
-                        log1(ntohl(header->group_id), 0, "Rejecting message "
-                                "from %s: decrypt/validate failed", rxname);
+                        glog1(group, "Rejecting message from %s: "
+                                     "decrypt/validate failed", rxname);
                         continue;
                     }
                     func = (uint8_t *)decrypted;
@@ -317,9 +317,8 @@ void mainloop(void)
                              (header->func == FILEINFO_ACK) ||
                              (header->func == STATUS) ||
                              (header->func == COMPLETE))) {
-                        log1(ntohl(header->group_id), 0, "Rejecting %s message "
-                                "from %s: not encrypted", 
-                                func_name(header->func), rxname);
+                        glog1(group, "Rejecting %s message from %s: "
+                                "not encrypted",func_name(header->func),rxname);
                         continue;
                     }
                     func = (uint8_t *)&header->func;

@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -121,11 +121,11 @@ void read_restart_file(struct group_list_t *group)
         }
     }
 
-    log2(group->group_id, 0, "Reading restart file");
+    glog2(group, "Reading restart file");
     snprintf(restart_name, sizeof(restart_name), "%s%c_group_%08X_restart",
              tempdir, PATH_SEP, group->group_id);
     if ((fd = open(restart_name, OPENREAD, 0644)) == -1) {
-        syserror(group->group_id, 0, "Failed to read restart file");
+        gsyserror(group, "Failed to read restart file");
         return;
     }
 
@@ -133,13 +133,12 @@ void read_restart_file(struct group_list_t *group)
     restart = safe_calloc(sizeof(struct client_restart_t), 1);
     if ((rval = file_read(fd, restart, sizeof(struct client_restart_t),
                           0)) == -1) {
-        log0(group->group_id, 0, "Failed to read header for restart file");
+        glog0(group, "Failed to read header for restart file");
         goto err1;
     }
     if (rval != sizeof(struct client_restart_t)) {
-        log0(group->group_id, 0,
-                "Failed to read header for restart file (read %d, expected %d)",
-                rval, sizeof(struct client_restart_t));
+        glog0(group, "Failed to read header for restart file "
+                "(read %d, expected %d)", rval,sizeof(struct client_restart_t));
         goto err1;
     }
 
@@ -147,7 +146,7 @@ void read_restart_file(struct group_list_t *group)
     if (restart->blocks) {
         restart->naklist = safe_calloc(restart->blocks, 1);
         if (file_read(fd, restart->naklist, restart->blocks, 0) == -1) {
-            log0(group->group_id,0, "Failed to read NAK list for restart file");
+            glog0(group, "Failed to read NAK list for restart file");
             goto err2;
         }
     }
@@ -156,15 +155,14 @@ void read_restart_file(struct group_list_t *group)
     if (restart->sections) {
         restart->section_done = safe_calloc(restart->sections, 1);
         if (file_read(fd, restart->section_done, restart->sections, 0) == -1) {
-            log0(group->group_id, 0,
-                    "Failed to read section_done list for restart file");
+            glog0(group, "Failed to read section_done list for restart file");
             goto err3;
         }
     }
     close(fd);
     unlink(restart_name);
     group->restartinfo = restart;
-    log3(group->group_id, 0, "Reading restart file done");
+    glog3(group, "Reading restart file done");
     return;
 
 err3:
@@ -191,7 +189,7 @@ void write_restart_file(struct group_list_t *group)
         return;
     }
 
-    log2(group->group_id, 0, "Writing restart file");
+    glog2(group, "Writing restart file");
     memset(&restart, 0, sizeof(restart));
     fileinfo = &group->fileinfo;
     if (group->phase != PHASE_MIDGROUP) {
@@ -205,25 +203,23 @@ void write_restart_file(struct group_list_t *group)
     snprintf(restart_name, sizeof(restart_name), "%s%c_group_%08X_restart",
              tempdir, PATH_SEP, group->group_id);
     if ((fd = open(restart_name, OPENWRITE | O_CREAT | O_TRUNC, 0644)) == -1) {
-        syserror(group->group_id, 0, "Failed to create restart file");
+        gsyserror(group, "Failed to create restart file");
         return;
     }
 
     if (file_write(fd, &restart, sizeof(restart)) == -1) {
-        log0(group->group_id, 0, "Failed to write header for restart file");
+        glog0(group, "Failed to write header for restart file");
         goto errexit;
     }
     if (fileinfo->blocks && fileinfo->naklist) {
         if (file_write(fd, fileinfo->naklist, fileinfo->blocks) == -1) {
-            log0(group->group_id, 0,
-                    "Failed to write NAK list for restart file");
+            glog0(group, "Failed to write NAK list for restart file");
             goto errexit;
         }
     }
     if (fileinfo->sections && fileinfo->section_done) {
         if (file_write(fd, fileinfo->section_done, fileinfo->sections) == -1) {
-            log0(group->group_id, 0,
-                    "Failed to write section_done list for restart file");
+            glog0(group, "Failed to write section_done list for restart file");
             goto errexit;
         }
     }
@@ -285,8 +281,7 @@ void run_postreceive_multi(struct group_list_t *group, char *const *files,
     params[count+4-1] = NULL;
 
     if (log_level >= 2) {
-        clog2(group->group_id, group->file_id,
-              "Running postreceive: %s", postreceive);
+        cglog2(group, "Running postreceive: %s", postreceive);
         for (i = 1; i < count + 3; i++) {
             sclog2(" %s", params[i]);
         }
@@ -307,8 +302,8 @@ void run_postreceive_multi(struct group_list_t *group, char *const *files,
                 char errbuf[300];
                 FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(),
                               0, errbuf, sizeof(errbuf), NULL);
-                log0(group->group_id, group->file_id,
-                     "Error getting sysroot: (%d) %s", GetLastError(), errbuf);
+                glog0(group, "Error getting sysroot: (%d) %s",
+                             GetLastError(), errbuf);
                 free(params);
                 return;
             }
@@ -349,8 +344,8 @@ void run_postreceive_multi(struct group_list_t *group, char *const *files,
                 char errbuf[300];
                 FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(),
                               0, errbuf, sizeof(errbuf), NULL);
-                log0(group->group_id, group->file_id,
-                     "Error running script: (%d) %s", GetLastError(), errbuf);
+                glog0(group, "Error running script: (%d) %s",
+                             GetLastError(), errbuf);
             }
         }
     }
@@ -358,13 +353,13 @@ void run_postreceive_multi(struct group_list_t *group, char *const *files,
     {
         pid_t pid;
         if ((pid = fork()) == -1) {
-            syserror(0, 0, "fork failed");
+            gsyserror(group, "fork failed");
         } else if (pid == 0) {
             close(listener);
             close(1);
             close(2);
             execv(postreceive, params);
-            syserror(0, 0, "exec failed");
+            gsyserror(group, "exec failed");
             exit(1);
         }
     }
@@ -390,9 +385,9 @@ void run_postreceive(struct group_list_t *group, char *file)
 void file_cleanup(struct group_list_t *group, int abort_session)
 {
     if (group->fileinfo.fd >= 0) {
-        log2(group->group_id, group->file_id, "starting file close");
+        glog2(group, "starting file close");
         close(group->fileinfo.fd);
-        log2(group->group_id, group->file_id, "done file close");
+        glog2(group, "done file close");
         group->fileinfo.fd = -1;
         if (abort_session && !strcmp(tempdir, "")) {
             if (tempfile) {
@@ -405,8 +400,7 @@ void file_cleanup(struct group_list_t *group, int abort_session)
                 move_to_backup(group);
                 if (rename(group->fileinfo.temppath,
                            group->fileinfo.filepath) == -1) {
-                    syserror(group->group_id, group->file_id,
-                             "Couldn't rename from %s to %s",
+                    gsyserror(group, "Couldn't rename from %s to %s",
                              group->fileinfo.temppath,group->fileinfo.filepath);
                 }
             }
@@ -415,7 +409,7 @@ void file_cleanup(struct group_list_t *group, int abort_session)
                 utbuf.actime = group->fileinfo.tstamp;
                 utbuf.modtime = group->fileinfo.tstamp;
                 if (utime(group->fileinfo.filepath, &utbuf) == -1) {
-                    syserror(group->group_id, group->file_id, "utime failed");
+                    gsyserror(group, "utime failed");
                 }
             }
         }
@@ -491,6 +485,66 @@ void file_cleanup(struct group_list_t *group, int abort_session)
 }
 
 /**
+ * Flushes the cache to disk
+ * Returns 1 on success, 0 on failure
+ */
+int flush_disk_cache(struct group_list_t *group)
+{
+    f_offset_t offset, seek_rval;
+    int wrote_len;
+    uint32_t i;
+
+    if (group->fileinfo.cache_len == 0) return 1;
+    offset = (f_offset_t) group->fileinfo.cache_start * group->blocksize;
+    if ((seek_rval = lseek_func(group->fileinfo.fd,
+            offset - group->fileinfo.curr_offset, SEEK_CUR)) == -1) {
+        gsyserror(group, "lseek failed for file");
+    }
+    if (seek_rval != offset) {
+        glog2(group, "offset is %s", printll(seek_rval));
+        glog2(group, "  should be %s", printll(offset));
+        if ((seek_rval = lseek_func(group->fileinfo.fd, offset,
+                                    SEEK_SET)) == -1) {
+            gsyserror(group, "lseek failed for file");
+            return 0;
+        }
+    }
+    if ((wrote_len = write(group->fileinfo.fd, group->fileinfo.cache,
+                           group->fileinfo.cache_len)) == -1) {
+        gsyserror(group, "Write failed for blocks %d - %d",
+                        group->fileinfo.cache_start, group->fileinfo.cache_end);
+        return 0;
+    } else {
+        group->fileinfo.curr_offset = offset + wrote_len;
+        if (wrote_len != group->fileinfo.cache_len) {
+            glog0(group, "Write failed for blocks %d - %d, only wrote %d bytes",
+                        group->fileinfo.cache_start, group->fileinfo.cache_end);
+            return 0;
+        } else {
+            glog4(group, "Wrote blocks %d - %d to disk from cache",
+                        group->fileinfo.cache_start, group->fileinfo.cache_end);
+            for (i = group->fileinfo.cache_start;
+                    i <= group->fileinfo.cache_end; i++) {
+                int status_idx = i - group->fileinfo.cache_start;
+                if (group->fileinfo.cache_status[status_idx]) {
+                    group->fileinfo.naklist[i] = 0;
+                }
+            }
+            group->fileinfo.cache_start = group->fileinfo.cache_end + 1;
+            while ((group->fileinfo.cache_start < group->fileinfo.blocks) &&
+                    (!group->fileinfo.naklist[group->fileinfo.cache_start])) {
+                group->fileinfo.cache_start++;
+            }
+            group->fileinfo.cache_end = group->fileinfo.cache_start;
+            group->fileinfo.cache_len = 0;
+            memset(group->fileinfo.cache, 0, cache_len);
+            memset(group->fileinfo.cache_status,0,cache_len / group->blocksize);
+            return 1;
+        }
+    }
+}
+
+/**
  * Initializes the uftp header of an outgoing packet
  */
 void set_uftp_header(struct uftp_h *header, int func,
@@ -562,7 +616,7 @@ void send_abort(struct group_list_t *group, const char *message)
                 group->ivlen, group->hashtype, group->grouphmackey,
                 group->hmaclen, group->sigtype, group->keyextype,
                 group->client_privkey, group->client_privkeylen)) {
-            log0(group->group_id, group->file_id, "Error encrypting ABORT");
+            glog0(group, "Error encrypting ABORT");
             free(buf);
             return;
         }
@@ -577,9 +631,10 @@ void send_abort(struct group_list_t *group, const char *message)
     if (nb_sendto(listener, outpacket, payloadlen, 0,
                (struct sockaddr *)&group->replyaddr,
                family_len(group->replyaddr)) == SOCKET_ERROR) {
-        sockerror(group->group_id, group->file_id, "Error sending ABORT");
+        gsockerror(group, "Error sending ABORT");
     }
 
+    flush_disk_cache(group);
     file_cleanup(group, 1);
     free(buf);
     free(encrypted);
@@ -597,8 +652,7 @@ void handle_abort(struct group_list_t *group, const unsigned char *message,
     abort_hdr = (const struct abort_h *)message;
     if (meslen < (abort_hdr->hlen * 4U) ||
             ((abort_hdr->hlen * 4U) < sizeof(struct abort_h))) {
-        log1(group->group_id, group->file_id,
-                "Rejecting ABORT from server: invalid message size");
+        glog1(group, "Rejecting ABORT from server: invalid message size");
         return;
     }
 
@@ -615,8 +669,8 @@ void handle_abort(struct group_list_t *group, const unsigned char *message,
     }
 
     if (found) {
-        log1(group->group_id, group->file_id,
-                "Transfer aborted by server: %s", abort_hdr->message);
+        glog1(group, "Transfer aborted by server: %s", abort_hdr->message);
+        flush_disk_cache(group);
         file_cleanup(group, 1);
     }
 }
@@ -648,15 +702,15 @@ void send_key_req()
     if (nb_sendto(listener, packet, meslen, 0, 
                   (struct sockaddr *)&proxyaddr,
                   family_len(proxyaddr)) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error sending KEY_REQ");
+        sockerror(0, 0, 0, "Error sending KEY_REQ");
     } else {
         if ((rval = getnameinfo((struct sockaddr *)&proxyaddr,
                 family_len(proxyaddr), addrname, sizeof(addrname),
                 NULL, 0, NI_NUMERICHOST)) != 0) {
-            log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+            log1(0, 0, 0, "getnameinfo failed: %s", gai_strerror(rval));
         }
 
-        log2(0, 0, "Sent KEY_REQ to %s:%s", addrname, portname);
+        log2(0, 0, 0, "Sent KEY_REQ to %s:%s", addrname, portname);
     }
 
     free(packet);
@@ -683,23 +737,23 @@ void handle_proxy_key(const union sockaddr_u *src,
             ((proxykey->hlen * 4U) < sizeof(struct proxy_key_h) +
                 ntohs(proxykey->bloblen) + ntohs(proxykey->dhlen) +
                 ntohs(proxykey->siglen))) {
-        log2(0, 0, "Rejecting PROXY_KEY: invalid message size");
+        log2(0, 0, 0, "Rejecting PROXY_KEY: invalid message size");
         return;
     }
 
     if ((rval = getnameinfo((const struct sockaddr *)src,
             family_len(*src), addrname, sizeof(addrname),
             NULL, 0, NI_NUMERICHOST)) != 0) {
-        log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+        log1(0, 0, 0, "getnameinfo failed: %s", gai_strerror(rval));
     }
-    log2(0, 0, "Received PROXY_KEY from %s", addrname);
+    log2(0, 0, 0, "Received PROXY_KEY from %s", addrname);
 
     if (!has_proxy) {
-        log2(0, 0, "No reply proxy specified");
+        log2(0, 0, 0, "No reply proxy specified");
         return;
     }
     if (!addr_equal(&proxy_info.addr, src)) {
-        log2(0, 0, "PROXY_KEY not from specified reply proxy");
+        log2(0, 0, 0, "PROXY_KEY not from specified reply proxy");
         return;
     }
 
@@ -712,13 +766,13 @@ void handle_proxy_key(const union sockaddr_u *src,
 
     if (keyblob[0] == KEYBLOB_RSA) {
         if (!import_RSA_key(&proxy_pubkey.rsa, keyblob, keylen)) {
-            log0(0, 0, "Failed to import public key from PROXY_KEY");
+            log0(0, 0, 0, "Failed to import public key from PROXY_KEY");
             return;
         } 
         if (proxy_info.has_fingerprint) {
             hash(HASH_SHA1, keyblob, keylen, fingerprint, &fplen);
             if (memcmp(proxy_info.fingerprint, fingerprint, fplen)) {
-                log1(0, 0, "Failed to verify PROXY_KEY fingerprint");
+                log1(0, 0, 0, "Failed to verify PROXY_KEY fingerprint");
                 free_RSA_key(proxy_pubkey.rsa);
                 return;
             }
@@ -726,19 +780,19 @@ void handle_proxy_key(const union sockaddr_u *src,
         if (!verify_RSA_sig(proxy_pubkey.rsa, HASH_SHA1,
                             (unsigned char *)&proxykey->nonce,
                             sizeof(proxykey->nonce), sig, siglen)) {
-            log1(0, 0, "Failed to verify PROXY_KEY signature");
+            log1(0, 0, 0, "Failed to verify PROXY_KEY signature");
             free_RSA_key(proxy_pubkey.rsa);
             return;
         }
     } else {
         if (!import_EC_key(&proxy_pubkey.ec, keyblob, keylen, 0)) {
-            log0(0, 0, "Failed to import public key from PROXY_KEY");
+            log0(0, 0, 0, "Failed to import public key from PROXY_KEY");
             return;
         } 
         if (proxy_info.has_fingerprint) {
             hash(HASH_SHA1, keyblob, keylen, fingerprint, &fplen);
             if (memcmp(proxy_info.fingerprint, fingerprint, fplen)) {
-                log1(0, 0, "Failed to verify PROXY_KEY fingerprint");
+                log1(0, 0, 0, "Failed to verify PROXY_KEY fingerprint");
                 free_RSA_key(proxy_pubkey.rsa);
                 return;
             }
@@ -746,14 +800,14 @@ void handle_proxy_key(const union sockaddr_u *src,
         if (!verify_ECDSA_sig(proxy_pubkey.ec, HASH_SHA1,
                               (unsigned char *)&proxykey->nonce,
                               sizeof(proxykey->nonce), sig, siglen)) {
-            log1(0, 0, "Failed to verify PROXY_KEY signature");
+            log1(0, 0, 0, "Failed to verify PROXY_KEY signature");
             free_RSA_key(proxy_pubkey.rsa);
             return;
         }
     }
     if (dhlen) {
         if (!import_EC_key(&proxy_dhkey.ec, dhblob, dhlen, 1)) {
-            log0(0, 0, "Failed to import ECDH public key from PROXY_KEY");
+            log0(0, 0, 0, "Failed to import ECDH public key from PROXY_KEY");
             return;
         } 
     }
@@ -770,8 +824,7 @@ void clear_path(const char *path, struct group_list_t *group)
 
     if (lstat_func(path, &statbuf) == -1) {
         if (errno != ENOENT) {
-            syserror(group->group_id, group->file_id,
-                     "Error getting file status for %s", path);
+            gsyserror(group, "Error getting file status for %s", path);
         }
         return;
     }
@@ -786,17 +839,15 @@ void clear_path(const char *path, struct group_list_t *group)
         snprintf(dirglob, sizeof(dirglob), "%s%c*", path,
                  PATH_SEP, group->group_id, PATH_SEP);
         if ((ffhandle = _findfirsti64(dirglob, &finfo)) == -1) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to open directory %s", path);
+            gsyserror(group, "Failed to open directory %s", path);
             return;
         }
         do {
             len = snprintf(filename, sizeof(filename), "%s%c%s", path,
                            PATH_SEP, finfo.name);
             if ((len >= sizeof(filename)) || (len == -1)) {
-                log0(group->group_id, group->file_id,
-                        "Max pathname length exceeded: %s%c%s",
-                        filename, PATH_SEP, finfo.name);
+                glog0(group, "Max pathname length exceeded: %s%c%s",
+                             filename, PATH_SEP, finfo.name);
                 continue;
             }
             if (strcmp(finfo.name, ".") && strcmp(finfo.name, "..")) {
@@ -809,8 +860,7 @@ void clear_path(const char *path, struct group_list_t *group)
         struct dirent *de;
 
         if ((dir = opendir(path)) == NULL) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to open directory %s", path);
+            gsyserror(group, "Failed to open directory %s", path);
             return;
         }
         // errno needs to be set to 0 before calling readdir, otherwise
@@ -819,9 +869,8 @@ void clear_path(const char *path, struct group_list_t *group)
             len = snprintf(filename, sizeof(filename), "%s%c%s", path, PATH_SEP,
                            de->d_name);
             if ((len >= sizeof(filename)) || (len == -1)) {
-                log0(group->group_id, group->file_id,
-                        "Max pathname length exceeded: %s%c%s", path,
-                        PATH_SEP, de->d_name);
+                glog0(group, "Max pathname length exceeded: %s%c%s",
+                             path, PATH_SEP, de->d_name);
                 continue;
             }
             if (strcmp(de->d_name, ".") && strcmp(de->d_name, "..")) {
@@ -829,14 +878,12 @@ void clear_path(const char *path, struct group_list_t *group)
             }
         }
         if (errno && (errno != ENOENT)) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to read directory %s", path);
+            gsyserror(group, "Failed to read directory %s", path);
         }
         closedir(dir);
 #endif
         if (rmdir(path) == -1) {
-            syserror(group->group_id, group->file_id,
-                     "Failed remove directory %s", path);
+            gsyserror(group, "Failed remove directory %s", path);
         }
     }
 }
@@ -876,16 +923,14 @@ void move_to_backup(struct group_list_t *group)
                    group->start_date, PATH_SEP,
                    group->start_time, PATH_SEP, trim_name);
     if (len >= sizeof(backup_file)) {
-        log0(group->group_id, group->file_id,
-                "Max pathname length exceeded for backup file, deleting",
-                group->fileinfo.filepath);
+        glog0(group, "Max pathname length exceeded for backup file, deleting",
+                     group->fileinfo.filepath);
         clear_path(group->fileinfo.filepath, group);
         return;
     }
     clear_path(backup_file, group);
     if (!create_path_to_file(group, backup_file)) {
-        log0(group->group_id, group->file_id,
-                "Error creating path to backup file");
+        glog0(group, "Error creating path to backup file");
         clear_path(group->fileinfo.filepath, group);
     }
 #ifdef WINDOWS
@@ -893,23 +938,19 @@ void move_to_backup(struct group_list_t *group)
         char errbuf[300];
         FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
                 GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
-        log0(group->group_id, group->file_id,
-                "Couldn't rename from %s to %s, deleting: (%d): %s",
+        glog0(group, "Couldn't rename from %s to %s, deleting: (%d): %s",
                 group->fileinfo.filepath, backup_file, GetLastError(), errbuf);
         clear_path(group->fileinfo.filepath, group);
     } else {
-        log2(group->group_id, group->file_id,
-                "Backed up existing file to %s", backup_file);
+        glog2(group, "Backed up existing file to %s", backup_file);
     }
 #else
     if (rename(group->fileinfo.filepath, backup_file) == -1) {
-        syserror(group->group_id, group->file_id,
-                 "Couldn't rename from %s to %s, deleting",
-                 group->fileinfo.filepath, backup_file);
+        gsyserror(group, "Couldn't rename from %s to %s, deleting",
+                         group->fileinfo.filepath, backup_file);
         clear_path(group->fileinfo.filepath, group);
     } else {
-        log2(group->group_id, group->file_id,
-                "Backed up existing file to %s", backup_file);
+        glog2(group, "Backed up existing file to %s", backup_file);
     }
 #endif
 }
@@ -926,8 +967,7 @@ int create_path_to_file(struct group_list_t *group, const char *filename)
 
     split_path(filename, &dir, &base);
     if (!dir) {
-        log1(group->group_id, group->file_id,
-                "Invalid path element %s", filename);
+        glog1(group, "Invalid path element %s", filename);
         rval = 0;
         goto end;
     }
@@ -944,14 +984,12 @@ int create_path_to_file(struct group_list_t *group, const char *filename)
     if (lstat_func(dir, &statbuf) != -1) {
         if (!S_ISDIR(statbuf.st_mode)) {
             if (unlink(dir) == -1) {
-                syserror(group->group_id, group->file_id,
-                         "Failed to delete path element %s", dir);
+                gsyserror(group, "Failed to delete path element %s", dir);
                 rval = 0;
                 goto end;
             }
             if (mkdir(dir, 0755) == -1) {
-                syserror(group->group_id, group->file_id,
-                         "Failed to create path element %s", dir);
+                gsyserror(group, "Failed to create path element %s", dir);
                 rval = 0;
                 goto end;
             }
@@ -964,8 +1002,7 @@ int create_path_to_file(struct group_list_t *group, const char *filename)
             goto end;
         }
         if (mkdir(dir, 0755) == -1) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to create path element %s", dir);
+            gsyserror(group, "Failed to create path element %s", dir);
             rval = 0;
             goto end;
         }
@@ -985,11 +1022,10 @@ void new_loss_event(struct group_list_t *group, uint16_t txseq)
     uint16_t count;
     int bytes, avgbytes, rate, grtt_usec;
 
-    log4(group->group_id, 0, "Seq %d starts new loss event", txseq);
+    glog4(group, "Seq %d starts new loss event", txseq);
     // Found a new loss event
     if (txseq < group->max_txseq - MAXMISORDER) {
-        log5(group->group_id, 0, "wrap check, i=%u, maxseq=%u",
-                txseq, group->max_txseq);
+        glog5(group, "wrap check, i=%u, maxseq=%u", txseq, group->max_txseq);
         seq_long = ((group->seq_wrap - 1) << 16) | txseq;
     } else {
         seq_long = (group->seq_wrap << 16) | txseq;
@@ -1006,19 +1042,18 @@ void new_loss_event(struct group_list_t *group, uint16_t txseq)
             bytes += group->loss_history[count--].size;
         }
         rate = (int)(bytes / group->grtt);
-        log4(group->group_id, 0, "End slowstart, calculated rate = %d", rate);
+        glog4(group, "End slowstart, calculated rate = %d", rate);
         avgbytes= bytes / ((int16_t)(group->max_txseq - count));
         group->loss_events[0].len = (int)(0 + pow(
                 (rate * ((group->rtt != 0) ? group->rtt : group->grtt)) / 
                 (sqrt(1.5) * 8 * avgbytes), 2));
-        log4(group->group_id, 0, "Calculated prior "
-                "event len = %d (rtt=%f, avgbytes=%d)",
-                group->loss_events[0].len, group->rtt,avgbytes);
+        glog4(group, "Calculated prior event len = %d (rtt=%f, avgbytes=%d)",
+                     group->loss_events[0].len, group->rtt,avgbytes);
     } else {
         group->loss_events[0].len = seq_long - group->loss_events[0].start_seq;
-        log4(group->group_id, 0, "Prior event length = %d "
-                "(i=%u, start=%u)", group->loss_events[0].len,
-                seq_long, group->loss_events[0].start_seq);
+        glog4(group, "Prior event length = %d (i=%u, start=%u)",
+                     group->loss_events[0].len,
+                     seq_long, group->loss_events[0].start_seq);
     }
     memmove(&group->loss_events[1], &group->loss_events[0],
             sizeof(struct loss_event_t) * 8);
@@ -1051,12 +1086,11 @@ void update_loss_history(struct group_list_t *group, uint16_t txseq, int size,
     }
     
     if ((int16_t)(txseq - group->max_txseq) > 0) {
-        log4(group->group_id, 0, "Got seq %d, max was %d",
-                txseq, group->max_txseq);
+        glog4(group, "Got seq %d, max was %d", txseq, group->max_txseq);
         grtt_usec = (int)(group->grtt * 1000000);
         if (txseq < group->max_txseq) {
-            log5(group->group_id, 0, "increasing seq_wrap, txseq=%u, maxseq=%u",
-                    txseq, group->max_txseq);
+            glog5(group, "increasing seq_wrap, txseq=%u, maxseq=%u",
+                         txseq, group->max_txseq);
             group->seq_wrap++;
         }
         // First set nominal arrival times of missed packets
@@ -1092,7 +1126,7 @@ void update_loss_history(struct group_list_t *group, uint16_t txseq, int size,
         }
         group->max_txseq = txseq;
         if (ecn) {
-            log4(group->group_id, 0, "Seq %d marked by ECN", txseq);
+            glog4(group, "Seq %d marked by ECN", txseq);
             if ((diff_usec(group->loss_history[txseq].t,
                     group->loss_events[0].t) > grtt_usec) || group->slowstart) {
                 new_loss_event(group, txseq);
@@ -1101,8 +1135,8 @@ void update_loss_history(struct group_list_t *group, uint16_t txseq, int size,
     }
     group->loss_events[0].len = ((group->seq_wrap << 16) | group->max_txseq) -
                                 group->loss_events[0].start_seq;
-    log5(group->group_id, 0, "current cc len = %d", group->loss_events[0].len);
-    log5(group->group_id, 0, "seq_wrap=%d, max_txseq=%u, start_seq=%u",
+    glog5(group, "current cc len = %d", group->loss_events[0].len);
+    glog5(group, "seq_wrap=%d, max_txseq=%u, start_seq=%u",
             group->seq_wrap, group->max_txseq, group->loss_events[0].start_seq);
 }
 
@@ -1124,8 +1158,7 @@ double loss_event_rate(struct group_list_t *group)
     loss_sum_no_cur = 0;
     weight_sum = 0;
     for (i = 0; i < 8; i++) {
-        log5(group->group_id, 0, "loss_events[%d].len=%d",
-                i, group->loss_events[i].len);
+        glog5(group, "loss_events[%d].len=%d", i, group->loss_events[i].len);
         if (group->loss_events[i].len != 0) {
             loss_sum_cur += group->loss_events[i].len * weights[i];
             weight_sum += weights[i];
@@ -1135,8 +1168,8 @@ double loss_event_rate(struct group_list_t *group)
         if (group->loss_events[i].len == 0) break;
         loss_sum_no_cur += group->loss_events[i].len * weights[i - 1];
     }
-    log5(group->group_id, 0, "cur_sum=%f, cur_no_sum=%f, weight_sum=%f",
-            loss_sum_cur, loss_sum_no_cur, weight_sum);
+    glog5(group, "cur_sum=%f, cur_no_sum=%f, weight_sum=%f",
+                 loss_sum_cur, loss_sum_no_cur, weight_sum);
     // Return inverse of larger average
     if (loss_sum_no_cur > loss_sum_cur) {
         return weight_sum / loss_sum_no_cur;
@@ -1172,7 +1205,7 @@ unsigned current_cc_rate(struct group_list_t *group)
         }
         return (unsigned)(2.0 * bytes / (4.0 * group->grtt));
     } else {
-        log5(group->group_id, 0, "getting cc rate, p=%f, rtt=%f", p, rtt);
+        glog5(group, "getting cc rate, p=%f, rtt=%f", p, rtt);
         return (unsigned)(group->datapacketsize /
                 (rtt * (sqrt(p * 2.0 / 3.0) +
                         (12 * sqrt(p * 3.0 / 8.0) * p * (1 + (32 * p * p))))));

@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -203,11 +203,11 @@ void set_timeout(struct pr_group_list_t *group, int pending_reset, int rescale)
         add_timeval_d(&group->phase_timeout_time, 2 * group->grtt);
     }
 
-    log5(group->group_id, 0, "set timeout: pending_reset=%d", pending_reset);
+    glog5(group, "set timeout: pending_reset=%d", pending_reset);
     for (pending = 0, i = 0; (i < MAX_PEND) && !pending; i++) {
         if (group->pending[i].msg != 0) {
-            log5(group->group_id, 0, "set timeout: found pending %s",
-                    func_name(group->pending[i].msg));
+            glog5(group, "set timeout: found pending %s",
+                         func_name(group->pending[i].msg));
             pending = group->pending[i].msg;
         }
     }
@@ -270,8 +270,8 @@ void send_pending(struct pr_group_list_t *group, int pendidx)
         send_complete(group, pendidx);
         break;
     default:
-        log1(group->group_id, 0, "Tried to send pending on invalid type %s",
-                func_name(group->pending[pendidx].msg));
+        glog1(group, "Tried to send pending on invalid type %s",
+                     func_name(group->pending[pendidx].msg));
         return;
     }
     if ((group->pending[pendidx].count <= 0) ||
@@ -332,13 +332,11 @@ void check_pending(struct pr_group_list_t *group, int hostidx,
     status = (const struct status_h *)message;
     complete = (const struct complete_h *)message;
 
-    log3(group->group_id, 0, "check_timeout: looking for pending %s",
-            func_name(*func));
+    glog3(group, "check_timeout: looking for pending %s", func_name(*func));
     for (pendidx = 0; pendidx < MAX_PEND; pendidx++) {
         pending = &group->pending[pendidx];
         if (group->pending[pendidx].msg == 0) {
-            log3(group->group_id, 0, "check_timeout: found empty slot %d",
-                    pendidx);
+            glog3(group, "check_timeout: found empty slot %d", pendidx);
             match = 1;
             break;
         }
@@ -360,8 +358,8 @@ void check_pending(struct pr_group_list_t *group, int hostidx,
                               (complete->status == pending->comp_status));
             break;
         default:
-            log1(group->group_id, 0, "Tried to check pending "
-                    "on invalid type %s", func_name(*func));
+            glog1(group, "Tried to check pending on invalid type %s",
+                         func_name(*func));
             return;
         }
         if (match) {
@@ -375,7 +373,7 @@ void check_pending(struct pr_group_list_t *group, int hostidx,
         pending = &group->pending[pendidx];
     }
 
-    log3(group->group_id, 0, "check_timeout: found match at slot %d", pendidx);
+    glog3(group, "check_timeout: found match at slot %d", pendidx);
     pending->msg = *func;
     if (group->destinfo[hostidx].pending != pendidx) {
         group->destinfo[hostidx].pending = pendidx;
@@ -388,10 +386,10 @@ void check_pending(struct pr_group_list_t *group, int hostidx,
         if (pending->count == 1) {
             gettimeofday(&pending->rx_tstamp, NULL);
             pending->tstamp = group->destinfo[hostidx].regtime;
-            log3(group->group_id, 0, "send time = %d.%06d",
-                    pending->tstamp.tv_sec, pending->tstamp.tv_usec);
-            log3(group->group_id, 0, "rx time = %d.%06d",
-                    pending->rx_tstamp.tv_sec, pending->rx_tstamp.tv_usec);
+            glog3(group, "send time = %d.%06d",
+                         pending->tstamp.tv_sec, pending->tstamp.tv_usec);
+            glog3(group, "rx time = %d.%06d",
+                         pending->rx_tstamp.tv_sec, pending->rx_tstamp.tv_usec);
         }
         break;
     case FILEINFO_ACK:
@@ -401,10 +399,10 @@ void check_pending(struct pr_group_list_t *group, int hostidx,
             gettimeofday(&pending->rx_tstamp, NULL);
             pending->tstamp.tv_sec = ntohl(fileinfoack->tstamp_sec);
             pending->tstamp.tv_usec = ntohl(fileinfoack->tstamp_usec);
-            log3(group->group_id, 0, "send time = %d.%06d",
-                    pending->tstamp.tv_sec, pending->tstamp.tv_usec);
-            log3(group->group_id, 0, "rx time = %d.%06d",
-                    pending->rx_tstamp.tv_sec, pending->rx_tstamp.tv_usec);
+            glog3(group, "send time = %d.%06d",
+                         pending->tstamp.tv_sec, pending->tstamp.tv_usec);
+            glog3(group, "rx time = %d.%06d",
+                         pending->rx_tstamp.tv_sec, pending->rx_tstamp.tv_usec);
         }
         pending->file_id = ntohs(fileinfoack->file_id);
         pending->partial = pending->partial &&
@@ -432,11 +430,11 @@ void check_pending(struct pr_group_list_t *group, int hostidx,
     } else {
         int total_pending, i;
 
-        log3(group->group_id, 0, "check_timeout: getting pending count for %s",
-                func_name(*func));
+        glog3(group, "check_timeout: getting pending count for %s",
+                     func_name(*func));
         for (total_pending = 0, i = 0; i < MAX_PEND; i++) {
-            log3(group->group_id, 0, "check_timeout: adding %d pending for %d",
-                    group->pending[i].count, i);
+            glog3(group, "check_timeout: adding %d pending for %d",
+                         group->pending[i].count, i);
             total_pending += group->pending[i].count;
         }
         if (total_pending == 1) {
@@ -548,7 +546,7 @@ void forward_message(struct pr_group_list_t *group,
         if (proxy_type != SERVER_PROXY) {
             hostidx = find_client(group, header->src_id);
             if (hostidx == -1) {
-                log1(group->group_id, 0, "Couldn't find receiver in list");
+                glog1(group, "Couldn't find receiver in list");
                 return;
             }
             key = group->destinfo[hostidx].pubkey;
@@ -585,14 +583,14 @@ void forward_message(struct pr_group_list_t *group,
             if (header->func == ENCRYPTED) {
                 if (!verify_RSA_sig(key.rsa, group->hashtype, packet,
                                     meslen, sigcopy, siglen)) {
-                    log1(group->group_id, 0, "Signature verification failed");
+                    glog1(group, "Signature verification failed");
                     free(sigcopy);
                     return;
                 }
             }
             if (!create_RSA_sig(group->proxy_privkey.rsa, group->hashtype,
                                 packet, meslen, sigcopy, &siglen)) {
-                log0(group->group_id, 0, "Signature creation failed");
+                glog0(group, "Signature creation failed");
                 free(sigcopy);
                 return;
             }
@@ -600,14 +598,14 @@ void forward_message(struct pr_group_list_t *group,
             if (header->func == ENCRYPTED) {
                 if (!verify_ECDSA_sig(key.ec, group->hashtype, packet,
                                       meslen, sigcopy, siglen)) {
-                    log1(group->group_id, 0, "Signature verification failed");
+                    glog1(group, "Signature verification failed");
                     free(sigcopy);
                     return;
                 }
             }
             if (!create_ECDSA_sig(group->proxy_privkey.ec, group->hashtype,
                                   packet, meslen, sigcopy, &siglen)) {
-                log0(group->group_id, 0, "Signature creation failed");
+                glog0(group, "Signature creation failed");
                 free(sigcopy);
                 return;
             }
@@ -618,13 +616,13 @@ void forward_message(struct pr_group_list_t *group,
 
     if (nb_sendto(listener, packet, meslen, 0, (struct sockaddr *)&dest,
                family_len(dest)) == SOCKET_ERROR) {
-        sockerror(group->group_id, 0, "Error forwarding message");
+        gsockerror(group, "Error forwarding message");
         if ((rval = getnameinfo((struct sockaddr *)&dest, family_len(dest),
                 destname, sizeof(destname), destport, sizeof(destport),
                 NI_NUMERICHOST | NI_NUMERICSERV)) != 0) {
-            log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+            glog1(group, "getnameinfo failed: %s", gai_strerror(rval));
         }
-        log2(group->group_id, 0, "Dest: %s:%s", destname, destport);
+        glog2(group, "Dest: %s:%s", destname, destport);
     }
     set_timeout(group, 0, 0);
 }
@@ -648,14 +646,14 @@ void handle_hb_request(const union sockaddr_u *src,
     if ((rval = getnameinfo((const struct sockaddr *)src, family_len(*src),
             destname, sizeof(destname), destport, sizeof(destport),
             NI_NUMERICHOST | NI_NUMERICSERV)) != 0) {
-        log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+        log1(0, 0, 0, "getnameinfo failed: %s", gai_strerror(rval));
     }
     if ((packetlen < sizeof(struct uftp_h) + (hbreq->hlen * 4)) ||
             ((hbreq->hlen * 4) < sizeof(struct hb_req_h))) {
-        log1(0, 0, "Rejecting HB_REQ from %s: invalid message size", destname);
+        log1(0,0,0, "Rejecting HB_REQ from %s: invalid message size", destname);
         return;
     }
-    log2(0, 0, "Received HB_REQ from %s", destname);
+    log2(0, 0, 0, "Received HB_REQ from %s", destname);
     if ((proxy_type == SERVER_PROXY) && have_down_fingerprint) {
         if (addr_equal(&down_addr, src)) {
             resp = HB_AUTH_OK;
@@ -670,14 +668,14 @@ void handle_hb_request(const union sockaddr_u *src,
             // First check key fingerprint, then check signature
             if (keyblob[0] == KEYBLOB_RSA) {
                 if (!import_RSA_key(&key.rsa, keyblob, bloblen)) {
-                    log1(0, 0, "Failed to import public key from HB_REQ");
+                    log1(0, 0, 0, "Failed to import public key from HB_REQ");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 } 
 
                 hash(HASH_SHA1, keyblob, bloblen, fingerprint, &fplen);
                 if (memcmp(down_fingerprint, fingerprint, fplen)) {
-                    log1(0, 0, "Failed to verify HB_REQ fingerprint");
+                    log1(0, 0, 0, "Failed to verify HB_REQ fingerprint");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 }
@@ -685,20 +683,20 @@ void handle_hb_request(const union sockaddr_u *src,
                 if (!verify_RSA_sig(key.rsa, HASH_SHA1,
                         (unsigned char *)&hbreq->nonce,
                         sizeof(hbreq->nonce), sig, siglen)) {
-                    log1(0, 0, "Failed to verify HB_REQ signature");
+                    log1(0, 0, 0, "Failed to verify HB_REQ signature");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 }
             } else {
                 if (!import_EC_key(&key.ec, keyblob, bloblen, 0)) {
-                    log1(0, 0, "Failed to import public key from HB_REQ");
+                    log1(0, 0, 0, "Failed to import public key from HB_REQ");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 } 
 
                 hash(HASH_SHA1, keyblob, bloblen, fingerprint, &fplen);
                 if (memcmp(down_fingerprint, fingerprint, fplen)) {
-                    log1(0, 0, "Failed to verify HB_REQ fingerprint");
+                    log1(0, 0, 0, "Failed to verify HB_REQ fingerprint");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 }
@@ -706,14 +704,14 @@ void handle_hb_request(const union sockaddr_u *src,
                 if (!verify_ECDSA_sig(key.ec, HASH_SHA1,
                         (unsigned char *)&hbreq->nonce,
                         sizeof(hbreq->nonce), sig, siglen)) {
-                    log1(0, 0, "Failed to verify HB_REQ signature");
+                    log1(0, 0, 0, "Failed to verify HB_REQ signature");
                     resp = HB_AUTH_FAILED;
                     goto end;
                 }
             }
 
             down_addr = *src;
-            log2(0, 0, "Using %s:%s as downstream address:port",
+            log2(0, 0, 0, "Using %s:%s as downstream address:port",
                        destname, destport);
             down_nonce = rand32();
             resp = HB_AUTH_OK;
@@ -741,14 +739,14 @@ void handle_key_req(const union sockaddr_u *src,
 
     if ((rval = getnameinfo((const struct sockaddr *)src, family_len(*src),
             destname, sizeof(destname), NULL, 0, NI_NUMERICHOST)) != 0) {
-        log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+        log1(0, 0, 0, "getnameinfo failed: %s", gai_strerror(rval));
     }
     if ((packetlen < sizeof(struct uftp_h) + (keyreq->hlen * 4U)) ||
             ((keyreq->hlen * 4U) < sizeof(struct key_req_h))) {
-        log1(0, 0, "Rejecting KEY_REQ from %s: invalid message size", destname);
+        log1(0,0,0,"Rejecting KEY_REQ from %s: invalid message size", destname);
         return;
     }
-    log2(0, 0, "Received KEY_REQ from %s", destname);
+    log2(0, 0, 0, "Received KEY_REQ from %s", destname);
 
     gettimeofday(&current_timestamp, NULL);
     if (diff_sec(current_timestamp, last_key_req) > KEY_REQ_LIMIT) {
@@ -784,14 +782,14 @@ void send_hb_response(const union sockaddr_u *src, int response)
     meslen = sizeof(struct uftp_h) + sizeof(struct hb_resp_h);
     if (nb_sendto(listener, packet, meslen, 0, (const struct sockaddr *)src,
                   family_len(*src)) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error sending HB_RESP");
+        sockerror(0, 0, 0, "Error sending HB_RESP");
     } else {
         if ((rval = getnameinfo((const struct sockaddr *)src,
                 family_len(*src), destname, sizeof(destname), destport,
                 sizeof(destport), NI_NUMERICHOST | NI_NUMERICSERV)) != 0) {
-            log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+            log1(0, 0, 0, "getnameinfo failed: %s", gai_strerror(rval));
         }
-        log2(0, 0, "Sent HB_RESP to %s:%s", destname, destport);
+        log2(0, 0, 0, "Sent HB_RESP to %s:%s", destname, destport);
     }
     free(packet);
 }
@@ -825,13 +823,13 @@ void send_proxy_key()
 
     if (privkey_type[0] == KEYBLOB_RSA) {
         if (!export_RSA_key(privkey[0].rsa, keyblob, &bloblen)) {
-            log0(0, 0, "Error exporting public key");
+            log0(0, 0, 0, "Error exporting public key");
             free(packet);
             return;
         }
     } else {
         if (!export_EC_key(privkey[0].ec, keyblob, &bloblen)) {
-            log0(0, 0, "Error exporting public key");
+            log0(0, 0, 0, "Error exporting public key");
             free(packet);
             return;
         }
@@ -839,7 +837,7 @@ void send_proxy_key()
     dhblob = keyblob + bloblen;
     if (dhkey.key) {
         if (!export_EC_key(dhkey.ec, dhblob, &dhlen)) {
-            log0(0, 0, "Error exporting public key");
+            log0(0, 0, 0, "Error exporting public key");
             free(packet);
             return;
         }
@@ -850,14 +848,14 @@ void send_proxy_key()
     if (privkey_type[0] == KEYBLOB_RSA) {
         if (!create_RSA_sig(privkey[0].rsa, HASH_SHA1, (unsigned char *)&nonce,
                             sizeof(nonce), sig, &siglen)) {
-            log0(0, 0, "Error signing nonce");
+            log0(0, 0, 0, "Error signing nonce");
             free(packet);
             return;
         }
     } else {
         if (!create_ECDSA_sig(privkey[0].ec, HASH_SHA1, (unsigned char *)&nonce,
                               sizeof(nonce), sig, &siglen)) {
-            log0(0, 0, "Error signing nonce");
+            log0(0, 0, 0, "Error signing nonce");
             free(packet);
             return;
         }
@@ -871,14 +869,14 @@ void send_proxy_key()
     if (nb_sendto(listener, packet, meslen, 0, 
                   (struct sockaddr *)&pub_multi[0],
                   family_len(pub_multi[0])) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error sending PROXY_KEY");
+        sockerror(0, 0, 0, "Error sending PROXY_KEY");
     } else {
         if ((rval = getnameinfo((struct sockaddr *)&pub_multi[0],
                 family_len(pub_multi[0]), pubname, sizeof(pubname), NULL, 0,
                 NI_NUMERICHOST)) != 0) {
-            log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+            log1(0, 0, 0, "getnameinfo failed: %s", gai_strerror(rval));
         }
-        log2(0, 0, "Sent PROXY_KEY to %s", pubname);
+        log2(0, 0, 0, "Sent PROXY_KEY to %s", pubname);
     }
     free(packet);
 }
@@ -914,7 +912,7 @@ void send_upstream_abort(struct pr_group_list_t *group, uint32_t addr,
     if (nb_sendto(listener, buf, payloadlen, 0,
                (struct sockaddr *)&group->up_addr,
                family_len(group->up_addr)) == SOCKET_ERROR) {
-        sockerror(group->group_id, 0, "Error sending ABORT");
+        gsockerror(group, "Error sending ABORT");
     }
 
     if (addr == 0) {
@@ -956,7 +954,7 @@ void send_downstream_abort(struct pr_group_list_t *group, uint32_t dest_id,
     if (nb_sendto(listener, buf, payloadlen, 0,
             (struct sockaddr *)&group->privatemcast,
             family_len(group->privatemcast)) == SOCKET_ERROR) {
-        sockerror(group->group_id, 0, "Error sending ABORT");
+        gsockerror(group, "Error sending ABORT");
     }
 
     free(buf);
@@ -978,14 +976,13 @@ void handle_abort(struct pr_group_list_t *group, const union sockaddr_u *src,
     upstream = (addr_equal(&group->up_addr, src));
     if (meslen < (abort_hdr->hlen * 4U) ||
             ((abort_hdr->hlen * 4U) < sizeof(struct abort_h))) {
-        log1(group->group_id,0, "Rejecting ABORT from %s: invalid message size",
-                upstream ? "server" : "client");
+        glog1(group, "Rejecting ABORT from %s: invalid message size",
+                     upstream ? "server" : "client");
     }
 
     if (upstream) {
         if ((abort_hdr->host == 0) || abort_hdr->host == uid ) {
-            log1(group->group_id, 0,
-                    "Transfer aborted by server: %s", abort_hdr->message);
+            glog1(group, "Transfer aborted by server: %s", abort_hdr->message);
             current = ((abort_hdr->flags & FLAG_CURRENT_FILE) != 0);
             if (proxy_type != RESPONSE_PROXY) {
                 send_downstream_abort(group, 0, abort_hdr->message, current);
@@ -1001,11 +998,11 @@ void handle_abort(struct pr_group_list_t *group, const union sockaddr_u *src,
         }
     } else {
         if ((hostidx = find_client(group, src_id)) != -1) {
-            log1(group->group_id, 0, "Transfer aborted by %s: %s",
-                    group->destinfo[hostidx].name, abort_hdr->message);
+            glog1(group, "Transfer aborted by %s: %s",
+                         group->destinfo[hostidx].name, abort_hdr->message);
         } else {
-            log1(group->group_id, 0, "Transfer aborted by %08X: %s",
-                    ntohl(src_id), abort_hdr->message);
+            glog1(group, "Transfer aborted by %08X: %s",
+                         ntohl(src_id), abort_hdr->message);
         }
         send_upstream_abort(group, src_id, abort_hdr->message);
     }

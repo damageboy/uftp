@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -104,7 +104,7 @@ static void mserror(const char *str)
     char errbuf[300];
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, GetLastError(),
                   0, errbuf, sizeof(errbuf), NULL);
-    clog0(0, 0, "%s: (0x%08X) %s", str, GetLastError(), errbuf);
+    clog0(0, 0, 0, "%s: (0x%08X) %s", str, GetLastError(), errbuf);
 }
 
 static int init_done = 0;
@@ -268,7 +268,7 @@ static ALG_ID get_cipher(int keytype)
         // Not supported by CryptoAPI
         return 0;
     default:
-        log0(0, 0, "Unknown keytype: %d", keytype);
+        log0(0, 0, 0, "Unknown keytype: %d", keytype);
         return 0;
     }
 }
@@ -290,7 +290,7 @@ static ALG_ID get_hash(int hashtype)
     case HASH_MD5:
         return CALG_MD5;
     default:
-        log0(0, 0, "Unknown hashtype: %d", hashtype);
+        log0(0, 0, 0, "Unknown hashtype: %d", hashtype);
         return 0;
     }
 }
@@ -424,7 +424,7 @@ int encrypt_block(int keytype, const unsigned char *IV,
     get_key_info(keytype, &keylen, &ivlen);
     alg = get_cipher(keytype);
     if (alg == 0) {
-        log0(0, 0, "Invalid keytype");
+        log0(0, 0, 0, "Invalid keytype");
         return 0;
     }
 
@@ -497,7 +497,7 @@ int decrypt_block(int keytype, const unsigned char *IV,
     get_key_info(keytype, &keylen, &ivlen);
     alg = get_cipher(keytype);
     if (alg == 0) {
-        log0(0, 0, "Invalid keytype");
+        log0(0, 0, 0, "Invalid keytype");
         return 0;
     }
 
@@ -570,7 +570,7 @@ int create_hmac(int hashtype, const unsigned char *key, unsigned int keylen,
     hashlen = get_hash_len(hashtype);
     alg = get_hash(hashtype);
     if (alg == 0) {
-        log0(0, 0, "Invalid hashtype");
+        log0(0, 0, 0, "Invalid hashtype");
         return 0;
     }
 
@@ -643,7 +643,7 @@ int hash(int hashtype, const unsigned char *src, unsigned int srclen,
     hashlen = get_hash_len(hashtype);
     alg = get_hash(hashtype);
     if (alg == 0) {
-        log0(0, 0, "Invalid hashtype");
+        log0(0, 0, 0, "Invalid hashtype");
         return 0;
     }
 
@@ -689,13 +689,13 @@ int RSA_keylen(const RSA_key_t rsa)
 
 int EC_keylen(const EC_key_t ec)
 {
-    log0(0, 0, "EC not supported");
+    log0(0, 0, 0, "EC not supported");
     return 0;
 }
 
 int ECDSA_siglen(const EC_key_t ec)
 {
-    log0(0, 0, "ECDSA not supported");
+    log0(0, 0, 0, "ECDSA not supported");
     return 0;
 }
 
@@ -788,7 +788,7 @@ int create_RSA_sig(RSA_key_t rsa, int hashtype,
         }
     }
     if (!found) {
-        log0(0, 0, "Couldn't find provider for RSA key");
+        log0(0, 0, 0, "Couldn't find provider for RSA key");
         return 0;
     }
     idx--;
@@ -796,7 +796,7 @@ int create_RSA_sig(RSA_key_t rsa, int hashtype,
     hashlen = get_hash_len(hashtype);
     alg = get_hash(hashtype);
     if (alg == 0) {
-        log0(0, 0, "Invalid hashtype");
+        log0(0, 0, 0, "Invalid hashtype");
         return 0;
     }
 
@@ -850,7 +850,7 @@ int verify_RSA_sig(RSA_key_t rsa, int hashtype,
     hashlen = get_hash_len(hashtype);
     alg = get_hash(hashtype);
     if (alg == 0) {
-        log0(0, 0, "Invalid hashtype");
+        log0(0, 0, 0, "Invalid hashtype");
         return 0;
     }
 
@@ -889,7 +889,7 @@ int create_ECDSA_sig(EC_key_t rsa, int hashtype,
                      const unsigned char *mes, unsigned int meslen,
                      unsigned char *sig, unsigned int *siglen)
 {
-    log0(0, 0, "ECDSA not supported");
+    log0(0, 0, 0, "ECDSA not supported");
     return 0;
 }
 
@@ -897,14 +897,14 @@ int verify_ECDSA_sig(EC_key_t ec, int hashtype,
                      const unsigned char *mes, unsigned int meslen,
                      const unsigned char *sig, unsigned int siglen)
 {
-    log0(0, 0, "ECDSA not supported");
+    log0(0, 0, 0, "ECDSA not supported");
     return 0;
 }
 
 int get_ECDH_key(EC_key_t pubkey, EC_key_t privkey, unsigned char *key,
                  unsigned int *keylen)
 {
-    log0(0, 0, "ECDH not supported");
+    log0(0, 0, 0, "ECDH not supported");
     return 0;
 }
 
@@ -927,7 +927,7 @@ int import_RSA_key(RSA_key_t *rsa, const unsigned char *keyblob,
     modlen = ntohs(rsablob->modlen);
 
     if (sizeof(struct rsa_blob_t) + modlen != bloblen) {
-        log0(0, 0, "Error importing RSA key: invalid length");
+        log0(0, 0, 0, "Error importing RSA key: invalid length");
         return 0;
     } 
 
@@ -1001,13 +1001,13 @@ int export_RSA_key(const RSA_key_t rsa, unsigned char *keyblob,
 int import_EC_key(EC_key_t *ec, const unsigned char *keyblob, uint16_t bloblen,
                   int isdh)
 {
-    log0(0, 0, "EC keys not supported");
+    log0(0, 0, 0, "EC keys not supported");
     return 0;
 }
 
 int export_EC_key(const EC_key_t ec, unsigned char *keyblob, uint16_t *bloblen)
 {
-    log0(0, 0, "EC keys not supported");
+    log0(0, 0, 0, "EC keys not supported");
     return 0;
 }
 
@@ -1027,7 +1027,7 @@ RSA_key_t gen_RSA_key(int bits, int exponent, const char *container)
         }
     }
     if (!found) {
-        log0(0, 0, "Couldn't find empty key slot for private key");
+        log0(0, 0, 0, "Couldn't find empty key slot for private key");
         return 0;
     }
     idx--;
@@ -1072,7 +1072,7 @@ RSA_key_t read_RSA_key(const char *container)
         }
     }
     if (!found) {
-        log0(0, 0, "Couldn't find empty key slot for private key");
+        log0(0, 0, 0, "Couldn't find empty key slot for private key");
         return 0;
     }
     idx--;
@@ -1094,14 +1094,14 @@ RSA_key_t read_RSA_key(const char *container)
 
 EC_key_t gen_EC_key(uint8_t curve, int isdh, const char *filename)
 {
-    log0(0, 0, "EC keys not supported");
+    log0(0, 0, 0, "EC keys not supported");
     return NULL;
 }
 
 
 EC_key_t read_EC_key(const char *filename)
 {
-    log0(0, 0, "EC keys not supported");
+    log0(0, 0, 0, "EC keys not supported");
     return NULL;
 }
 
@@ -1121,7 +1121,7 @@ union key_t read_private_key(const char *filename, int *keytype)
 
 uint8_t get_EC_curve(const EC_key_t ec)
 {
-    log0(0, 0, "EC keys not supported");
+    log0(0, 0, 0, "EC keys not supported");
     return 0;
 }
 
@@ -1134,7 +1134,7 @@ void free_RSA_key(RSA_key_t rsa)
 
 void free_EC_key(EC_key_t ec)
 {
-    log0(0, 0, "EC keys not supported");
+    log0(0, 0, 0, "EC keys not supported");
 }
 
 void set_sys_keys(int set_sys_key)

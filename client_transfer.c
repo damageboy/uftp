@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -75,23 +75,20 @@ void move_file_individual(struct group_list_t *group, const char *local_temp,
     len = snprintf(temppath, sizeof(temppath), "%s%c%s", local_temp,
                    PATH_SEP, filename);
     if ((len >= sizeof(temppath)) || (len == -1)) {
-        log0(group->group_id, group->file_id,
-                "Max pathname length exceeded: %s%c%s", local_temp,
-                PATH_SEP, filename);
+        glog0(group, "Max pathname length exceeded: %s%c%s", local_temp,
+                     PATH_SEP, filename);
         return;
     }
     len = snprintf(destpath, sizeof(destpath), "%s%c%s", local_dest,
                    PATH_SEP, filename);
     if ((len >= sizeof(destpath)) || (len == -1)) {
-        log0(group->group_id, group->file_id,
-                "Max pathname length exceeded: %s%c%s", local_dest,
-                PATH_SEP, filename);
+        glog0(group, "Max pathname length exceeded: %s%c%s", local_dest,
+                     PATH_SEP, filename);
         return;
     }
 
     if (lstat_func(temppath, &temp_stat) == -1) {
-        syserror(group->group_id, group->file_id,
-                 "Error getting file status for %s", temppath);
+        gsyserror(group, "Error getting file status for %s", temppath);
         return;
     }
     if (S_ISDIR(temp_stat.st_mode)) {
@@ -105,8 +102,7 @@ void move_file_individual(struct group_list_t *group, const char *local_temp,
         }
         if (!found_dir) {
             if (mkdir(destpath, 0755) == -1) {
-                syserror(group->group_id, group->file_id,
-                         "Failed to create directory %s", destpath);
+                gsyserror(group, "Failed to create directory %s", destpath);
                 return;
             }
         }
@@ -118,13 +114,11 @@ void move_file_individual(struct group_list_t *group, const char *local_temp,
             char errbuf[300];
             FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
                     GetLastError(), 0, errbuf, sizeof(errbuf),NULL);
-            log0(group->group_id, group->file_id,
-                    "error (%d): %s", GetLastError(), errbuf);
+            glog0(group, "error (%d): %s", GetLastError(), errbuf);
         }
 #else
         if (rename(temppath, destpath) == -1) {
-            syserror(group->group_id,
-                     group->file_id, "Couldn't move file");
+            gsyserror(group, "Couldn't move file");
         }
 #endif
         run_postreceive(group, destpath);
@@ -147,8 +141,7 @@ void move_files_individual(struct group_list_t *group, const char *local_temp,
 
         snprintf(dirglob, sizeof(dirglob), "%s%c*", local_temp, PATH_SEP);
         if ((ffhandle = _findfirsti64(dirglob, &finfo)) == -1) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to open directory %s", dirglob);
+            gsyserror(group, "Failed to open directory %s", dirglob);
             return;
         }
         emptydir = 1;
@@ -164,8 +157,7 @@ void move_files_individual(struct group_list_t *group, const char *local_temp,
         struct dirent *de;
 
         if ((dir = opendir(local_temp)) == NULL) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to open directory %s", local_temp);
+            gsyserror(group, "Failed to open directory %s", local_temp);
             return;
         }
         emptydir = 1;
@@ -178,8 +170,7 @@ void move_files_individual(struct group_list_t *group, const char *local_temp,
             }
         }
         if (errno && (errno != ENOENT)) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to read directory %s", tempdir);
+            gsyserror(group, "Failed to read directory %s", tempdir);
         }
         closedir(dir);
 #endif
@@ -188,8 +179,7 @@ void move_files_individual(struct group_list_t *group, const char *local_temp,
         run_postreceive(group, local_dest);
     }
     if (rmdir(local_temp) == -1) {
-        syserror(group->group_id, group->file_id,
-                 "Failed remove temp directory %s", local_temp);
+        gsyserror(group, "Failed remove temp directory %s", local_temp);
     }
 }
 
@@ -209,9 +199,8 @@ void move_files(struct group_list_t *group)
         len = snprintf(temppath, sizeof(temppath), "%s%c_group_%08X",
                        tempdir, PATH_SEP, group->group_id);
         if ((len >= sizeof(temppath)) || (len == -1)) {
-            log0(group->group_id, group->file_id,
-                    "Max pathname length exceeded: %s%c_group_%08X",
-                    tempdir, PATH_SEP, group->group_id);
+            glog0(group, "Max pathname length exceeded: %s%c_group_%08X",
+                         tempdir, PATH_SEP, group->group_id);
         } else {
             move_files_individual(group, temppath, destdir[0]);
         }
@@ -227,8 +216,7 @@ void move_files(struct group_list_t *group)
         snprintf(dirglob, sizeof(dirglob), "%s%c_group_%08X%c*", tempdir,
                  PATH_SEP, group->group_id, PATH_SEP);
         if ((ffhandle = _findfirsti64(dirglob, &finfo)) == -1) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to open directory %s", dirglob);
+            gsyserror(group, "Failed to open directory %s", dirglob);
             return;
         }
         filecount = 0;
@@ -237,18 +225,15 @@ void move_files(struct group_list_t *group)
                            tempdir, PATH_SEP, group->group_id,
                            PATH_SEP, finfo.name);
             if ((len >= sizeof(temppath)) || (len == -1)) {
-                log0(group->group_id, group->file_id,
-                        "Max pathname length exceeded: %s%c_group_%08X%c%s",
-                        tempdir, PATH_SEP, group->group_id,
-                        PATH_SEP, finfo.name);
+                glog0(group,"Max pathname length exceeded: %s%c_group_%08X%c%s",
+                      tempdir, PATH_SEP, group->group_id, PATH_SEP, finfo.name);
                 continue;
             }
             len = snprintf(destpath, sizeof(destpath), "%s%c%s",
                            destdir[0], PATH_SEP, finfo.name);
             if ((len >= sizeof(destpath)) || (len == -1)) {
-                log0(group->group_id, group->file_id,
-                        "Max pathname length exceeded: %s%c%s",
-                        destdir[0], PATH_SEP, finfo.name);
+                glog0(group, "Max pathname length exceeded: %s%c%s",
+                             destdir[0], PATH_SEP, finfo.name);
                 continue;
             }
             // do the move
@@ -258,12 +243,11 @@ void move_files(struct group_list_t *group)
                     char errbuf[300];
                     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
                             GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
-                    log0(group->group_id, group->file_id,
-                            "error (%d): %s", GetLastError(), errbuf);
+                    glog0(group, "error (%d): %s", GetLastError(), errbuf);
                 }
                 filelist[filecount] = strdup(destpath);
                 if (filelist[filecount] == NULL) {
-                    syserror(0, 0, "strdup failed!");
+                    gsyserror(group, "strdup failed!");
                     exit(ERR_ALLOC);
                 }
                 filecount++;
@@ -278,8 +262,7 @@ void move_files(struct group_list_t *group)
         snprintf(dirname, sizeof(dirname), "%s%c_group_%08X", tempdir,
                  PATH_SEP, group->group_id);
         if ((dir = opendir(dirname)) == NULL) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to open directory %s", dirname);
+            gsyserror(group, "Failed to open directory %s", dirname);
             return;
         }
         filecount = 0;
@@ -289,36 +272,32 @@ void move_files(struct group_list_t *group)
             len = snprintf(temppath, sizeof(temppath), "%s%c%s", dirname,
                            PATH_SEP, de->d_name);
             if ((len >= sizeof(temppath)) || (len == -1)) {
-                log0(group->group_id, group->file_id,
-                        "Max pathname length exceeded: %s%c%s", dirname,
-                        PATH_SEP, de->d_name);
+                glog0(group, "Max pathname length exceeded: %s%c%s", dirname,
+                             PATH_SEP, de->d_name);
                 continue;
             }
             len = snprintf(destpath, sizeof(destpath), "%s%c%s", destdir[0],
                            PATH_SEP, de->d_name);
             if ((len >= sizeof(destpath)) || (len == -1)) {
-                log0(group->group_id, group->file_id,
-                        "Max pathname length exceeded: %s%c%s", destdir[0],
-                        PATH_SEP, de->d_name);
+                glog0(group, "Max pathname length exceeded: %s%c%s", destdir[0],
+                             PATH_SEP, de->d_name);
                 continue;
             }
             if (strcmp(de->d_name, ".") && strcmp(de->d_name, "..")) {
                 clear_path(destpath, group);
                 if (rename(temppath, destpath) == -1) {
-                    syserror(group->group_id,
-                             group->file_id, "Couldn't move file");
+                    gsyserror(group, "Couldn't move file");
                 }
                 filelist[filecount] = strdup(destpath);
                 if (filelist[filecount] == NULL) {
-                    syserror(0, 0, "strdup failed!");
+                    gsyserror(group, "strdup failed!");
                     exit(ERR_ALLOC);
                 }
                 filecount++;
             }
         }
         if (errno && (errno != ENOENT)) {
-            syserror(group->group_id, group->file_id,
-                     "Failed to read directory %s", dirname);
+            gsyserror(group, "Failed to read directory %s", dirname);
         }
         closedir(dir);
 #endif
@@ -330,8 +309,7 @@ void move_files(struct group_list_t *group)
     snprintf(temppath, sizeof(temppath), "%s%c_group_%08X", tempdir,
              PATH_SEP, group->group_id);
     if (rmdir(temppath) == -1) {
-        syserror(group->group_id, group->file_id,
-                 "Failed remove temp directory %s", temppath);
+        gsyserror(group, "Failed remove temp directory %s", temppath);
     }
 }
 
@@ -348,7 +326,7 @@ void set_tfmcc_ack_info(struct group_list_t *group,
     tfmcc->extlen = sizeof(struct tfmcc_ack_info_he) / 4;
     tfmcc->cc_seq = htons(group->ccseq);
     ccrate = current_cc_rate(group);
-    log4(group->group_id, 0, "ccrate=%d", ccrate);
+    glog4(group, "ccrate=%d", ccrate);
     tfmcc->cc_rate = htons(quantize_rate(ccrate));
     //tfmcc->cc_rate = htons(quantize_rate(current_cc_rate(group)));
     tfmcc->flags = 0;
@@ -420,7 +398,7 @@ void send_status(struct group_list_t *group, unsigned int section,
                 group->ivlen, group->hashtype, group->grouphmackey,
                 group->hmaclen, group->sigtype, group->keyextype,
                 group->client_privkey, group->client_privkeylen)) {
-            log0(group->group_id, group->file_id, "Error encrypting STATUS");
+            glog0(group, "Error encrypting STATUS");
             free(buf);
             return;
         }
@@ -435,10 +413,9 @@ void send_status(struct group_list_t *group, unsigned int section,
     if (nb_sendto(listener, outpacket, payloadlen, 0,
                (struct sockaddr *)&group->replyaddr,
                family_len(group->replyaddr)) == SOCKET_ERROR) {
-        sockerror(group->group_id, group->file_id, "Error sending STATUS");
+        gsockerror(group, "Error sending STATUS");
     } else {
-        log2(group->group_id, group->file_id,
-                "Sent %d NAKs for section %d", nak_count, section);
+        glog2(group, "Sent %d NAKs for section %d", nak_count, section);
     }
 
     free(buf);
@@ -512,8 +489,7 @@ void send_complete(struct group_list_t *group, int set_freespace)
     gettimeofday(&tv, NULL);
     if ((group->phase == PHASE_COMPLETE) &&
             (cmptimestamp(tv, group->expire_time) >= 0)) {
-        log1(group->group_id, group->file_id,
-                "Completion unconfirmed by server");
+        glog1(group, "Completion unconfirmed by server");
         move_files(group);
         file_cleanup(group, 0);
         return;
@@ -547,7 +523,7 @@ void send_complete(struct group_list_t *group, int set_freespace)
                 group->ivlen, group->hashtype, group->grouphmackey,
                 group->hmaclen, group->sigtype, group->keyextype,
                 group->client_privkey, group->client_privkeylen)) {
-            log0(group->group_id, group->file_id, "Error encrypting COMPLETE");
+            glog0(group, "Error encrypting COMPLETE");
             free(buf);
             return;
         }
@@ -562,9 +538,9 @@ void send_complete(struct group_list_t *group, int set_freespace)
     if (nb_sendto(listener, outpacket, payloadlen, 0,
                (struct sockaddr *)&group->replyaddr,
                family_len(group->replyaddr)) == SOCKET_ERROR) {
-        sockerror(group->group_id, group->file_id, "Error sending COMPLETE");
+        gsockerror(group, "Error sending COMPLETE");
     } else {
-        log2(group->group_id, group->file_id, "COMPLETE sent");
+        glog2(group, "COMPLETE sent");
     }
     set_timeout(group, 0);
 
@@ -604,7 +580,7 @@ void send_cc_ack(struct group_list_t *group)
                 group->ivlen, group->hashtype, group->grouphmackey,
                 group->hmaclen, group->sigtype, group->keyextype,
                 group->client_privkey, group->client_privkeylen)) {
-            log0(group->group_id, group->file_id, "Error encrypting CC_ACK");
+            glog0(group, "Error encrypting CC_ACK");
             free(buf);
             return;
         }
@@ -619,9 +595,9 @@ void send_cc_ack(struct group_list_t *group)
     if (nb_sendto(listener, outpacket, payloadlen, 0,
                (struct sockaddr *)&group->replyaddr,
                family_len(group->replyaddr)) == SOCKET_ERROR) {
-        sockerror(group->group_id, group->file_id, "Error sending CC_ACK");
+        gsockerror(group, "Error sending CC_ACK");
     } else {
-        log2(group->group_id, group->file_id, "CC_ACK sent");
+        glog2(group, "CC_ACK sent");
     }
     set_timeout(group, 0);
     group->cc_time.tv_sec = 0;
@@ -644,9 +620,8 @@ void init_tfmcc_fb_round(struct group_list_t *group, uint16_t new_ccseq)
     gettimeofday(&group->cc_time, NULL);
     add_timeval_d(&group->cc_time, (backoff > 0) ? backoff : 0);
     group->initrate = current_cc_rate(group);
-    log3(group->group_id, group->file_id, "Starting feedback round %d: "
-            "backoff = %.3f, initrate = %d",
-            new_ccseq, backoff, group->initrate);
+    glog3(group, "Starting feedback round %d: backoff = %.3f, initrate = %d",
+                 new_ccseq, backoff, group->initrate);
 }
 
 /**
@@ -665,72 +640,9 @@ void handle_tfmcc_data_info(struct group_list_t *group,
     } else if ((group->cc_time.tv_sec != 0) &&
             ((ccrate < current_cc_rate(group)) || (ccrate < group->initrate)) &&
             (group->grtt > group->rtt)) {
-        log4(group->group_id, group->file_id, "Canceling feedback timer");
+        glog4(group, "Canceling feedback timer");
         group->cc_time.tv_sec = 0;
         group->cc_time.tv_usec = 0;
-    }
-}
-
-/**
- * Flushes the cache to disk
- * Returns 1 on success, 0 on failure
- */
-int flush_disk_cache(struct group_list_t *group)
-{
-    f_offset_t offset, seek_rval;
-    int wrote_len;
-    uint32_t i;
-
-    if (group->fileinfo.cache_len == 0) return 1;
-    offset = (f_offset_t) group->fileinfo.cache_start * group->blocksize;
-    if ((seek_rval = lseek_func(group->fileinfo.fd,
-            offset - group->fileinfo.curr_offset, SEEK_CUR)) == -1) {
-        syserror(group->group_id, group->file_id, "lseek failed for file");
-    }
-    if (seek_rval != offset) {
-        log2(group->group_id,group->file_id,"offset is %s", printll(seek_rval));
-        log2(group->group_id,group->file_id, "  should be %s", printll(offset));
-        if ((seek_rval = lseek_func(group->fileinfo.fd, offset,
-                                    SEEK_SET)) == -1) {
-            syserror(group->group_id, group->file_id, "lseek failed for file");
-            return 0;
-        }
-    }
-    if ((wrote_len = write(group->fileinfo.fd, group->fileinfo.cache,
-                           group->fileinfo.cache_len)) == -1) {
-        syserror(group->group_id, group->file_id,
-                 "Write failed for blocks %d - %d",
-                 group->fileinfo.cache_start, group->fileinfo.cache_end);
-        return 0;
-    } else {
-        group->fileinfo.curr_offset = offset + wrote_len;
-        if (wrote_len != group->fileinfo.cache_len) {
-            log0(group->group_id, group->file_id,
-                    "Write failed for blocks %d - %d, only wrote %d bytes",
-                    group->fileinfo.cache_start, group->fileinfo.cache_end);
-            return 0;
-        } else {
-            log4(group->group_id, group->file_id,
-                    "Wrote blocks %d - %d to disk from cache",
-                    group->fileinfo.cache_start, group->fileinfo.cache_end);
-            for (i = group->fileinfo.cache_start;
-                    i <= group->fileinfo.cache_end; i++) {
-                int status_idx = i - group->fileinfo.cache_start;
-                if (group->fileinfo.cache_status[status_idx]) {
-                    group->fileinfo.naklist[i] = 0;
-                }
-            }
-            group->fileinfo.cache_start = group->fileinfo.cache_end + 1;
-            while ((group->fileinfo.cache_start < group->fileinfo.blocks) &&
-                    (!group->fileinfo.naklist[group->fileinfo.cache_start])) {
-                group->fileinfo.cache_start++;
-            }
-            group->fileinfo.cache_end = group->fileinfo.cache_start;
-            group->fileinfo.cache_len = 0;
-            memset(group->fileinfo.cache, 0, cache_len);
-            memset(group->fileinfo.cache_status,0,cache_len / group->blocksize);
-            return 1;
-        }
     }
 }
 
@@ -749,8 +661,7 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
     unsigned extlen;
 
     if (group->fileinfo.ftype != FTYPE_REG) {
-        log2(group->group_id, group->file_id,
-                "Rejecting FILESEG: not a regular file");
+        glog2(group, "Rejecting FILESEG: not a regular file");
         return;
     }
     fileseg = (const struct fileseg_h *)message;
@@ -759,14 +670,12 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
 
     if ((meslen < (fileseg->hlen * 4U)) ||
             ((fileseg->hlen * 4U) < sizeof(struct fileseg_h))) {
-        log2(group->group_id, group->file_id,
-                "Rejecting FILESEG: invalid message size");
+        glog2(group, "Rejecting FILESEG: invalid message size");
         return;
     }
     if (ntohs(fileseg->file_id) != group->file_id) {
-        log2(group->group_id, group->file_id,
-                "Rejecting FILESEG: got incorrect file_id %04X",
-                ntohs(fileseg->file_id));
+        glog2(group, "Rejecting FILESEG: got incorrect file_id %04X",
+                     ntohs(fileseg->file_id));
         return;
     }
 
@@ -778,8 +687,7 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
             extlen = tfmcc->extlen * 4U;
             if ((extlen > (fileseg->hlen * 4U) - sizeof(struct fileseg_h)) ||
                     extlen < sizeof(struct tfmcc_data_info_he)) {
-                log2(group->group_id, group->file_id,
-                        "Rejecting FILESEG: invalid extension size");
+                glog2(group, "Rejecting FILESEG: invalid extension size");
                 return;
             }
         }
@@ -797,16 +705,15 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
 
     if ((datalen != group->blocksize) &&
             (seq != group->fileinfo.blocks - 1)) {
-        log2(group->group_id, group->file_id,
-                "Rejecting FILESEG: invalid data size %d", datalen);
+        glog2(group, "Rejecting FILESEG: invalid data size %d", datalen);
         return;
     }
     if (log_level >= 5) {
-        log5(group->group_id, group->file_id, "Got packet %d", seq);
+        glog5(group, "Got packet %d", seq);
     } else if (log_level == 4) {
         if (seq != group->fileinfo.last_block + 1) {
-            log4(group->group_id, group->file_id, "Got packet %d, last was %d",
-                    seq, group->fileinfo.last_block);
+            glog4(group, "Got packet %d, last was %d",
+                         seq, group->fileinfo.last_block);
         }
     }
 
@@ -825,9 +732,9 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
             group->fileinfo.nak_section_first = group->fileinfo.last_section;
             group->fileinfo.nak_section_last = section;
             group->fileinfo.got_done = 0;
-            log3(group->group_id, group->file_id, "New section, set NAK timer "
-                    "for sections %d - %d", group->fileinfo.nak_section_first,
-                    group->fileinfo.nak_section_last);
+            glog3(group, "New section, set NAK timer for sections %d - %d",
+                         group->fileinfo.nak_section_first,
+                         group->fileinfo.nak_section_last);
         }
         group->fileinfo.last_section = section;
     }
@@ -837,8 +744,7 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
             cache_offset=(seq - group->fileinfo.cache_start) * group->blocksize;
             if (seq > group->fileinfo.cache_end) {
                 if ((cache_offset + datalen) > cache_len) {
-                    log4(group->group_id, group->file_id,
-                            "Disk cache full, flushing");
+                    glog4(group, "Disk cache full, flushing");
                     if (!flush_disk_cache(group)) {
                         return;
                     }
@@ -847,8 +753,8 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
                 } else {
                     for (i = group->fileinfo.cache_end; i <= seq; i++) {
                         if (!group->fileinfo.naklist[i]) {
-                            log3(group->group_id, group->file_id,
-                                  "Cache gap seq %d already received, flushing", i);
+                            glog3(group, "Cache gap seq %d "
+                                         "already received, flushing", i);
                             if (!flush_disk_cache(group)) {
                                 return;
                             }
@@ -862,8 +768,7 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
             }
         } else {
             if (group->fileinfo.cache_len != 0) {
-                log3(group->group_id, group->file_id,
-                        "Seq %d out of cache range, flushing", seq);
+                glog3(group, "Seq %d out of cache range, flushing", seq);
                 if (!flush_disk_cache(group)) {
                     return;
                 }
@@ -876,9 +781,9 @@ void handle_fileseg(struct group_list_t *group, const unsigned char *message,
                 group->fileinfo.cache_start) * group->blocksize) + datalen;
         status_idx = seq - group->fileinfo.cache_start;
         if (group->fileinfo.cache_len > cache_len) {
-            log0(group->group_id, group->file_id, "Cache overrun: "
-                    "current cache len = %d, status_idx = %d",
-                    group->fileinfo.cache_len, status_idx);
+            glog0(group, "Cache overrun: "
+                         "current cache len = %d, status_idx = %d",
+                         group->fileinfo.cache_len, status_idx);
         }
         group->fileinfo.cache_status[status_idx] = 1;
         memcpy(&group->fileinfo.cache[cache_offset], data, datalen);
@@ -952,9 +857,8 @@ unsigned int get_naks(struct group_list_t *group,
         section_offset = section * group->fileinfo.secsize_big;
         blocks_this_sec = group->fileinfo.secsize_big;
     }
-    log3(group->group_id, group->file_id,
-            "getting naks: section: %d, offset: %d, blocks: %d",
-            section, section_offset, blocks_this_sec);
+    glog3(group, "getting naks: section: %d, offset: %d, blocks: %d",
+                 section, section_offset, blocks_this_sec);
 
     *naks = safe_calloc(group->blocksize, 1);
 
@@ -964,7 +868,7 @@ unsigned int get_naks(struct group_list_t *group,
         nakidx = i + section_offset;
         naklistidx = i;
         if (group->fileinfo.naklist[nakidx]) {
-            log4(group->group_id, group->file_id, "NAK for %d", nakidx);
+            glog4(group, "NAK for %d", nakidx);
             // Each bit represents a NAK; set each one we have a NAK for
             // Simplified: *naks[naklistidx / 8] |= (1 << (naklistidx % 8))
             (*naks)[naklistidx >> 3] |= (1 << (naklistidx & 7));
@@ -1003,8 +907,7 @@ void handle_done(struct group_list_t *group, const unsigned char *message,
 
     if ((meslen < (done->hlen * 4U)) ||
             ((done->hlen * 4U) < sizeof(struct done_h))) {
-        log2(group->group_id, group->file_id,
-                "Rejecting DONE: invalid message size");
+        glog2(group, "Rejecting DONE: invalid message size");
         return;
     }
 
@@ -1021,15 +924,13 @@ void handle_done(struct group_list_t *group, const unsigned char *message,
     }
 
     if (group->file_id) {
-        log2(group->group_id, group->file_id,
-                "Got DONE message for section %d", section);
+        glog2(group, "Got DONE message for section %d", section);
     } else {
-        log2(group->group_id, group->file_id,
-                "Got DONE message for group");
+        glog2(group, "Got DONE message for group");
     }
     if (uid_in_list(addrlist, listlen)) {
         if (group->file_id == 0) {
-            log2(group->group_id, 0, "Group complete");
+            glog2(group, "Group complete");
             group->phase = PHASE_COMPLETE;
             group->fileinfo.comp_status = COMP_STAT_NORMAL;
             gettimeofday(&group->expire_time, NULL);
@@ -1042,7 +943,7 @@ void handle_done(struct group_list_t *group, const unsigned char *message,
             send_complete(group, 0);
         } else {
             if (file_done(group, 1)) {
-                log2(group->group_id, group->file_id, "File transfer complete");
+                glog2(group, "File transfer complete");
                 group->fileinfo.nak_time.tv_sec = 0;
                 group->fileinfo.nak_time.tv_usec = 0;
                 send_complete(group, 0);
@@ -1054,21 +955,20 @@ void handle_done(struct group_list_t *group, const unsigned char *message,
                 gettimeofday(&group->fileinfo.nak_time, NULL);
                 if (group->fileinfo.restart && !group->fileinfo.got_data) {
                     // send STATUS right away at start of restart mode
-                    log4(group->group_id, group->file_id,
-                            "First DONE for restart, set nak_time to now");
+                    glog4(group, "First DONE for restart, set nak_time to now");
                     group->fileinfo.got_data = 1;
                 } else {
-                    log4(group->group_id, group->file_id,
-                            "Setting nak_time to trigger in %.6f", group->grtt);
+                    glog4(group, "Setting nak_time to trigger in %.6f",
+                                 group->grtt);
                     add_timeval_d(&group->fileinfo.nak_time, 1 * group->grtt);
                 }
                 group->fileinfo.nak_section_first=group->fileinfo.last_section;
                 group->fileinfo.nak_section_last = section + 1;
                 group->fileinfo.got_done = 1;
-                log3(group->group_id, group->file_id, "Got DONE for client, "
-                        "set NAK timer for sections %d - %d",
-                        group->fileinfo.nak_section_first,
-                        group->fileinfo.nak_section_last);
+                glog3(group, "Got DONE for client, "
+                             "set NAK timer for sections %d - %d",
+                             group->fileinfo.nak_section_first,
+                             group->fileinfo.nak_section_last);
             }
             group->fileinfo.last_section = section + 1;
         }
@@ -1081,9 +981,9 @@ void handle_done(struct group_list_t *group, const unsigned char *message,
             group->fileinfo.nak_section_first = group->fileinfo.last_section;
             group->fileinfo.nak_section_last = section + 1;
             group->fileinfo.got_done = 0;
-            log3(group->group_id, group->file_id, "Got DONE, set NAK timer "
-                    "for sections %d - %d", group->fileinfo.nak_section_first,
-                    group->fileinfo.nak_section_last);
+            glog3(group, "Got DONE, set NAK timer for sections %d - %d",
+                         group->fileinfo.nak_section_first,
+                         group->fileinfo.nak_section_last);
         }
         group->fileinfo.last_section = section + 1;
     }
@@ -1106,14 +1006,12 @@ void handle_done_conf(struct group_list_t *group, const unsigned char *message,
 
     if ((meslen < (doneconf->hlen * 4U)) ||
             ((doneconf->hlen * 4U) < sizeof(struct doneconf_h))) {
-        log2(group->group_id, group->file_id,
-                "Rejecting DONE_CONF: invalid message size");
+        glog2(group, "Rejecting DONE_CONF: invalid message size");
         return;
     }
 
     if (uid_in_list(addrlist, listlen)) {
-        log2(group->group_id, group->file_id,
-                "Group file transfer confirmed");
+        glog2(group, "Group file transfer confirmed");
         move_files(group);
         file_cleanup(group, 0);
     }
@@ -1138,13 +1036,12 @@ void handle_cong_ctrl(struct group_list_t *group, const unsigned char *message,
 
     if ((meslen < (cong_ctrl->hlen * 4U)) ||
             ((cong_ctrl->hlen * 4U) < sizeof(struct cong_ctrl_h))) {
-        log2(group->group_id, group->file_id,
-                "Rejecting CONG_CTRL: invalid message size");
+        glog2(group, "Rejecting CONG_CTRL: invalid message size");
         return;
     }
     if (group->cc_type != CC_TFMCC) {
-        log3(group->group_id, group->file_id, "Rejecting CONG_CTRL: "
-                "not allowed for given congestion control type");
+        glog3(group, "Rejecting CONG_CTRL: "
+                     "not allowed for given congestion control type");
         return;
     }
 
@@ -1185,7 +1082,7 @@ void handle_cong_ctrl(struct group_list_t *group, const unsigned char *message,
     } else if ((group->cc_time.tv_sec != 0) &&
             ((ccrate < current_cc_rate(group)) || (ccrate < group->initrate)) &&
             (group->grtt > group->rtt)) {
-        log4(group->group_id, group->file_id, "Canceling feedback timer");
+        glog4(group, "Canceling feedback timer");
         group->cc_time.tv_sec = 0;
         group->cc_time.tv_usec = 0;
     }

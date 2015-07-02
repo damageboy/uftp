@@ -1,3 +1,16 @@
+Version 4.7 - 5/16/2015
+  Added group instance ID (i.e. restart number) to all log messages.
+  Make sure that the client flushes the disk cache when a session is aborted.
+    This wasn't being done previously, resulting in unnecessary retransmissions
+    on the subsequent restart session.
+  Proviously, when a client registers via a proxy, the server added that client
+    to the list of clients serviced by that proxy.  There was a bug that
+    allowed a client sending back multiple registers to be added to this list
+    multiple times, resulting in a buffer overrun if there are a large number
+    of clients registering via a given proxy.  Fixed the bug by removing the
+    list altogether, since the server doesn't really care which proxy a
+    client registers via.
+
 Version 4.6.1 - 3/15/2015
   At the start of the transfer phase with congestion control enabled, the
     server would sometimes select a client that had dropped out earlier in

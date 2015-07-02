@@ -107,4 +107,4 @@ NOTES
 
 
 
-UFTP 4.6		       30 December 2014			uftp_keymgt(1)
+UFTP 4.7			  16 May 2015			uftp_keymgt(1)

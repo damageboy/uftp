@@ -1,7 +1,7 @@
 /*
  *  UFTP - UDP based FTP with multicast
  *
- *  Copyright (C) 2001-2014   Dennis A. Bush, Jr.   bush@tcnj.edu
+ *  Copyright (C) 2001-2015   Dennis A. Bush, Jr.   bush@tcnj.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -69,18 +69,18 @@ void handle_hb_response(SOCKET s, const union sockaddr_u *src,
 
     if (meslen < (hbresp->hlen * 4U) ||
             ((hbresp->hlen * 4U) < sizeof(struct hb_resp_h))) {
-        log1(0, 0, "Rejecting HB_RESP: invalid message size");
+        log1(0, 0, 0, "Rejecting HB_RESP: invalid message size");
         return;
     }
 
     if ((rval = getnameinfo((const struct sockaddr *)src,
             sizeof(union sockaddr_u), addrname, sizeof(addrname),
             NULL, 0, NI_NUMERICHOST)) != 0) {
-        log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+        log1(0, 0, 0, "getnameinfo failed: %s", gai_strerror(rval));
     }
-    log2(0, 0, "Received HB_RESP from %s", addrname);
+    log2(0, 0, 0, "Received HB_RESP from %s", addrname);
     if (hbresp->authenticated == HB_AUTH_CHALLENGE) {
-        log1(0, 0, "Heartbeat authentication required");
+        log1(0, 0, 0, "Heartbeat authentication required");
         for (hostidx = 0; hostidx < num_hosts; hostidx++) {
             if (addr_equal(src, &hb_hosts[hostidx])) {
                 send_auth_hb_request(s, &hb_hosts[hostidx],
@@ -89,9 +89,9 @@ void handle_hb_response(SOCKET s, const union sockaddr_u *src,
             }
         }
     } else if (hbresp->authenticated == HB_AUTH_FAILED) {
-        log1(0, 0, "Heartbeat authentication failed");
+        log1(0, 0, 0, "Heartbeat authentication failed");
     } else if (hbresp->authenticated == HB_AUTH_OK) {
-        log2(0, 0, "Heartbeat authentication successful");
+        log2(0, 0, 0, "Heartbeat authentication successful");
     }
 }
 
@@ -124,27 +124,27 @@ void send_auth_hb_request(SOCKET s, union sockaddr_u *hbhost, uint32_t nonce,
 
     if (keytype == KEYBLOB_RSA) {
         if (!export_RSA_key(privkey.rsa, keyblob, &bloblen)) {
-            log0(0, 0, "Error exporting public key");
+            log0(0, 0, 0, "Error exporting public key");
             free(packet);
             return;
         }
         sig = keyblob + bloblen;
         if (!create_RSA_sig(privkey.rsa, HASH_SHA1, (unsigned char *)&n_nonce,
                             sizeof(n_nonce), sig, &siglen)) {
-            log0(0, 0, "Error signing nonce");
+            log0(0, 0, 0, "Error signing nonce");
             free(packet);
             return;
         }
     } else {
         if (!export_EC_key(privkey.ec, keyblob, &bloblen)) {
-            log0(0, 0, "Error exporting public key");
+            log0(0, 0, 0, "Error exporting public key");
             free(packet);
             return;
         }
         sig = keyblob + bloblen;
         if (!create_ECDSA_sig(privkey.ec, HASH_SHA1, (unsigned char *)&n_nonce,
                               sizeof(n_nonce), sig, &siglen)) {
-            log0(0, 0, "Error signing nonce");
+            log0(0, 0, 0, "Error signing nonce");
             free(packet);
             return;
         }
@@ -155,14 +155,14 @@ void send_auth_hb_request(SOCKET s, union sockaddr_u *hbhost, uint32_t nonce,
     meslen = sizeof(struct uftp_h) + (hbreq->hlen * 4);
     if (nb_sendto(s, packet, meslen, 0, (struct sockaddr *)hbhost,
                   family_len(*hbhost)) == SOCKET_ERROR) {
-        sockerror(0, 0, "Error sending HB_REQ");
+        sockerror(0, 0, 0, "Error sending HB_REQ");
     } else {
         if ((rval = getnameinfo((struct sockaddr *)hbhost,
                 sizeof(union sockaddr_u), addrname, sizeof(addrname), portstr,
                 sizeof(portstr), NI_NUMERICHOST | NI_NUMERICSERV)) != 0) {
-            log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+            log1(0, 0, 0, "getnameinfo failed: %s", gai_strerror(rval));
         }
-        log2(0, 0, "Sent authenticated HB_REQ to %s:%s", addrname, portstr);
+        log2(0, 0, 0, "Sent authenticated HB_REQ to %s:%s", addrname, portstr);
     }
     free(packet);
 }
@@ -197,15 +197,15 @@ void send_hb_request(SOCKET s, union sockaddr_u hb_hosts[], int num_hosts,
         meslen = sizeof(struct uftp_h) + (hbreq->hlen * 4);
         if (nb_sendto(s, packet, meslen, 0, (struct sockaddr *)&hb_hosts[i],
                       family_len(hb_hosts[i])) == SOCKET_ERROR) {
-            sockerror(0, 0, "Error sending HB_REQ");
+            sockerror(0, 0, 0, "Error sending HB_REQ");
         } else {
             if ((rval = getnameinfo((struct sockaddr *)&hb_hosts[i],
                     sizeof(union sockaddr_u), addrname, sizeof(addrname),
                     portstr, sizeof(portstr),
                     NI_NUMERICHOST | NI_NUMERICSERV)) != 0) {
-                log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+                log1(0, 0, 0, "getnameinfo failed: %s", gai_strerror(rval));
             }
-            log2(0, 0, "Sent HB_REQ to %s:%s", addrname, portstr);
+            log2(0, 0, 0, "Sent HB_REQ to %s:%s", addrname, portstr);
         }
     }
     free(packet);

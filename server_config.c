@@ -130,7 +130,7 @@ void add_dest_by_name(const char *destname, const char *fingerprint, int proxy)
     snprintf(destlist[destcount].name, sizeof(destlist[destcount].name),
              "%s", destname);
     destlist[destcount].proxyidx = -1;
-    destlist[destcount].clientcnt = proxy ? 0 : -1;
+    destlist[destcount].isproxy = proxy;
     destlist[destcount].has_fingerprint =
             parse_fingerprint(destlist[destcount].keyfingerprint, fingerprint);
     destcount++;
@@ -217,12 +217,12 @@ void read_restart_file(const char *restart_name)
     int fd, i, rval;
 
     if ((fd = open(restart_name, OPENREAD)) == -1) {
-        syserror(0, 0, "Failed to open restart file");
+        syserror(0, 0, 0, "Failed to open restart file");
         exit(ERR_PARAM);
     }
 
     if (file_read(fd, &header, sizeof(header), 0) == -1) {
-        log0(0, 0, "Failed to read header from restart file");
+        log0(0, 0, 0, "Failed to read header from restart file");
         close(fd);
         exit(ERR_PARAM);
     }
@@ -230,18 +230,18 @@ void read_restart_file(const char *restart_name)
     restart_groupinst = header.group_inst;
 
     if (restart_groupinst == 0xff) {
-        log0(0, 0, "Maximum number of restarts reached");
+        log0(0, 0, 0, "Maximum number of restarts reached");
         close(fd);
         exit(ERR_PARAM);
     }
     if ((header.filecount > MAXFILES) || (header.filecount <= 0)) {
-        log0(0, 0, "Too many files listed in restart file");
+        log0(0, 0, 0, "Too many files listed in restart file");
         close(fd);
         exit(ERR_PARAM);
     }
     for (i = 0; i < header.filecount; i++) {
         if (file_read(fd, filelist[i], sizeof(filelist[i]), 0) == -1) {
-            log0(0, 0, "Failed to read filename from restart file");
+            log0(0, 0, 0, "Failed to read filename from restart file");
             close(fd);
             exit(ERR_PARAM);
         }
@@ -250,14 +250,14 @@ void read_restart_file(const char *restart_name)
 
     while ((rval = file_read(fd, &host, sizeof(host), 1)) != 0) {
         if (rval == -1) {
-            log0(0, 0, "Failed to read host from restart file");
+            log0(0, 0, 0, "Failed to read host from restart file");
             close(fd);
             exit(ERR_PARAM);
         }
         memcpy(destlist[destcount].name, host.name, sizeof(host.name));
         destlist[destcount].id = host.id;
         destlist[destcount].proxyidx = -1;
-        destlist[destcount].clientcnt = host.is_proxy ? 0 : -1;
+        destlist[destcount].isproxy = host.is_proxy;
         destlist[destcount].has_fingerprint = host.has_fingerprint;
         if (host.has_fingerprint) {
             memcpy(destlist[destcount].keyfingerprint, host.keyfingerprint,
