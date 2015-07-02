@@ -56,7 +56,7 @@
 #include "client_transfer.h"
 
 /**
- * Send a COMPLETE with the given status in reponse to a FILEINFO,
+ * Send a COMPLETE with the given status in response to a FILEINFO,
  * set the phase to MIDGROUP, and reset the timeout
  */
 void early_complete(struct group_list_t *group, int status, int freespace)
@@ -64,6 +64,7 @@ void early_complete(struct group_list_t *group, int status, int freespace)
     group->phase = PHASE_MIDGROUP;
     group->fileinfo.comp_status = status;
     send_complete(group, freespace);
+    print_result_status(group);
     set_timeout(group, 0);
 }
 
@@ -309,7 +310,7 @@ int handle_fileinfo_sync(struct group_list_t *group)
     if (lstat_func(group->fileinfo.filepath, &statbuf) != -1) {
         // If source is newer, skip
         // If source is older, overwrite
-        // If timstamps same, skip if sizes are also same
+        // If timestamps same, skip if sizes are also same
         int skip;
         if (group->fileinfo.tstamp < statbuf.st_mtime) {
             skip = 1;

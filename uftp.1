@@ -1,4 +1,4 @@
-.TH uftp 1 "14 September 2014" "UFTP 4.5.1"
+.TH uftp 1 "30 December 2014" "UFTP 4.6"
 .SH NAME
 uftp - Encrypted UDP based ftp with multicast - server
 .SH SYNOPSIS
@@ -174,14 +174,14 @@ The private multicast address that the data is transferred to.  One or more part
 Specifies the maximum percentage of NAKs that a client can report for a particular section.  This option works with the -m option, which specifies the number of times a client may exceed this limit before getting dropped.  This allows the server to keep a very slow client from stalling the session for others.  Valid values are 0-100.  Default is 100.
 .TP
 .B \-C cc_type
-Specifies the congestion control mode to use.  Currently supported values are "none" and "tfmcc".  Specifiying "none" means data will be sent at a fixed rate as specified by the -R option.  Specifying "tfmcc" will use the TCP Friendly Multicast Congestion Control scheme as specified in RFC 4654.  Normally, TFMCC will limit the rate based strictly on loss, however a maximum rate in Kbps may optionally be specified for TFMCC mode as "tfmcc:max_rate".  Default value is "none".
+Specifies the congestion control mode to use.  Currently supported values are "none" and "tfmcc".  Specifying "none" means data will be sent at a fixed rate as specified by the -R option.  Specifying "tfmcc" will use the TCP Friendly Multicast Congestion Control scheme as specified in RFC 4654.  Normally, TFMCC will limit the rate based strictly on loss, however a maximum rate in Kbps may optionally be specified for TFMCC mode as "tfmcc:max_rate".  Default value is "none".
 
 TFMCC will make use of the Explicit Congestion Notification (ECN) bits in the IP header on systems that support it natively.  Know supported systems are Linux, FreeBSD, Windows XP (sender only), Windows Vista and later (receiver only), and Solaris (sender only).
 .TP
 .B \-o
 .TP
 .B \-D dest_name
-These options specify the name given to the sent file(s) on the client side.  If only one file/directory is specified to send and -o is not specified, the name spcified by -D is given to that file/directory, and the effects of -E are ignored.  If more than one file/directory is specified to send, or if -o is specified, they are placed in a subdirectory with the name spcified by -D.
+These options specify the name given to the sent file(s) on the client side.  If only one file/directory is specified to send and -o is not specified, the name specified by -D is given to that file/directory, and the effects of -E are ignored.  If more than one file/directory is specified to send, or if -o is specified, they are placed in a subdirectory with the name specified by -D.
 
 This option may also specify an absolute path name.  If so, clients must be either all Windows or all UNIX-like, since they have differing filesystem structures, otherwise the behavior is undefined.  The server, however, need not be the same OS as the clients.  When specifying an absolute path name, the path must be contained in one of a client\(aqs destination directories, otherwise the client will reject the file.  When sending to Windows clients, an absolute path may be either local (drive:\\path\\to\\file) or remote (\\\\host\\share\\path\\to\\file).
 .TP
@@ -204,7 +204,7 @@ The following is printed after each file:
 
 RESULT;target;filename;size;status;speed
 
-Where "target" is the name of the client, "file" is the name of the current file, "size" is the size of the file in kilobytes (i.e. 1234KB), "speed" is the transmission speed for that file in KB/s, and status is:
+Where "target" is the name of the client, "filename" is the name of the current file, "size" is the size of the file in kilobytes (i.e. 1234KB), "speed" is the transmission speed for that file in KB/s, and status is:
 
 copy: The file was sent.
 
@@ -218,14 +218,14 @@ The following is printed at the end of the session:
 
 STATS;target;num_copy;num_overwrite;num_skip;total_size;time;speed
 
-Where "target" is the name of the client, "num_copy" is the number of files sentwith "copy" status, "num_overwrite" is the number of files sent with "overwrite" status, "num_skip" is the number of files sent with "skipped" status, "total_size" is the total size of all files sent in kilobytes, "time" is the total transmission time for all files, and "speed" is the overall transmission speed for all files.
+Where "target" is the name of the client, "num_copy" is the number of files sent with "copy" status, "num_overwrite" is the number of files sent with "overwrite" status, "num_skip" is the number of files sent with "skipped" status, "total_size" is the total size of all files sent in kilobytes, "time" is the total transmission time for all files, and "speed" is the overall transmission speed for all files.
 
 Also, the following line is printed verbatim prior to the STATS lines for ease of reading:
 
 HSTATS;target;copy;overwrite;skip;totalKB;time;speedKB/s
 .TP
 .B \-r init_grtt[:min_grtt:max_grtt]
-Specifies the initial value, and optionally the min and max values, of the Group Round Trip Time (GRTT) used in timing calculations.  The GRTT changes dynamically based on the network conditions.  This option is useful if the initial connection period is too short or long, if receivers are getting bogged down and cannot respond to the server quick enough before timing out, or if receivers are getting flagged with too high of an RTT and take too long to recover to a resonable value.   Valid values are 0.001 to 1000.  Defaults are 0.5 for init_grtt, 0.01 for min_grtt, and 15.0 for max_grtt.
+Specifies the initial value, and optionally the min and max values, of the Group Round Trip Time (GRTT) used in timing calculations.  The GRTT changes dynamically based on the network conditions.  This option is useful if the initial connection period is too short or long, if receivers are getting bogged down and cannot respond to the server quick enough before timing out, or if receivers are getting flagged with too high of an RTT and take too long to recover to a reasonable value.   Valid values are 0.001 to 1000.  Defaults are 0.5 for init_grtt, 0.01 for min_grtt, and 15.0 for max_grtt.
 .TP
 .B \-s robust
 Specifies the robustness factor for message retransmission.  The server will resend particular messages up to robust times while waiting for client responses.  Valid values are 10-50.  Default is 20.

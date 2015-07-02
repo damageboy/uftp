@@ -346,7 +346,7 @@ void handle_clientkey(struct pr_group_list_t *group, int hostidx,
 
     if (dest->state == PR_CLIENT_REGISTERED) {
         // Pass in a dummy REGISTER message to check_pending, since
-        // CLIENT_KEY is basically an extention of REGISTER.
+        // CLIENT_KEY is basically an extension of REGISTER.
         struct register_h reg;
         reg.func = REGISTER;
         check_pending(group, hostidx, (unsigned char *)&reg);
@@ -519,7 +519,7 @@ void send_keyinfo(struct pr_group_list_t *group, const uint32_t *addrlist,
                 return;
             }
             // TODO: This value is good for around 100Mbps.  This is under the
-            // assumtion that the client proxy is local to the clients
+            // assumption that the client proxy is local to the clients
             // it serves.  This should probably be a parameter.
             usleep(120);
             memset(keylist, 0, maxdest * sizeof(struct destkey));

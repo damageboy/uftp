@@ -1083,7 +1083,7 @@ void transfer_receive_thread(struct finfo_t *finfo)
  * Performs the Transfer phase for a particular file.
  * It sits in a loop to do all reads, and it starts a thread to do all writes
  * Returns 1 if at least one client finished, 0 if all are dropped or aborted
- * Returns ERR_NONE if at least one client responsed, ERR_DROPPED otherwise
+ * Returns ERR_NONE if at least one client responded, ERR_DROPPED otherwise
  */
 int transfer_phase(struct finfo_t *finfo)
 {
@@ -1285,7 +1285,7 @@ void handle_completion_phase(unsigned char *packet,
 }
 
 /**
- * Performs the Completion/Confirmaton phase at the end of a group
+ * Performs the Completion/Confirmation phase at the end of a group
  */
 void completion_phase(struct finfo_t *finfo)
 {

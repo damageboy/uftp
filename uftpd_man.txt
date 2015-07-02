@@ -10,6 +10,7 @@ SYNOPSIS
 	   [ -E ] [ -Q dscp ] [ -U UID ] [ -x log_level ] [ -t ]
 	   [ -T temp_dir ] [ -D dest_dir[,dest_dir... ]]
 	   [ -A backup_dir[,backup_dir... ]] [ -L logfile ]
+	   [ -F status_file ] [ -q ]
 	   [ -P pidfile ] [ -S serverlist_file ] [ -R proxy[/fp] ]
 	   [ -c cache_size ] [ -k keyfile[,keyfile...] ]
 	   [ -K rsa:key_len | ec:curve[,rsa:key_len | ec:curve...]]
@@ -128,78 +129,122 @@ OPTIONS
 	      Specifies the log file.  Default is /tmp/uftpd.log for UNIX-like
 	      systems systems, C:\uftpd_log.txt for Windows.
 
+       -S status_file
+	      Prints  easily  parsable	status information to a file.  Setting
+	      this option to @LOG results in status info being mixed with nor‐
+	      mal logging output.
+
+	      The  following  is  printed  when	 the  client  registers with a
+	      server:
+
+	      CONNECT;timestamp;server_id;session_id;server_ip;server_name
+
+	      Where "timestamp" is the	time  in  yyyy/mm/dd-hh:mm:ss  format,
+	      "server_id"  is  the ID of the server, "session_id" is the ID of
+	      the session with the server, "server_ip" is the IP address  that
+	      the  server  message  came  from,	 and "server_name" is the name
+	      associated with server_ip.
+
+	      The following is printed after each file:
+
+	      RESULT;timestamp;server_id;session_id;filename;size;status
+
+	      Where "timestamp" is the	time  in  yyyy/mm/dd-hh:mm:ss  format,
+	      "server_id"  is  the ID of the server, "session_id" is the ID of
+	      the session with the server, "filename" is the name of the  cur‐
+	      rent  file,  "size"  is  the size of the file in kilobytes (i.e.
+	      1234KB), and status is:
+
+	      copy: The file was received.
+
+	      overwrite: The file was  received,  and  overwrote  an  existing
+	      file.  Only generated in sync mode.
+
+	      skipped:	The  file  was	declined  because it is older that the
+	      existing file.  Only generated in sync mode.
+
+	      rejected: The file was rejected, because the file was sent  with
+	      an  absolute  pathname  and  either  the	client is using a temp
+	      directory or the filename doesn't match one of the client's des‐
+	      tination directories.
+
+       -q     When  the	 client	 receives an ANNOUNCE from the server, it nor‐
+	      mally print the hostname associated with the  IP	address	 where
+	      the  ANNOUNCE  came from.	 Specifying this option prevents a DNS
+	      lookup of the server IP, saving time.
+
        -P pidfile
 	      The pidfile to write the daemon's pid to on startup.  Default is
 	      no pidfile.
 
        -S serverlist_file
-	      A file containing a list of servers the  client  will  allow  to
+	      A	 file  containing  a  list of servers the client will allow to
 	      send files to it.	 The file should contain the ID of the server,
-	      the IP address the client expects the server's request  to  come
-	      from,  and  optionally the server's public key fingerprint, with
-	      one entry for a server on each line.  If a  key  fingerprint  is
-	      given,  the  key	specified by the server must match the finger‐
+	      the  IP  address the client expects the server's request to come
+	      from, and optionally the server's public key  fingerprint,  with
+	      one  entry  for  a server on each line.  If a key fingerprint is
+	      given, the key specified by the server must  match  the  finger‐
 	      print.  If your system supports source specific multicast (SSM),
-	      the  client  will	 subscribe to all public and private multicast
+	      the client will subscribe to all public  and  private  multicast
 	      addresses using SSM for all servers listed.
 
-	      When this option is specified, the public and private  addresses
-	      specified	 by  the  server  must	be  valid  SSM addresses.  Any
-	      ANNOUNCE that specifies a private IP that is  not	 a  valid  SSM
-	      address  will be rejected.  Valid SSM addresses are in the 232/8
+	      When  this option is specified, the public and private addresses
+	      specified by the	server	must  be  valid	 SSM  addresses.   Any
+	      ANNOUNCE	that  specifies	 a  private IP that is not a valid SSM
+	      address will be rejected.	 Valid SSM addresses are in the	 232/8
 	      range for IPv4 and the ff30::/96 range for IPv6.
 
 	      Example contents:
 	      0x11112222|192.168.1.101|66:1E:C9:1D:FC:99:DB:60:B0:1A:F0:8F:CA:F4:28:27:A6:BE:94:BC
 	      0x11113333|fe80::213:72ff:fed6:69ca
 
-	      When expecting to receive from a server that is behind a	proxy,
-	      the  file should list the ID of the server along with the IP and
+	      When  expecting to receive from a server that is behind a proxy,
+	      the file should list the ID of the server along with the IP  and
 	      fingerprint of the client proxy.	The proxy can authenticate the
 	      server.
 
        -R proxy[/fingerprint]
-	      Specifies	 the  name/IP of the response proxy that all responses
-	      are forwarded to.	 If fingerprint is  given,  it	specifies  the
-	      proxy's  public  key fingerprint.	 Upon startup, the client will
-	      query the proxy for its public key,  retrying  every  5  seconds
-	      until  it	 gets a successful response.  The client cannot accept
-	      an encrypted file transfer from  a  server  until	 it  gets  the
+	      Specifies the name/IP of the response proxy that	all  responses
+	      are  forwarded  to.   If	fingerprint is given, it specifies the
+	      proxy's public key fingerprint.  Upon startup, the  client  will
+	      query  the  proxy	 for  its public key, retrying every 5 seconds
+	      until it gets a successful response.  The client	cannot	accept
+	      an  encrypted  file  transfer  from  a  server until it gets the
 	      proxy's key.
 
        -c cache_size
-	      Specifies	 the  size in bytes of the cache used to hold received
-	      data packets before they are written to disk.  Proper tuning  of
-	      this  value  can	greatly	 increase  efficiency at speeds in the
-	      gigabit range.  Valid  values  are  10240-20971520  (10KB-20MB).
+	      Specifies the size in bytes of the cache used to	hold  received
+	      data  packets before they are written to disk.  Proper tuning of
+	      this value can greatly increase  efficiency  at  speeds  in  the
+	      gigabit  range.	Valid  values  are 10240-20971520 (10KB-20MB).
 	      Default is 1048576 (1MB).
 
        -k keyfile[,keyfile...]
 
        -K rsa:key_length | ec:curve[,rsa:key_length | ec:curve...]
-	      These  two  options  are	used to read and/or write the client's
+	      These two options are used to read  and/or  write	 the  client's
 	      RSA/ECDSA private keys.
 
-	      The -K option creates one or more RSA  or	 ECDSA	private	 keys.
-	      New  keys	 are specified as either rsa:key_length, which creates
-	      an RSA private key key_length bits wide, or as  ec:curve,	 which
+	      The  -K  option  creates	one or more RSA or ECDSA private keys.
+	      New keys are specified as either rsa:key_length,	which  creates
+	      an  RSA  private key key_length bits wide, or as ec:curve, which
 	      creates an EC key using the curve "curve".
 
-	      The  list of supported EC curves is as follows (availability may
+	      The list of supported EC curves is as follows (availability  may
 	      vary depending on system settings and crypto library used):
 
 	      sect163k1	 sect163r1  sect163r2  sect193r1  sect193r2  sect233k1
 	      sect233r1	 sect239k1  sect283k1  sect283r1  sect409k1  sect409r1
 	      sect571k1	 sect571r1  secp160k1  secp160r1  secp160r2  secp192k1
-	      prime192v1  secp224k1  secp224r1	secp256k1 prime256v1 secp384r1
+	      prime192v1 secp224k1 secp224r1  secp256k1	 prime256v1  secp384r1
 	      secp521r1
 
 	      If only -K is specified, the keys created are not persisted.
 
-	      If only -k is specified, this option reads RSA or ECDSA  private
+	      If  only -k is specified, this option reads RSA or ECDSA private
 	      keys from each keyfile.
 
-	      If  -k  and -K are specified, the keys created by -K are written
+	      If -k and -K are specified, the keys created by -K  are  written
 	      to the keyfiles listed by -k.  In this case, -k and -K must give
 	      the same number of items.
 
@@ -209,48 +254,48 @@ OPTIONS
 	      If -k is specified but not -K, the RSA or ECDSA private keys are
 	      read from each keyfile.
 
-	      The  definition  of  keyfile  is dependent on the crypto library
+	      The definition of keyfile is dependent  on  the  crypto  library
 	      UFTP is compiled to use.
 
-	      On Windows systems, UFTP can built to use either CNG,  which  is
-	      the  new	API supported by Windows Vista and Windows 7, or Cryp‐
-	      toAPI, which is the legacy API and the  only  one	 available  to
+	      On  Windows  systems, UFTP can built to use either CNG, which is
+	      the new API supported by Windows Vista and Windows 7,  or	 Cryp‐
+	      toAPI,  which  is	 the  legacy API and the only one available to
 	      Windows XP.
 
-	      Under  CryptoAPI,	 all  RSA private keys must be stored in a key
-	      container (technically only keys used  to	 sign  data,  but  for
-	      UFTP's  purposes this is the case).  Key containers are internal
-	      to Windows, and each user (and the system) has its  own  set  of
-	      key  containers.	In this case, key_file is actually the name of
-	      the key container.  When -k is not specified, the generated  key
-	      is  not  persisted.  Elliptic Curve algorithms are not supported
+	      Under CryptoAPI, all RSA private keys must be stored  in	a  key
+	      container	 (technically  only  keys  used	 to sign data, but for
+	      UFTP's purposes this is the case).  Key containers are  internal
+	      to  Windows,  and	 each user (and the system) has its own set of
+	      key containers.  In this case, key_file is actually the name  of
+	      the  key container.  When -k is not specified, the generated key
+	      is not persisted. Elliptic Curve algorithms  are	not  supported
 	      under CryptoAPI.
 
-	      Under CNG, RSA and ECDSA private keys are	 also  stored  in  key
+	      Under  CNG,  RSA	and  ECDSA private keys are also stored in key
 	      containers, and RSA keys created by CrypoAPI may be read by CNG.
-	      Like CryptoAPI, key_file also specifies the key container	 name,
-	      and  the	generated key is not persisted if -k is not specified.
-	      CNG only supports 3 named EC curves: prime256v1, secp384r1,  and
+	      Like  CryptoAPI, key_file also specifies the key container name,
+	      and the generated key is not persisted if -k is  not  specified.
+	      CNG  only supports 3 named EC curves: prime256v1, secp384r1, and
 	      secp521r1.
 
-	      All  other  systems use OpenSSL for the crypto library (although
-	      under Windows UFTP can be also be built to  use  it).   In  this
-	      case,  key_file  specifies a file name where the RSA private key
-	      is stored unencrypted in PEM format (the OS is expected to  pro‐
+	      All other systems use OpenSSL for the crypto  library  (although
+	      under  Windows  UFTP  can	 be also be built to use it).  In this
+	      case, key_file specifies a file name where the RSA  private  key
+	      is  stored unencrypted in PEM format (the OS is expected to pro‐
 	      tect this file).	When both -k and -K are specified, the file is
-	      only written to if it does not currently	exist.	 If  the  file
-	      does  exist,  an	error  message will be returned and the server
-	      will exit.  When -k is not specified, the generated key  is  not
-	      persisted.   These  PEM  files  may  also be manipulated via the
+	      only  written  to	 if  it does not currently exist.  If the file
+	      does exist, an error message will be  returned  and  the	server
+	      will  exit.   When -k is not specified, the generated key is not
+	      persisted.  These PEM files may  also  be	 manipulated  via  the
 	      openssl(1) command line tool.
 
-	      Keys can also be generated and  viewed  via  the	uftp_keymgt(1)
+	      Keys  can	 also  be  generated and viewed via the uftp_keymgt(1)
 	      utility.
 
-       -m     For  Windows  systems  using  CryptoAPI or CNG, private keys are
+       -m     For Windows systems using CryptoAPI or  CNG,  private  keys  are
 	      normally stored in the key container of the running user.	 Spec‐
-	      ifying  this  option  stores  keys  in the system key container.
-	      Useful when running as a service.	 On non-Windows systems,  this
+	      ifying this option stores keys  in  the  system  key  container.
+	      Useful  when running as a service.  On non-Windows systems, this
 	      option has no effect.
 
        -N priority
@@ -264,16 +309,16 @@ OPTIONS
 	       1 Below Normal
 	       2 Low
 
-	      On  all  other  systems, this is the "nice" value.  Valid values
-	      are from -20 to 19, where -20 is the highest priority and 19  is
+	      On all other systems, this is the "nice"	value.	 Valid	values
+	      are  from -20 to 19, where -20 is the highest priority and 19 is
 	      the lowest priority.  Default is 0.
 
-       -i     When  -T	is  specified, directories are normally moved from the
-	      temp directory to the destionation directory at  once,  removing
-	      all  existing files in the that subdirectory within the destion‐
-	      aion directory.  This option causes directories to be  traversed
-	      so  that	all  received files are moved individually, preventing
-	      unwanted deletions.  This also affects the operation of  the  -s
+       -i     When -T is specified, directories are normally  moved  from  the
+	      temp  directory  to  the destination directory at once, removing
+	      all existing files in the that subdirectory within the  destion‐
+	      aion  directory.	This option causes directories to be traversed
+	      so that all received files are  moved  individually,  preventing
+	      unwanted	deletions.   This also affects the operation of the -s
 	      option.  If -T is not specified, this option has no effect.
 
        -s postreceive_script
@@ -282,43 +327,43 @@ OPTIONS
 
 	      postreceive_script -I session_id file [ file... ]
 
-	      Where "session_id" is an 8 hexadecimal digit number identifiying
-	      the  current  session, and "file" is the full pathname to one or
-	      more received files/directories  in  the	destination  directory
+	      Where  "session_id" is an 8 hexadecimal digit number identifying
+	      the current session, and "file" is the full pathname to  one  or
+	      more  received  files/directories	 in  the destination directory
 	      specified by -D.
 
-	      The  way	this script is called depends on whether or not a temp
+	      The way this script is called depends on whether or not  a  temp
 	      directory is specified by -T, and if -i is specified.  If a temp
-	      directory	 is not specified, or if both -T and -i are specified,
+	      directory is not specified, or if both -T and -i are  specified,
 	      the script gets called once for each file as soon as the file is
-	      received.	  If  a temp directory is specified but -i is not, the
+	      received.	 If a temp directory is specified but -i is  not,  the
 	      script gets called once at the end of the session, and is passed
-	      all  top	level  files/directories  received.   Here, "top level
-	      files/directories" refers to all entries in the  temp  directory
+	      all top level  files/directories	received.   Here,  "top	 level
+	      files/directories"  refers  to all entries in the temp directory
 	      for the session, but not subdirectories.	So the script would be
-	      responsible for traversing any listed directories to find	 files
+	      responsible  for traversing any listed directories to find files
 	      contained within them.
 
        -g max_log_size
-	      Specifies	 the  maximum  log file size in MB.  Once the log file
+	      Specifies the maximum log file size in MB.  Once	the  log  file
 	      reaches this size, the file is renamed with a .1 extension and a
-	      new  log	file  is  opened.   For	 example,  if  the log file is
-	      /tmp/uftpd.log, it will be renamed /tmp/uftpd.log.1  and	a  new
-	      /tmp/uftpd.log  will  be	created.   Ignored if -d is specified.
+	      new log file is  opened.	 For  example,	if  the	 log  file  is
+	      /tmp/uftpd.log,  it  will	 be renamed /tmp/uftpd.log.1 and a new
+	      /tmp/uftpd.log will be created.  Ignored	if  -d	is  specified.
 	      Valid values are 1-1024.	Default is no log rolling.
 
        -n max_log_count
-	      Specifies the maximum number of archive log files to  keep  when
-	      log  rolling  is	active.	 When the log file rolls, archive logs
-	      are renamed with an incrementing numerical extension  until  the
-	      max  is  reached.	  Archive  log	files  beyond  the maximum are
-	      deleted.	Ignored if -g is  not  specified.   Valid  values  are
+	      Specifies	 the  maximum number of archive log files to keep when
+	      log rolling is active.  When the log file	 rolls,	 archive  logs
+	      are  renamed  with an incrementing numerical extension until the
+	      max is reached.	Archive	 log  files  beyond  the  maximum  are
+	      deleted.	 Ignored  if  -g  is  not specified.  Valid values are
 	      1-1000.  Default is 5.
 
        -H hb_server[:port][,hb_server[:port]...]
-	      Lists  one  or more proxies to send heartbeat messages to.  When
-	      sending a signed heartbeat message, the first key	 listed	 under
-	      -k  is used to sign the message.	If port is not specified for a
+	      Lists one or more proxies to send heartbeat messages  to.	  When
+	      sending  a  signed heartbeat message, the first key listed under
+	      -k is used to sign the message.  If port is not specified for  a
 	      given proxy, the default port of 1044 is assumed.
 
        -h hb_interval
@@ -326,25 +371,25 @@ OPTIONS
 	      if -H is not specified.
 
        -I interface[,interface...]
-	      Lists  one or more interfaces to listen to multicast traffic on.
-	      Interfaces can be specified either by interface name,  by	 host‐
-	      name,  or	 by  IP.   When	 receiving  a  closed group membership
-	      request, the client will participate if any of these  interfaces
+	      Lists one or more interfaces to listen to multicast traffic  on.
+	      Interfaces  can  be specified either by interface name, by host‐
+	      name, or by  IP.	 When  receiving  a  closed  group  membership
+	      request,	the client will participate if any of these interfaces
 	      matches an IP in the announcement.  When receiving an open group
-	      membership request, the first interface listed is	 the  one  the
+	      membership  request,  the	 first interface listed is the one the
 	      client will report back to the server.  This may not necessarily
 	      be the interface that the ANNOUNCE was received on.  The default
 	      is to listen on all active non-loopback interfaces.  NOTE: Since
-	      Windows doesn't have named interfaces (not  in  the  sense  that
-	      UNIX-like	 systems  do),	only  hostnames	 or  IP	 addresses are
-	      accepted on Windows.  If specifying by hostname or IP, may be  a
+	      Windows  doesn't	have  named  interfaces (not in the sense that
+	      UNIX-like systems	 do),  only  hostnames	or  IP	addresses  are
+	      accepted	on Windows.  If specifying by hostname or IP, may be a
 	      mixture of IPv4 and IPv6 addresses, except on systems that don't
 	      support dual mode sockets such as Windows XP.
 
        -M pub_multicast_addr[,pub_multicast_addr...]
-	      The list of public multicast addresses to listen on.  May	 be  a
+	      The  list	 of public multicast addresses to listen on.  May be a
 	      mixture of IPv4 and IPv6 addresses, except on systems that don't
-	      support dual mode	 sockets  such	as  Windows  XP.   Default  is
+	      support  dual  mode  sockets  such  as  Windows  XP.  Default is
 	      230.4.4.1
 
 EXAMPLES
@@ -352,14 +397,14 @@ EXAMPLES
 
 	    uftpd
 
-       The  client  runs as a daemon and listens for announcements on UDP port
-       1044 on multicast address 230.4.4.1 on all non-loopback network	inter‐
-       faces.  Incoming files are received directly into /tmp (C:\temp on Win‐
+       The client runs as a daemon and listens for announcements on  UDP  port
+       1044  on multicast address 230.4.4.1 on all non-loopback network inter‐
+       faces. Incoming files are received directly into /tmp (C:\temp on  Win‐
        dows).  A 512-bit RSA key is generated to handle encrypted sessions.
 
-       Suppose you want an  external  process  to  handle  incoming  files  in
+       Suppose	you  want  an  external	 process  to  handle incoming files in
        /tmp/dest.  Since you don't want to pick up incomplete files, you might
-       want them to be received into /tmp/receiving then  moved	 to  /tmp/dest
+       want  them  to  be received into /tmp/receiving then moved to /tmp/dest
        when done.  Then call the client like this:
 
 	    uftpd -D /tmp/dest -T /tmp/receiving
@@ -374,7 +419,7 @@ EXAMPLES
 	    uftpd							    -k
 	    file_for_rsa_1024_key,file_for_rsa_2048_key,file_for_ec_prime256v1_key
 
-       If incoming packets aren't being read quickly enough, and you  want  to
+       If  incoming  packets aren't being read quickly enough, and you want to
        increase the UDP receive buffer size to 2 MB:
 
 	    uftpd -B 2097152
@@ -383,7 +428,7 @@ EXAMPLES
 EXIT STATUS
        The following exit values are returned:
 
-       0      The  client  started  successfully  and  is running in the back‐
+       0      The client started successfully and  is  running	in  the	 back‐
 	      ground.
 
        1      An invalid command line parameter was specified.
@@ -391,7 +436,7 @@ EXIT STATUS
        2      An error occurred while attempting to initialize network connec‐
 	      tions.
 
-       3      An  error occurred while reading or generating cryptographic key
+       3      An error occurred while reading or generating cryptographic  key
 	      data.
 
        4      An error occurred while opening or rolling the log file.
@@ -404,11 +449,11 @@ SEE ALSO
        uftp(1), uftpproxyd(1), uftp_keymgt(1)
 
 NOTES
-       The  latest  version  of	 UFTP  can  be	found  at   http://uftp-multi‐
-       cast.sourceforge.net.   UFTP  is	 covered  by  the  GNU	General Public
-       License.	 Commercial licenses and support  are  available  from	Dennis
+       The   latest  version  of  UFTP	can  be	 found	at  http://uftp-multi‐
+       cast.sourceforge.net.  UFTP  is	covered	 by  the  GNU  General	Public
+       License.	  Commercial  licenses	and  support are available from Dennis
        Bush (bush@tcnj.edu).
 
 
 
-UFTP 4.5			26 August 2014			      uftpd(1)
+UFTP 4.6		       30 December 2014			      uftpd(1)

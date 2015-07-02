@@ -103,7 +103,7 @@ sender support for ECN.
 
 --== Running under Windows ==--
 
-UFTP was originally written to run in a UNIX/Linux environment, so it doens't
+UFTP was originally written to run in a UNIX/Linux environment, so it doesn't
 natively do things that other Windows servers do such as run in the background
 or run as a Windows service.  Included with UFTP are hidedos.exe, instsrv.exe,
 and srvany.exe which allows these things to happen.  Hidedos is a utility

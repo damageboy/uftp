@@ -61,7 +61,7 @@
 #include "client_config.h"
 #include "client_common.h"
 
-static int parent;  // Is the the parent process that exits after a fork?
+static int parent;  // Is this the parent process that exits after a fork?
 
 /**
  * Cleanup routine set up by atexit
@@ -166,7 +166,7 @@ void pre_initialize(void)
 }
 
 /**
- * Set up log file and run in the backgroud
+ * Set up log file and run in the background
  */
 void daemonize(void)
 {
@@ -691,5 +691,14 @@ void initialize(void)
 
     daemonize();
     showtime = 1;
+
+    if (!strcmp(statusfilename, "@LOG")) {
+        status_file = applog;
+    } else if (strcmp(statusfilename, "")) {
+        if ((status_file = fopen(statusfilename, "at")) == NULL) {
+            perror("Can't open status file");
+            exit(ERR_PARAM);
+        }
+    }
 }
 

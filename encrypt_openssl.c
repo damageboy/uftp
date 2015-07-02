@@ -1199,7 +1199,7 @@ EC_key_t read_EC_key(const char *filename)
 }
 
 /**
- * Reads a private key of uknown type
+ * Reads a private key of unknown type
  */
 union key_t read_private_key(const char *filename, int *keytype)
 {

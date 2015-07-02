@@ -444,7 +444,7 @@ errexit:
 }
 
 /**
- * The main sending function.  Goes through all files/diectories specified on
+ * The main sending function.  Goes through all files/directories specified on
  * the command line and initializes the group.
  */
 int send_files(void)

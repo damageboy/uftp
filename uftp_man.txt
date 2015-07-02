@@ -359,7 +359,7 @@ OPTIONS
 
        -C cc_type
 	      Specifies	 the  congestion  control mode to use.	Currently sup‐
-	      ported values are "none" and "tfmcc".  Specifiying "none"	 means
+	      ported values are "none" and "tfmcc".  Specifying	 "none"	 means
 	      data will be sent at a fixed rate as specified by the -R option.
 	      Specifying "tfmcc" will use the TCP Friendly  Multicast  Conges‐
 	      tion  Control  scheme as specified in RFC 4654.  Normally, TFMCC
@@ -378,10 +378,10 @@ OPTIONS
        -D dest_name
 	      These options specify the name given to the sent file(s) on  the
 	      client  side.   If  only one file/directory is specified to send
-	      and -o is not specified, the name spcified by  -D	 is  given  to
+	      and -o is not specified, the name specified by -D	 is  given  to
 	      that file/directory, and the effects of -E are ignored.  If more
 	      than one file/directory is specified to send, or if -o is speci‐
-	      fied,  they  are placed in a subdirectory with the name spcified
+	      fied,  they are placed in a subdirectory with the name specified
 	      by -D.
 
 	      This option may also specify an  absolute	 path  name.   If  so,
@@ -426,8 +426,8 @@ OPTIONS
 
 	      RESULT;target;filename;size;status;speed
 
-	      Where "target" is the name of the client, "file" is the name  of
-	      the  current  file,  "size" is the size of the file in kilobytes
+	      Where "target" is the name of the client, "filename" is the name
+	      of the current file, "size" is the size of the file in kilobytes
 	      (i.e. 1234KB), "speed" is the transmission speed for  that  file
 	      in KB/s, and status is:
 
@@ -450,8 +450,8 @@ OPTIONS
 	      write;num_skip;total_size;time;speed
 
 	      Where "target" is the name of the client, "num_copy" is the num‐
-	      ber of files sentwith "copy" status, "num_overwrite" is the num‐
-	      ber  of  files  sent  with "overwrite" status, "num_skip" is the
+	      ber of files sent with "copy"  status,  "num_overwrite"  is  the
+	      number  of files sent with "overwrite" status, "num_skip" is the
 	      number of files sent with "skipped" status, "total_size" is  the
 	      total  size  of all files sent in kilobytes, "time" is the total
 	      transmission time for all files,	and  "speed"  is  the  overall
@@ -470,7 +470,7 @@ OPTIONS
 	      is too short or long, if receivers are getting bogged  down  and
 	      cannot  respond to the server quick enough before timing out, or
 	      if receivers are getting flagged with too high  of  an  RTT  and
-	      take  too	 long  to recover to a resonable value.	  Valid values
+	      take  too	 long to recover to a reasonable value.	  Valid values
 	      are 0.001 to 1000.  Defaults are 0.5  for	 init_grtt,  0.01  for
 	      min_grtt, and 15.0 for max_grtt.
 
@@ -618,4 +618,4 @@ NOTES
 
 
 
-UFTP 4.5.1		       14 September 2014		       uftp(1)
+UFTP 4.6		       30 December 2014			       uftp(1)

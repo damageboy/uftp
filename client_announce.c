@@ -875,7 +875,8 @@ void handle_announce(union sockaddr_u *src, unsigned char *packet,
     struct group_list_t *group;
     time_t t;
     struct tm *start_time;
-    char privname[INET6_ADDRSTRLEN];
+    char privname[INET6_ADDRSTRLEN], srcname[INET6_ADDRSTRLEN];
+    char srcfqdn[DESTNAME_LEN];
 
     header = (struct uftp_h *)packet;
     announce = (struct announce_h *)(packet + sizeof(struct uftp_h));
@@ -912,13 +913,26 @@ void handle_announce(union sockaddr_u *src, unsigned char *packet,
         return;
     }
 
+    if ((rval = getnameinfo((struct sockaddr *)src, family_len(*src),
+            srcname, sizeof(srcname), NULL, 0, NI_NUMERICHOST)) != 0) {
+        log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+    }
+    if (!noname) {
+        if ((rval = getnameinfo((struct sockaddr *)src, family_len(*src),
+                srcfqdn, sizeof(srcfqdn), NULL, 0, 0)) != 0) {
+            log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
+        }
+    } else {
+        strncpy(srcfqdn, srcname, sizeof(srcfqdn) - 1);
+    }
     if ((rval = getnameinfo((struct sockaddr *)&group->multi,
             family_len(group->multi), privname, sizeof(privname),
             NULL, 0, NI_NUMERICHOST)) != 0) {
         log1(0, 0, "getnameinfo failed: %s", gai_strerror(rval));
     }
 
-    log2(group->group_id,0, "Received request from %08X", ntohl(group->src_id));
+    log2(group->group_id, 0, "Received request from %08X at %s (%s)",
+                             ntohl(group->src_id), srcfqdn, srcname);
     log2(group->group_id, 0, "Using private multicast address %s", privname);
     log3(group->group_id, 0, "grtt = %.6f", group->grtt);
     log3(group->group_id, 0, "send time: %d.%06d",
@@ -926,10 +940,20 @@ void handle_announce(union sockaddr_u *src, unsigned char *packet,
     log3(group->group_id, 0, "receive time: %d.%06d",
             group->last_server_rx_ts.tv_sec, group->last_server_rx_ts.tv_usec);
 
+    if (status_file) {
+        fprintf(status_file,
+                "CONNECT;%04d/%02d/%02d-%02d:%02d:%02d;%08X;%08X;%s;%s\n",
+                start_time->tm_year + 1900, start_time->tm_mon + 1,
+                start_time->tm_mday, start_time->tm_hour,
+                start_time->tm_min, start_time->tm_sec,
+                ntohl(group->src_id), group->group_id, srcname, srcfqdn);
+        fflush(status_file);
+    }
+
     if (group->restart) {
         if (group->sync_mode) {
-            log1(group->group_id, 0, "Sync mode and restart mode incompatable");
-            send_abort(group, "Sync mode and restart mode incompatable");
+            log1(group->group_id, 0, "Sync mode and restart mode incompatible");
+            send_abort(group, "Sync mode and restart mode incompatible");
             return;
         }
     }

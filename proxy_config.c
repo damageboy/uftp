@@ -384,7 +384,7 @@ void process_args(int argc, char *argv[])
         case 'h':
             hb_interval = atoi(optarg);
             if ((hb_interval <= 0) || (hb_interval > 3600)) {
-                fprintf(stderr, "Invalid hearbeat interval\n");
+                fprintf(stderr, "Invalid heartbeat interval\n");
                 exit(ERR_PARAM);
             }
             break;

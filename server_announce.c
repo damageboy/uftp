@@ -215,7 +215,7 @@ int send_announce(const struct finfo_t *finfo, int attempt, int open)
 }
 
 /**
- * Send out REG_CONF messages specifiying all registered clients.
+ * Send out REG_CONF messages specifying all registered clients.
  * Sent when encryption is disabled, or if the client is behind a proxy.
  * Returns 1 on success, 0 on fail
  */
@@ -931,7 +931,7 @@ void handle_open_clientkey(const unsigned char *message, unsigned meslen,
 
 /**
  * Process an expected CLIENT_KEY with closed group membership,
- * or with open group membersip if REGISTER was received first.
+ * or with open group membership if REGISTER was received first.
  */
 void handle_clientkey(const unsigned char *message, unsigned meslen,
                       struct finfo_t *finfo, const union sockaddr_u *su,

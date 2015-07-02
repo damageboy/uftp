@@ -57,10 +57,12 @@ char tempdir[MAXDIRNAME], destdir[MAXDIR][MAXDIRNAME];
 char pidfile[MAXPATHNAME];
 char keyfile[MAXLIST][MAXPATHNAME], keyinfo[MAXLIST][MAXPATHNAME];
 char backupdir[MAXDIR][MAXDIRNAME];
+char statusfilename[MAXPATHNAME];
+FILE *status_file;
 int debug, encrypted_only, dscp, destdircnt, tempfile, keyinfo_count;
 int interface_count, pub_multi_count, keyfile_count, rcvbuf, backupcnt;
 char postreceive[MAXPATHNAME], portname[PORTNAME_LEN];
-int port, move_individual, cache_len;
+int port, move_individual, cache_len, noname;
 uint32_t uid;
 union sockaddr_u hb_hosts[MAXLIST];
 struct iflist m_interface[MAX_INTERFACES];
@@ -129,6 +131,10 @@ void set_defaults(void)
     dscp = DEF_DSCP;
     strncpy(logfile, DEF_LOGFILE, sizeof(logfile)-1);
     logfile[sizeof(logfile)-1] = '\x0';
+    strncpy(statusfilename, "", sizeof(statusfilename)-1);
+    statusfilename[sizeof(statusfilename)-1] = '\x0';
+    status_file = NULL;
+    noname = 0;
     memset(pidfile, 0, sizeof(pidfile));
     interface_count = 0;
     strncpy(portname, DEF_PORT, sizeof(portname)-1);
@@ -169,7 +175,7 @@ void process_args(int argc, char *argv[])
     char line[1000], *servername, *ipstr, *fingerprint;
     char *p, *p2, *hoststr, *portstr, pubname[INET6_ADDRSTRLEN];
     FILE *serverfile;
-    const char opts[] = "dx:L:P:s:c:I:p:tT:D:A:M:B:Q:EU:S:R:k:K:mN:ig:n:h:H:";
+    const char opts[]="dx:qF:L:P:s:c:I:p:tT:D:A:M:B:Q:EU:S:R:k:K:mN:ig:n:h:H:";
 
     set_defaults();
 
@@ -185,6 +191,13 @@ void process_args(int argc, char *argv[])
                 fprintf(stderr, "Invalid log level\n");
                 exit(ERR_PARAM);
             }
+            break;
+        case 'q':
+            noname = 1;
+            break;
+        case 'F':
+            strncpy(statusfilename, optarg, sizeof(statusfilename)-1);
+            statusfilename[sizeof(statusfilename)-1] = '\x0';
             break;
         case 'L':
             strncpy(logfile, optarg, sizeof(logfile)-1);
@@ -471,7 +484,7 @@ void process_args(int argc, char *argv[])
         case 'h':
             hb_interval = atoi(optarg);
             if ((hb_interval <= 0) || (hb_interval > 3600)) {
-                fprintf(stderr, "Invalid hearbeat interval\n");
+                fprintf(stderr, "Invalid heartbeat interval\n");
                 exit(ERR_PARAM);
             }
             break;

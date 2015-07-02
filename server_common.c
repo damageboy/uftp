@@ -268,7 +268,7 @@ int validate_packet(const unsigned char *packet, int len,
 }
 
 /**
- * Apply a signature to an ANNOUCE if the key exchange scheme calls for it.
+ * Apply a signature to an ANNOUNCE if the key exchange scheme calls for it.
  * On entry, the packet should be complete other that the signature.
  * Returns 1 on success, 0 on fail.
  */
@@ -390,7 +390,7 @@ void handle_abort(const unsigned char *message, int meslen, int idx,
                     destlist[idx].name, abort_hdr->message);
     }
     if (quit_on_error) {
-        log0(finfo->group_id, finfo->file_id, "Aboring all clients");
+        log0(finfo->group_id, finfo->file_id, "Aborting all clients");
         send_abort(finfo, "A client aborted, aborting all",
                 &receive_dest, 0, 0, 0);
         // If encryption enabled, send ABORT both encrypted and unencrypted

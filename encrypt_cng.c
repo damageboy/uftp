@@ -32,7 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Use this #define to pull in neccesary declarations from uftp_common.h
+// Use this #define to pull in necessary declarations from uftp_common.h
 // in encryption.h instead.  We don't include uftp_common.h because it contains
 // an include for winsock2.h which is needed pretty much everyplace else.
 // Including winsock2.h prevents BCryptEncrypt and BCryptDecrypt from working

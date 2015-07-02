@@ -530,7 +530,7 @@ void forward_message(struct pr_group_list_t *group,
     memset(&dest, 0, sizeof(dest));
     if (!memcmp(src, &group->up_addr, sizeof(*src))) {
         if (proxy_type == RESPONSE_PROXY) {
-            // Response proxy, no downstream fowarding
+            // Response proxy, no downstream forwarding
             set_timeout(group, 0, 0);
             return;
         } else if (proxy_type == SERVER_PROXY) {

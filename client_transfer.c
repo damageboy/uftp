@@ -35,6 +35,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <math.h>
+#include <time.h>
 
 #ifdef WINDOWS
 
@@ -457,6 +458,43 @@ void set_freespace_info(struct group_list_t *group,
     freespace->extlen = sizeof(struct freespace_info_he) / 4;
     freespace->freespace_hi = htonl((uint32_t)(disk_space >> 32));
     freespace->freespace_lo = htonl((uint32_t)(disk_space & 0xFFFFFFFF));
+}
+
+/**
+ * Writes file result data to status file
+ */
+void print_result_status(struct group_list_t *group)
+{
+    struct tm *done_time;
+    time_t t;
+
+    if (!status_file) return;
+    t = time(NULL);
+    done_time = localtime(&t);
+    fprintf(status_file,
+            "RESULT;%04d/%02d/%02d-%02d:%02d:%02d;%08X;%08X;%s;%sKB",
+            done_time->tm_year + 1900, done_time->tm_mon + 1,
+            done_time->tm_mday, done_time->tm_hour, done_time->tm_min,
+            done_time->tm_sec, ntohl(group->src_id), group->group_id,
+            group->fileinfo.name, printll(group->fileinfo.size / 1024));
+    switch (group->fileinfo.comp_status) {
+    case COMP_STAT_NORMAL:
+        fprintf(status_file, ";copied\n");
+        break;
+    case COMP_STAT_SKIPPED:
+        fprintf(status_file, ";skipped\n");
+        break;
+    case COMP_STAT_OVERWRITE:
+        fprintf(status_file, ";overwritten\n");
+        break;
+    case COMP_STAT_REJECTED:
+        fprintf(status_file, ";rejected\n");
+        break;
+    default:
+        fprintf(status_file, ";unknown\n");
+        break;
+    }
+    fflush(status_file);
 }
 
 /**
@@ -1007,6 +1045,9 @@ void handle_done(struct group_list_t *group, const unsigned char *message,
                 group->fileinfo.nak_time.tv_sec = 0;
                 group->fileinfo.nak_time.tv_usec = 0;
                 send_complete(group, 0);
+                if (group->phase != PHASE_MIDGROUP) {
+                    print_result_status(group);
+                }
                 file_cleanup(group, 0);
             } else if (group->fileinfo.nak_time.tv_sec == 0) {
                 log4(group->group_id, group->file_id,

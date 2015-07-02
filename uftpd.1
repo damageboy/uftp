@@ -1,4 +1,4 @@
-.TH uftpd 1 "26 August 2014" "UFTP 4.5"
+.TH uftpd 1 "30 December 2014" "UFTP 4.6"
 .SH NAME
 uftpd - Encrypted UDP based ftp with multicast - client daemon
 .SH SYNOPSIS
@@ -6,6 +6,7 @@ uftpd [ -d ] [ -p port ] [ -B buf_size ]
     [ -E ] [ -Q dscp ] [ -U UID ] [ -x log_level ] [ -t ]
     [ -T temp_dir ] [ -D dest_dir[,dest_dir... ]]
     [ -A backup_dir[,backup_dir... ]] [ -L logfile ]
+    [ -F status_file ] [ -q ]
     [ -P pidfile ] [ -S serverlist_file ] [ -R proxy[/fp] ]
     [ -c cache_size ] [ -k keyfile[,keyfile...] ]
     [ -K rsa:key_len | ec:curve[,rsa:key_len | ec:curve...]]
@@ -75,6 +76,32 @@ Not compatible with -T.
 .TP
 .B \-L logfile
 Specifies the log file.  Default is /tmp/uftpd.log for UNIX-like systems systems, C:\\uftpd_log.txt for Windows.
+.TP
+.B \-S status_file
+Prints easily parsable status information to a file.  Setting this option to @LOG results in status info being mixed with normal logging output.
+
+The following is printed when the client registers with a server:
+
+CONNECT;timestamp;server_id;session_id;server_ip;server_name
+
+Where "timestamp" is the time in yyyy/mm/dd-hh:mm:ss format, "server_id" is the ID of the server, "session_id" is the ID of the session with the server, "server_ip" is the IP address that the server message came from, and "server_name" is the name associated with server_ip.
+
+The following is printed after each file:
+
+RESULT;timestamp;server_id;session_id;filename;size;status
+
+Where "timestamp" is the time in yyyy/mm/dd-hh:mm:ss format, "server_id" is the ID of the server, "session_id" is the ID of the session with the server, "filename" is the name of the current file, "size" is the size of the file in kilobytes (i.e. 1234KB), and status is:
+
+copy: The file was received.
+
+overwrite: The file was received, and overwrote an existing file.  Only generated in sync mode.
+
+skipped: The file was declined because it is older that the existing file.  Only generated in sync mode.
+
+rejected: The file was rejected, because the file was sent with an absolute pathname and either the client is using a temp directory or the filename doesn\(aqt match one of the client\(aqs destination directories.
+.TP
+.B \-q
+When the client receives an ANNOUNCE from the server, it normally print the hostname associated with the IP address where the ANNOUNCE came from.  Specifying this option prevents a DNS lookup of the server IP, saving time.
 .TP
 .B \-P pidfile
 The pidfile to write the daemon\(aqs pid to on startup.  Default is no pidfile.
@@ -148,14 +175,14 @@ Sets the process priority.  On Windows systems, valid values are from -2 to 2, w
 On all other systems, this is the "nice" value.  Valid values are from -20 to 19, where -20 is the highest priority and 19 is the lowest priority.  Default is 0.
 .TP
 .B -i
-When -T is specified, directories are normally moved from the temp directory to the destionation directory at once, removing all existing files in the that subdirectory within the destionaion directory.  This option causes directories to be traversed so that all received files are moved individually, preventing unwanted deletions.  This also affects the operation of the -s option.  If -T is not specified, this option has no effect.
+When -T is specified, directories are normally moved from the temp directory to the destination directory at once, removing all existing files in the that subdirectory within the destionaion directory.  This option causes directories to be traversed so that all received files are moved individually, preventing unwanted deletions.  This also affects the operation of the -s option.  If -T is not specified, this option has no effect.
 .TP
 .B -s postreceive_script
 The full path to an external command or script to be called when files are received.  The command will be called as follows:
 
 postreceive_script -I session_id file [ file... ]
 
-Where "session_id" is an 8 hexadecimal digit number identifiying the current session, and "file" is the full pathname to one or more received files/directories in the destination directory specified by -D.
+Where "session_id" is an 8 hexadecimal digit number identifying the current session, and "file" is the full pathname to one or more received files/directories in the destination directory specified by -D.
 
 The way this script is called depends on whether or not a temp directory is specified by -T, and if -i is specified.  If a temp directory is not specified, or if both -T and -i are specified, the script gets called once for each file as soon as the file is received.  If a temp directory is specified but -i is not, the script gets called once at the end of the session, and is passed all top level files/directories received.  Here, "top level files/directories" refers to all entries in the temp directory for the session, but not subdirectories.  So the script would be responsible for traversing any listed directories to find files contained within them.
 .TP

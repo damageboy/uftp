@@ -85,7 +85,7 @@ struct finfo_t {
 };
 
 /**
- * Encryption info for a particilar destination
+ * Encryption info for a particular destination
  * Only allocated when encryption is enabled and only for proxies and clients
  * talking directly to the server.  Clients communicating through one or
  * more proxies maintain encryption state with the proxy, not the server.
@@ -122,7 +122,7 @@ struct destinfo_t {
     int num_copy;                   /// Number of copied files in sync mode
     int num_skip;                   /// Number of skipped files in sync mode
     int num_overwrite;              /// Number of overwritten files in sync mode
-    double total_time;              /// Total elasped sending time in sync mode
+    double total_time;              /// Total elapsed sending time in sync mode
     f_offset_t total_size;          /// Total number of bytes sent in sync mode
     double rtt;                     /// RTT to this client
     int8_t rtt_measured;            /// True if RTT measured this round

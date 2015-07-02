@@ -1,3 +1,13 @@
+Version 4.6 - 12/30/2014
+  Added the -F option to the client to print status info to a file.  Like
+    the server's -s option, passing in @LOG mixes this info with the regular
+    logging output.
+  The client now prints the hostname/IP address where an ANNOUNCE originates
+    from, which may be either the server itself or a proxy.  The -q option
+    was added to prevent DNS lookups in the event it causes delays.
+  Several spelling fixes in documentation and code comments.
+  Fixed a memory leak in the fingerprint parsing routine.
+
 Version 4.5.1 - 9/14/2014
   On the rare occasion a seek call made by the client errors or returns a
     file offset that was unexpected, a second call to seek is made to set the

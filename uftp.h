@@ -150,7 +150,7 @@ typedef pthread_t thread_t;
 
 #endif // if WINDOWS
 
-#define VERSIONSTR "UFTP version 4.5.1  Copyright (C) 2001-2014  Dennis A. Bush"
+#define VERSIONSTR "UFTP version 4.6  Copyright (C) 2001-2014  Dennis A. Bush"
 #define UFTP_VER_NUM 0x40
 
 #define ANNOUNCE      1
@@ -299,7 +299,7 @@ typedef pthread_t thread_t;
 #define MASTER_LEN 48   // RFC 5246
 #define MAXIV 16        // big enough for AES256
 #define MAXKEY 32       // big enough for AES256
-#define KEYBLSIZE 16    // Maximum symetric key blocksize
+#define KEYBLSIZE 16    // Maximum symmetric key blocksize
 #define DEF_RSA_LEN 512 // Default length of generated RSA keys
 #define DEF_CURVE CURVE_prime256v1  // Default EC curve
 #define RSA_EXP 65537   // Public key exponent of generated RSA keys
@@ -316,8 +316,8 @@ typedef pthread_t thread_t;
 #define ERR_LOGGING     4   // Error while opening log file
 #define ERR_ALLOC       5   // Memory allocation failure
 #define ERR_INTERRUPTED 6   // Interrupted by the user or an unexpected signal
-#define ERR_NO_REGISTER 7   // No client responsed to an ANNOUCE with a REGISTER
-#define ERR_NO_FILEINFO 8   // No client responsed to a FILEINFO
+#define ERR_NO_REGISTER 7   // No client responded to ANNOUNCE with REGISTER
+#define ERR_NO_FILEINFO 8   // No client responded to a FILEINFO
 #define ERR_DROPPED     9   // All clients were lost or aborted
 #define ERR_NO_FILES    10  // No files were sent
 

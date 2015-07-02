@@ -110,7 +110,6 @@
                                                      to send, one per line\n"
 
 void process_args(int argc, char *argv[]);
-int read_cc_config(const char *filename);
 
 #endif  // _SERVER_CONFIG_H
 

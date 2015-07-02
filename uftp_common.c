@@ -771,6 +771,7 @@ int parse_fingerprint(unsigned char *fingerprint, const char *fingerprint_str)
     p = strtok(tmp, ":");
     if (p == NULL) {
         log1(0, 0, "Invalid fingerprint %s", fingerprint_str);
+        free(tmp);
         return 0;
     }
     do {
@@ -933,7 +934,7 @@ int would_block_err()
 }
 
 /**
- * Returns whether a connection reset error occured
+ * Returns whether a connection reset error occurred
  */
 int conn_reset_err(void)
 {
@@ -1478,7 +1479,7 @@ int encrypt_and_sign(const unsigned char *decpacket, unsigned char **encpacket,
 }
 
 /**
- * Psedo-random function for an individual hashing algorithm
+ * Pseudo-random function for an individual hashing algorithm
  * as defined in RFC 4346 and RFC 5246
  */
 static void P_hash(int hashtype, int bytes, 
@@ -1524,7 +1525,7 @@ static void P_hash(int hashtype, int bytes,
 }
 
 /**
- * Psedo-random function
+ * Pseudo-random function
  * as defined in RFC 4346 and RFC 5246
  */
 void PRF(int hashtype, int bytes, const unsigned char *secret, int secret_len, 

@@ -51,7 +51,7 @@
 #include "server_transfer.h"
 
 /**
- * Send out DONE_CONF messages specifiying all completed clients.
+ * Send out DONE_CONF messages specifying all completed clients.
  * Returns 1 on success, 0 on fail
  */
 int send_doneconf(const struct finfo_t *finfo, int attempt)
@@ -83,7 +83,7 @@ int send_doneconf(const struct finfo_t *finfo, int attempt)
 }
 
 /**
- * Send out DONE messages specifiying active clients that haven't yet responded.
+ * Send out DONE messages specifying active clients that haven't yet responded.
  * The grtt is being passed in because multiple threads could be touching it.
  * Returns 1 on success, 0 on fail
  */

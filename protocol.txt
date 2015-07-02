@@ -117,7 +117,7 @@ time as the RTT to that client.
 
 The server keeps track of the group round trip time (GRTT) which is advertised
 to the clients in each message sent by the server.  On the initial announce,
-this is set to a resonable default.  Once RTTs for the clients have been
+this is set to a reasonable default.  Once RTTs for the clients have been
 measured, the largest of the individual RTTs becomes the GRTT.
 
 After the GRTT has been set once based on the RTTs of one or more clients,
@@ -141,7 +141,7 @@ server will wait 1 * GRTT for any late responses before ending the phase.
 
 During the Announce/Register and File Info phases, the server will send the
 relevant messages a maximum of ROBUST times, after which clients that have
-not responsed will be marked as dropped.
+not responded will be marked as dropped.
 
 When a client detects that a new section has started, or upon receiving a
 DONE, it start a timer lasting 1 * GRTT.  When this timer triggers, the client
@@ -182,7 +182,7 @@ session if no packets have been received in 4 * ROBUST * GRTT.
 
 When sending an aggregated REGISTER or FILEINFO_ACK message, a proxy will note
 which client reported the longest RTT based on the echoed timestamp and will
-include that client's timestamp in the reponse.  That client will also be
+include that client's timestamp in the response.  That client will also be
 listed first in the body of the message so the server may determine which
 individual client has the longest RTT.
 
@@ -242,7 +242,7 @@ For a 64-bit IV (for DES or 3 key Triple DES):
 
 IV = (S + UID) XOR CTR
 
-where CTR is a monotinically increasing 64-bit counter, UID is the unique ID
+where CTR is a monotonically increasing 64-bit counter, UID is the unique ID
 of the message sender, and S is a 32-bit salt, derived below.
 
 Valid hash algorithms are SHA-1, SHA-256, SHA-384, and SHA-512.  While SHA-256
@@ -325,7 +325,7 @@ After receiving the REGISTER the server sends a KEYINFO message containing
 the group master key encrypted with the session key for the client, along with
 a 64-bit counter used to generate the IV.  If an authenticated cipher mode was
 chosen (GCM/CCM), the encryption is instead performed in CBC mode as a
-signature is not requried at this stage.  A KEYINFO can contain the group key
+signature is not required at this stage.  A KEYINFO can contain the group key
 encrypted multiple times, with each one encrypted with a different client's
 session key and grouped with the unique ID of the client.  The group master key
 is chosen by the server.  It is 48 bytes, with the first byte being the server
@@ -686,11 +686,11 @@ Timestamp_microseconds: 32 bits
     The microsecond portion of the current time.  This field and the above
     field are used in round trip time measurements.
 
-Public Mulicast Address: varies
+Public Multicast Address: varies
     The public multicast address used by this session.  May be an IPv4 address
     of 4 bytes or an IPv6 address of 16 bytes.
 
-Private Mulicast Address: varies
+Private Multicast Address: varies
     The private multicast address used by this session.  May be an IPv4 address
     of 4 bytes or an IPv6 address of 16 bytes.  The public and private
     addresses must be the same IP version.
@@ -741,7 +741,7 @@ Client ID: 32 bits each
 A header extension appended to an ANNOUNCE message indicating encryption
 parameters for the session.
 
-Extention Type: 8 bits
+Extension Type: 8 bits
     The extension number for this extension.  Always 1.
 
 Extension Length: 8 bits
@@ -750,7 +750,7 @@ Extension Length: 8 bits
 Flags: 8 bits
     0x01 - CLIENT_AUTH
         Specifies that the client should send a CLIENT_KEY message in
-        additionto a REGISTER when responding when set.
+        addition to a REGISTER when responding when set.
     All other bits should be set to 0.
 
 Key Exchange Type: 4 bits
@@ -1158,7 +1158,7 @@ File ID: 16 bits
     starting at 1.
 
 File Type: 8 bits
-    Specifies the type of file being sent (regular file, directory, sybolic
+    Specifies the type of file being sent (regular file, directory, symbolic
     link, delete request, or free dist space request).  See section 4.3 for
     the list of valid values.
 
@@ -1304,7 +1304,7 @@ Data: varies
 This extension, added to a FILESEG message, contains information necessary to
 support TFMCC.
 
-Extention Type: 8 bits
+Extension Type: 8 bits
     The extension number for this extension.  Always 2.
 
 Extension Length: 8 bits
@@ -1422,7 +1422,7 @@ NAK Contest: varies
 This extension, added to a STATUS or CC_ACK message, contains information
 necessary to support TFMCC.
 
-Extention Type: 8 bits
+Extension Type: 8 bits
     The extension number for this extension.  Always 3.
 
 Extension Length: 8 bits
@@ -1531,7 +1531,7 @@ Client ID: 32 bits each
 This extension, added to a COMPLETE message, contains the amount of free
 disk space in bytes in the client's primary destination directory.
 
-Extention Type: 8 bits
+Extension Type: 8 bits
     The extension number for this extension.  Always 7.
 
 Extension Length: 8 bits
@@ -1751,7 +1751,7 @@ Reserved: 16 bits
    |                Header Extensions (if applicable)              |
    +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 
-Sent by a response proxy to clients for the purpose suppying its public
+Sent by a response proxy to clients for the purpose supplying its public
 RSA/ECDSA key and public ECDH key.  When a client gets an ANNOUNCE directly
 from a server, it contains the server's RSA/ECDSA public key and perhaps an
 ECDH key.  The client can then use the proxy's keys to perform the key exchange
@@ -1882,7 +1882,7 @@ Reserved: 16 bits
    +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
 
 This message contains a congestion control feedback response from a client.
-There should normaly be at least one header extension present such as
+There should normally be at least one header extension present such as
 EXT_TFMCC_ACK_INFO to supply the specific congestion control data for a
 particular scheme.
 
