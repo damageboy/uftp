@@ -174,9 +174,9 @@ The private multicast address that the data is transferred to.  One or more part
 Specifies the maximum percentage of NAKs that a client can report for a particular section.  This option works with the -m option, which specifies the number of times a client may exceed this limit before getting dropped.  This allows the server to keep a very slow client from stalling the session for others.  Valid values are 0-100.  Default is 100.
 .TP
 .B \-C cc_type
-Specifies the congestion control mode to use.  Currently supported values are "none" and "tfmcc".  Specifying "none" means data will be sent at a fixed rate as specified by the -R option.  Specifying "tfmcc" will use the TCP Friendly Multicast Congestion Control scheme as specified in RFC 4654.  Normally, TFMCC will limit the rate based strictly on loss, however a maximum rate in Kbps may optionally be specified for TFMCC mode as "tfmcc:max_rate".  Default value is "none".
+Specifies the congestion control mode to use.  Currently supported values are "none" and "tfmcc".  Specifying "none" means data will be sent at a fixed rate as specified by the -R option.  Specifying "tfmcc" will use the TCP Friendly Multicast Congestion Control scheme as specified in RFC 4654.  Normally TFMCC will limit the rate based strictly on loss, however a minimum, maximum, and initial rate in Kbps may each be optionally specified for TFMCC mode as "tfmcc:min=min_rate:init=init_rate:max=max_rate", and any or all of these may be applied and in any order.  Default value is "none".
 
-TFMCC will make use of the Explicit Congestion Notification (ECN) bits in the IP header on systems that support it natively.  Know supported systems are Linux, FreeBSD, Windows XP (sender only), Windows Vista and later (receiver only), and Solaris (sender only).
+TFMCC will make use of the Explicit Congestion Notification (ECN) bits in the IP header on systems that support it natively.  Known supported systems are Linux, FreeBSD, Windows XP (sender only), Windows Vista and later (receiver only), and Solaris (sender only).
 .TP
 .B \-o
 .TP

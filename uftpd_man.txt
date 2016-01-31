@@ -129,7 +129,7 @@ OPTIONS
 	      Specifies the log file.  Default is /tmp/uftpd.log for UNIX-like
 	      systems systems, C:\uftpd_log.txt for Windows.
 
-       -S status_file
+       -F status_file
 	      Prints  easily  parsable	status information to a file.  Setting
 	      this option to @LOG results in status info being mixed with nor‐
 	      mal logging output.
@@ -456,4 +456,4 @@ NOTES
 
 
 
-UFTP 4.7			  16 May 2015			      uftpd(1)
+UFTP 4.8			5 January 2016			      uftpd(1)

@@ -362,14 +362,17 @@ OPTIONS
 	      ported values are "none" and "tfmcc".  Specifying	 "none"	 means
 	      data will be sent at a fixed rate as specified by the -R option.
 	      Specifying "tfmcc" will use the TCP Friendly  Multicast  Conges‐
-	      tion  Control  scheme as specified in RFC 4654.  Normally, TFMCC
-	      will limit the rate based strictly on loss,  however  a  maximum
-	      rate  in	Kbps  may  optionally  be  specified for TFMCC mode as
-	      "tfmcc:max_rate".	 Default value is "none".
+	      tion  Control  scheme  as specified in RFC 4654.	Normally TFMCC
+	      will limit the rate based strictly on loss, however  a  minimum,
+	      maximum,	and initial rate in Kbps may each be optionally speci‐
+	      fied	     for	   TFMCC	    mode	    as
+	      "tfmcc:min=min_rate:init=init_rate:max=max_rate", and any or all
+	      of these may be applied and in  any  order.   Default  value  is
+	      "none".
 
 	      TFMCC will make use  of  the  Explicit  Congestion  Notification
 	      (ECN) bits in the IP header on systems that support it natively.
-	      Know supported systems are Linux, FreeBSD,  Windows  XP  (sender
+	      Known  supported	systems are Linux, FreeBSD, Windows XP (sender
 	      only),  Windows  Vista  and  later  (receiver only), and Solaris
 	      (sender only).
 
@@ -618,4 +621,4 @@ NOTES
 
 
 
-UFTP 4.7			  16 May 2015			       uftp(1)
+UFTP 4.8			5 January 2016			       uftp(1)

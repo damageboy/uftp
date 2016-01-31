@@ -1,9 +1,18 @@
+Version 4.8 - 1/5/2016
+  Added support for initial and minimum rates for TFMCC as well as a max rate.
+    These may be specified as follows:
+      -C tfmcc:min=min_rate:init=init_rate:max=max_rate
+    See the man page for more details.
+  Changed logging level for "invalid message" messages from level 1 to level 4.
+    This should cut down on unnecessary log messages at lower levels.
+  Fixed man page typos.
+
 Version 4.7 - 5/16/2015
   Added group instance ID (i.e. restart number) to all log messages.
   Make sure that the client flushes the disk cache when a session is aborted.
     This wasn't being done previously, resulting in unnecessary retransmissions
     on the subsequent restart session.
-  Proviously, when a client registers via a proxy, the server added that client
+  Previously, when a client registers via a proxy, the server added that client
     to the list of clients serviced by that proxy.  There was a bug that
     allowed a client sending back multiple registers to be added to this list
     multiple times, resulting in a buffer overrun if there are a large number

@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -60,7 +61,8 @@
  */
 SOCKET sock;
 union sockaddr_u listen_dest, receive_dest;
-int max_rate, rate, rcvbuf, packet_wait, txweight, max_nak_pct;
+int max_rate, min_rate, init_rate, rate;
+int rcvbuf, packet_wait, txweight, max_nak_pct;
 int client_auth, quit_on_error, dscp, follow_links, max_nak_cnt;
 int save_fail, restart_groupid, restart_groupinst, files_sent; 
 int sync_mode, sync_preview, dest_is_dir, cc_type, user_abort;
@@ -152,6 +154,8 @@ void set_defaults(void)
     srcport[sizeof(srcport)-1] = '\x0';
     rate = DEF_RATE;
     max_rate = 0;
+    min_rate = 0;
+    init_rate = 0;
     memset(&out_if, 0, sizeof(out_if));
     ttl = DEF_TTL;
     dscp = DEF_DSCP;
@@ -716,12 +720,45 @@ void process_args(int argc, char *argv[])
                 cc_type = CC_TFMCC;
                 p = strtok(NULL, ":");
                 if (p) {
+                    if (isdigit(*p)) {
+                    // For backward compatibility with 4.7 and earlier
                     max_rate = atoi(p);
                     if (max_rate <= 0) {
                         fprintf(stderr,"Invalid max rate\n");
                         exit(ERR_PARAM);
                     }
                     max_rate = max_rate * 1024 / 8;
+                    } else {
+                        do {
+                            char *saveptr, *rtype, *valp;
+                            rtype = strtok_r(p, "=", &saveptr);
+                            if (!rtype) {
+                                fprintf(stderr, "Invalid rate type \n");
+                                exit(ERR_PARAM);
+                            }
+                            valp = strtok_r(NULL, "=", &saveptr);
+                            if (!valp) {
+                                fprintf(stderr, "Invalid rate\n");
+                                exit(ERR_PARAM);
+                            }
+                            tmpval = atoi(valp);
+                            if (tmpval <= 0) {
+                                fprintf(stderr, "Invalid rate\n");
+                                exit(ERR_PARAM);
+                            }
+                            if (!strcmp(rtype, "max")) {
+                                max_rate = tmpval;
+                            } else if (!strcmp(rtype, "min")) {
+                                min_rate = tmpval;
+                            } else if (!strcmp(rtype, "init")) {
+                                init_rate = tmpval;
+                            } else {
+                                fprintf(stderr, "Invalid rate type\n");
+                                exit(ERR_PARAM);
+                            }
+                            p = strtok(NULL, ":");
+                        } while (p);
+                    }
                 }
             } else {
                 // PGMCC not currently supported
@@ -914,6 +951,16 @@ void process_args(int argc, char *argv[])
         strncpy(filelist[filecount], argv[i], sizeof(filelist[0])-1);
         filelist[filecount][sizeof(filelist[0])-1] = '\x0';
         filecount++;
+    }
+    if ((max_rate > 0) && (min_rate > 0) && (max_rate < min_rate)) { 
+        fprintf(stderr, "Invalid rate\n");
+        exit(ERR_PARAM);
+    } else if ((max_rate > 0) && (init_rate > 0) && (max_rate < init_rate)) { 
+        fprintf(stderr, "Invalid rate\n");
+        exit(ERR_PARAM);
+    } else if ((init_rate > 0) && (min_rate > 0) && (init_rate < min_rate)) { 
+        fprintf(stderr, "Invalid rate\n");
+        exit(ERR_PARAM);
     }
 }
 

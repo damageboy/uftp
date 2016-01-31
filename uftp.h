@@ -75,7 +75,7 @@ typedef struct _utimbuf utim_buf;
 #define S_ISREG(mode)   (((mode) & S_IFMT) == S_IFREG)
 #define lseek_func(fd, offset, whence) _lseeki64(fd, offset, whence)
 #define snprintf(buf, cnt, ...) _snprintf(buf, cnt, __VA_ARGS__)
-
+#define strtok_r(str, delim, save) strtok_s(str, delim, save)
 
 typedef int socklen_t;
 #define OPENREAD (O_RDONLY | O_BINARY)
@@ -150,7 +150,7 @@ typedef pthread_t thread_t;
 
 #endif // if WINDOWS
 
-#define VERSIONSTR "UFTP version 4.7  Copyright (C) 2001-2015  Dennis A. Bush"
+#define VERSIONSTR "UFTP version 4.8  Copyright (C) 2001-2016  Dennis A. Bush"
 #define UFTP_VER_NUM 0x40
 
 #define ANNOUNCE      1

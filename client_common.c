@@ -923,8 +923,7 @@ void move_to_backup(struct group_list_t *group)
                    group->start_date, PATH_SEP,
                    group->start_time, PATH_SEP, trim_name);
     if (len >= sizeof(backup_file)) {
-        glog0(group, "Max pathname length exceeded for backup file, deleting",
-                     group->fileinfo.filepath);
+        glog0(group, "Max pathname length exceeded for backup file, deleting");
         clear_path(group->fileinfo.filepath, group);
         return;
     }

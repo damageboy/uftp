@@ -897,7 +897,14 @@ void transfer_receive_thread(struct finfo_t *finfo)
         }
         if (do_halfrate) {
             rate /= 2;
-            if (rate < datapacketsize / grtt) {
+            if ((min_rate > 0) && (rate < min_rate)) {
+                slowstart = 1;
+                if (min_rate < (int)(datapacketsize / grtt)) {
+                    rate = min_rate;
+                } else {
+                    rate = (int)(datapacketsize / grtt);
+                }
+            } else if (rate < (int)(datapacketsize / grtt)) {
                 slowstart = 1;
                 rate = (int)(datapacketsize / grtt);
             }
@@ -929,7 +936,16 @@ void transfer_receive_thread(struct finfo_t *finfo)
             }
             l_adv_grtt = adv_grtt;
             glog5(finfo, "adv_grtt=%.3f", l_adv_grtt);
-            if (rate < datapacketsize / grtt) {
+            if ((min_rate > 0) && (rate < min_rate)) {
+                slowstart = 1;
+                if (min_rate < (int)(datapacketsize / grtt)) {
+                    rate = min_rate;
+                } else {
+                    rate = (int)(datapacketsize / grtt);
+                }
+                packet_wait = (int32_t)(1000000.0 * datapacketsize / rate);
+                rate_change = 1;
+            } else if (rate < (int)(datapacketsize / grtt)) {
                 slowstart = 1;
                 rate = (int)(datapacketsize / grtt);
                 packet_wait = (int32_t)(1000000.0 * datapacketsize / rate);
@@ -1104,8 +1120,12 @@ int transfer_phase(struct finfo_t *finfo)
     rate_change = 0;
     end_of_pass = 0;
     if (cc_type == CC_TFMCC) {
+        if (init_rate > 0) {
+            rate = init_rate;
+        } else {
         // Initialize rate to 1 packet per GRTT
         rate = (int32_t)(((double)datapacketsize / grtt));
+        }
         packet_wait = (int32_t)(1000000.0 * datapacketsize / rate);
         adv_grtt = (double)datapacketsize / rate;
         if (adv_grtt < grtt) {

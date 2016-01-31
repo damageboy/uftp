@@ -234,17 +234,17 @@ int validate_packet(const unsigned char *packet, int len,
 
     header = (const struct uftp_h *)packet;
     if (header->version != UFTP_VER_NUM) {
-        glog1(finfo, "Invalid version %02X", header->version);
+        glog4(finfo, "Invalid version %02X", header->version);
         return 0;
     }
     if (header->func == ENCRYPTED) {
         if (len < sizeof(struct uftp_h) + sizeof(struct encrypted_h)) {
-            glog1(finfo, "Invalid packet size %d", len);
+            glog4(finfo, "Invalid packet size %d", len);
             return 0;
         }
     } else {
         if (len < sizeof(struct uftp_h) + 4) {
-            glog1(finfo, "Invalid packet size %d", len);
+            glog4(finfo, "Invalid packet size %d", len);
             return 0;
         }
     }

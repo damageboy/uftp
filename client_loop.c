@@ -257,12 +257,12 @@ void mainloop(void)
             version = header->version;
             group = find_group(ntohl(header->group_id), header->group_inst);
         } else {
-            log1(0, 0, 0, "Invalid message from %s: not uftp packet "
+            log4(0, 0, 0, "Invalid message from %s: not uftp packet "
                           "or invalid version", rxname);
             continue;
         }
         if (packetlen < sizeof(struct uftp_h) + 4) {
-            log1(0, 0, 0, "Invalid packet size from %s: %d", rxname, packetlen);
+            log4(0, 0, 0, "Invalid packet size from %s: %d", rxname, packetlen);
             continue;
         }
 
